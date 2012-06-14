@@ -1,0 +1,5 @@
+*.sqlite3
+*.o
+sametest
+test
+skipfish

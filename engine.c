@@ -1,0 +1,261 @@
+#include <gmp.h>
+#include <string.h>
+#include "uthash.h"
+#include "utlist.h"
+#include "http_client.h"
+#include "db.h"
+#include "engine.h"
+#include "bayes.h"
+
+static struct target *targets=NULL;
+
+
+struct target *target_by_host(u8 *host){
+  struct target *t;
+  HASH_FIND_STR(targets, (char *) host, t);
+  return t;
+}
+
+void add_feature_label_to_target(const char *label, struct target *t){
+  struct feature_node *fn;
+  DL_FOREACH(t->features, fn){
+    if(!strcasecmp(fn->data->label, label)){
+      return;
+    }
+  }
+  fn=(struct feature_node *) malloc(sizeof(struct feature_node));
+  fn->data=find_or_create_feature_by_label(label);
+  DL_APPEND(t->features,fn);
+}
+
+void process_features(struct http_response *rep, struct target *t){
+  unsigned char *server=GET_HDR((unsigned char *) "server",&rep->hdr);
+  char *label;
+  int i;
+  if(!server){
+    return;
+  }
+  server=(unsigned char *) strdup((char *) server);
+  for(i=0;server[i];i++){
+    if(server[i]<'A' || server[i]>'z'){
+      server[i]=' ';
+    }
+  }
+  label=strtok((char *) server," ");
+  while(label!=NULL){
+    label=strtok(NULL," ");
+    if(strlen((char *) label)>2){
+      add_feature_label_to_target(label, t);
+    }
+  }
+  free(server);
+}
+
+u8 process_test_result(struct http_request *req, struct http_response *rep){
+  int code=rep->code;
+  struct url_test *test;
+  struct feature_node *f;
+  struct feature_test_result *ftr;
+  HASH_FIND_INT(get_tests(), &req->user_val, test ); 
+  if(is_404(rep,req->t)){
+    code=404;
+  }
+  test->count++;
+  test->dirty=1;
+  switch(code){
+    case 404:
+      break;
+    case 301:
+      test->code_301++;
+      break;
+    case 302:
+      test->code_302++;
+      break;
+    case 500:
+      test->code_500++;
+      break;
+    case 401:
+      test->code_401++;
+      break;
+    case 403:
+      test->code_403++;
+    case 200:
+      test->code_200++;
+    default:
+      test->code_other++;
+  }
+  DL_FOREACH(req->t->features,f) {
+    ftr=find_or_create_ftr(test->id,f->data->id);
+    ftr->count++;
+    ftr->dirty=1;
+
+    switch(code){
+      case 404:
+        break;
+      case 301:
+        ftr->code_301++;
+        break;
+      case 302:
+        ftr->code_302++;
+        break;
+      case 500:
+        ftr->code_500++;
+        break;
+      case 401:
+        ftr->code_401++;
+        break;
+      case 403:
+        ftr->code_403++;
+      case 200:
+        ftr->code_200++;
+      default:
+        ftr->code_other++;
+    }
+  }
+  return 0;
+}
+
+int is_404(struct http_response *rep, struct target *t){
+  if(rep->code==404){
+    return 1;
+  }
+  if(t->fourohfour_detect_mode==DETECT_404_LOCATION && !strcasecmp((char *) t->fourohfour_location,(char *) GET_HDR((unsigned char *) "location", &rep->hdr))){
+    return 1;
+  }
+  return 0;
+}
+
+void add_target(u8 *host){
+  u32 cur_pos;
+  u8 *url;
+  struct target *t=(struct target *) calloc(sizeof(struct target),1);
+  struct http_request *first=(struct http_request *) malloc(sizeof(struct http_request));
+  t->host=host;
+  t->fourohfour_response_count=0;
+  t->fourohfour_detect_mode=DETECT_404_NONE;
+  t->features=NULL;
+  t->test_scores=NULL;
+  HASH_ADD_KEYPTR( hh, targets, t->host, strlen((char *) t->host), t );
+  NEW_STR(url,cur_pos);
+  ADD_STR_DATA(url,cur_pos,(unsigned char *) "http://");
+  ADD_STR_DATA(url,cur_pos,host);
+  ADD_STR_DATA(url,cur_pos,"/");
+  parse_url(url,first,NULL);
+  t->prototype_request=first;
+  first->callback=process_first_page;
+  first->t=t;
+  async_request(first);
+  free(url); 
+}
+
+void gen_random(unsigned char *s, const int len) {
+  int i;
+  static const char alphanum[] =
+    "0123456789"
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    "abcdefghijklmnopqrstuvwxyz";
+
+  for (i = 0; i < len; ++i) {
+    s[i] = alphanum[rand() % (sizeof(alphanum) - 1)];
+  }
+
+  s[len] = 0;
+}
+
+
+unsigned char process_first_page(struct http_request *req, struct http_response *rep){
+  int i;
+  process_features(rep,req->t);
+  for(i=0;i<MAX_404_QUERIES;i++){
+    enqueue_random_request(req);
+  }
+  return 0;
+}
+
+int process_404_responses(struct target *t){
+  int i;
+  int mode;
+  struct http_response *first=t->fourohfour_responses[0];
+  struct http_response *next;
+  mode=DETECT_404_NONE;
+  if(first->code==404){
+    mode=DETECT_404_CODE;
+  }
+  if((t->fourohfour_location=(unsigned char *) GET_HDR((unsigned char *) "location",&first->hdr))){
+    mode=DETECT_404_LOCATION;
+  }
+  for(i=1;i<MAX_404_QUERIES;i++){
+    next=t->fourohfour_responses[i];
+    switch(mode){
+      case DETECT_404_CODE:
+        if(next->code!=404){
+          return 0;
+        }
+        break;
+      case DETECT_404_LOCATION:
+        if(strcasecmp((char *) t->fourohfour_location,(char *) GET_HDR((unsigned char *) "location", &next->hdr))){
+          return 0;
+        }
+        break;
+    }
+  }
+  if(mode==DETECT_404_NONE){
+    return 0;
+  }
+  t->fourohfour_detect_mode=mode;
+  return 1;
+}
+
+int score_sort(struct test_score *lhs, struct test_score *rhs){
+  if (lhs->score > rhs->score) return -1;
+  else if (lhs->score < rhs->score) return 1;
+  return 0;
+}
+
+void enqueue_tests(struct target *t){
+  struct url_test *test;
+  struct test_score *score;
+  struct http_request *request;
+  for(test=get_tests();test!=NULL;test=test->hh.next){
+    score=calloc(sizeof(struct test_score),1);
+    score->test=test;
+    score->score=get_test_probability(test,t);
+    LL_PREPEND(t->test_scores,score); 
+  }
+  LL_SORT(t->test_scores,score_sort);
+  LL_FOREACH(t->test_scores,score) {
+     request=req_copy(t->prototype_request,0);
+     request->method=(unsigned char *) strdup("HEAD");
+     tokenize_path((unsigned char *) score->test->url, request, 0);
+     request->t=t;
+     request->user_val=score->test->id;
+     request->callback=process_test_result;
+     async_request(request);
+  }
+}
+
+u8 process_random_request(struct http_request *req, struct http_response *rep){
+  int detected_404;
+  struct target *t=req->t;
+  t->fourohfour_responses[t->fourohfour_response_count]=rep;
+  t->fourohfour_response_count++;
+  if(t->fourohfour_response_count>=MAX_404_QUERIES){
+    detected_404=process_404_responses(t);
+    if(detected_404){
+      enqueue_tests(t);
+    }
+  }
+  return 0;
+}
+
+void enqueue_random_request(struct http_request *orig){
+  struct http_request *random_req=req_copy(orig,0);
+  u8 random[18];
+  random_req->callback=process_random_request;
+  random_req->method=(unsigned char *) strdup("HEAD");
+  random[0]='/';
+  gen_random(&random[1],16);
+  tokenize_path(random,random_req,0);
+  random_req->t=orig->t;
+  async_request(random_req);
+}
