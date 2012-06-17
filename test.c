@@ -46,6 +46,7 @@ u32 __AD_trk_cnt[ALLOC_BUCKETS];
 #endif /* DEBUG_ALLOCATOR */
 
 #define MODE_DB_ADD 1
+#define MODE_ATTACK 2
 
 /* Ctrl-C handler... */
 
@@ -61,9 +62,34 @@ u8 print_body(struct http_request *req, struct http_response *rep){
 }
 /* Main entry point */
 
+void do_scan(){
+
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  u64 st_time, en_time;
+  
+  st_time = tv.tv_sec * 1000LL + tv.tv_usec / 1000;
+  while ((next_from_queue() && !stop_soon)) {
+
+    u8 keybuf[8];
+
+    u64 end_time;
+    u64 run_time;
+    struct timeval tv_tmp;
+
+    gettimeofday(&tv_tmp, NULL);
+    end_time = tv_tmp.tv_sec * 1000LL + tv_tmp.tv_usec / 1000;
+
+    run_time = end_time - st_time;
+
+    req_sec = (req_count - queue_cur / 1.15) * 1000 / (run_time + 1);
+  }
+
+}
+
 void parse_opts(int argc, char** argv){
   int longIndex;
-  int mode=-1;
+  int mode=MODE_ATTACK;
   int i;
   unsigned int f;
   char *url=NULL;
@@ -78,8 +104,11 @@ void parse_opts(int argc, char** argv){
     { 0,    0,    0,    0   }       /* terminating -0 item */
   };
   int opt;
-  while((opt=getopt_long( argc, argv, "Au:d:f:", long_options, &longIndex ))!=-1){
+  while((opt=getopt_long( argc, argv, "-Au:d:f:", long_options, &longIndex ))!=-1){
     switch(opt){
+      case 1:
+        add_target(optarg);
+        break;
       case 'A':
         mode=MODE_DB_ADD;
         break;
@@ -115,6 +144,9 @@ void parse_opts(int argc, char** argv){
   switch(mode){
     case MODE_DB_ADD:
       add_or_update_url(url, description, flags);
+      exit(0);
+    case MODE_ATTACK:
+      do_scan();
       exit(0);
   }
 
@@ -159,25 +191,6 @@ int main(int argc, char** argv) {
   async_request(req);
 
 
-  while ((next_from_queue() && !stop_soon) || (!show_once++)) {
-
-    u8 keybuf[8];
-
-    u64 end_time;
-    u64 run_time;
-    struct timeval tv_tmp;
-
-    gettimeofday(&tv_tmp, NULL);
-    end_time = tv_tmp.tv_sec * 1000LL + tv_tmp.tv_usec / 1000;
-
-    run_time = end_time - st_time;
-    if (gtimeout > 0 && run_time && run_time/1000 > gtimeout) {
-      DEBUG("* Stopping scan due to timeout\n");
-      stop_soon = 1;
-    }
-
-    req_sec = (req_count - queue_cur / 1.15) * 1000 / (run_time + 1);
-  }
   fflush(0);
 
   EVP_cleanup();

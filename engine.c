@@ -23,7 +23,7 @@ void add_feature_label_to_target(const char *label, struct target *t){
       return;
     }
   }
-  fn=(struct feature_node *) malloc(sizeof(struct feature_node));
+  fn=(struct feature_node *) ck_alloc(sizeof(struct feature_node));
   fn->data=find_or_create_feature_by_label(label);
   DL_APPEND(t->features,fn);
 }
@@ -43,10 +43,10 @@ void process_features(struct http_response *rep, struct target *t){
   }
   label=strtok((char *) server," ");
   while(label!=NULL){
-    label=strtok(NULL," ");
     if(strlen((char *) label)>2){
       add_feature_label_to_target(label, t);
     }
+    label=strtok(NULL," ");
   }
   free(server);
 }
@@ -128,8 +128,8 @@ int is_404(struct http_response *rep, struct target *t){
 void add_target(u8 *host){
   u32 cur_pos;
   u8 *url;
-  struct target *t=(struct target *) calloc(sizeof(struct target),1);
-  struct http_request *first=(struct http_request *) malloc(sizeof(struct http_request));
+  struct target *t=(struct target *) ck_alloc(sizeof(struct target));
+  struct http_request *first=(struct http_request *) ck_alloc(sizeof(struct http_request));
   t->host=host;
   t->fourohfour_response_count=0;
   t->fourohfour_detect_mode=DETECT_404_NONE;
@@ -141,11 +141,11 @@ void add_target(u8 *host){
   ADD_STR_DATA(url,cur_pos,host);
   ADD_STR_DATA(url,cur_pos,"/");
   parse_url(url,first,NULL);
-  t->prototype_request=first;
+  t->prototype_request=ck_alloc(sizeof(struct http_request));
+  memcpy(t->prototype_request,first,sizeof(first));
   first->callback=process_first_page;
   first->t=t;
   async_request(first);
-  free(url); 
 }
 
 void gen_random(unsigned char *s, const int len) {
@@ -216,8 +216,9 @@ void enqueue_tests(struct target *t){
   struct url_test *test;
   struct test_score *score;
   struct http_request *request;
+  unsigned char *url_cpy;
   for(test=get_tests();test!=NULL;test=test->hh.next){
-    score=calloc(sizeof(struct test_score),1);
+    score=ck_alloc(sizeof(struct test_score));
     score->test=test;
     score->score=get_test_probability(test,t);
     LL_PREPEND(t->test_scores,score); 
@@ -225,8 +226,12 @@ void enqueue_tests(struct target *t){
   LL_SORT(t->test_scores,score_sort);
   LL_FOREACH(t->test_scores,score) {
      request=req_copy(t->prototype_request,0);
-     request->method=(unsigned char *) strdup("HEAD");
-     tokenize_path((unsigned char *) score->test->url, request, 0);
+
+     request->method=(unsigned char *) ck_alloc(5);
+     memcpy(request->method,"HEAD",5);
+     url_cpy=ck_alloc(strlen(score->test->url)+1);
+     memcpy(url_cpy,score->test->url,strlen(score->test->url)+1);
+     tokenize_path(url_cpy, request, 0);
      request->t=t;
      request->user_val=score->test->id;
      request->callback=process_test_result;
@@ -250,9 +255,10 @@ u8 process_random_request(struct http_request *req, struct http_response *rep){
 
 void enqueue_random_request(struct http_request *orig){
   struct http_request *random_req=req_copy(orig,0);
-  u8 random[18];
+  u8 *random=ck_alloc(18);
   random_req->callback=process_random_request;
-  random_req->method=(unsigned char *) strdup("HEAD");
+  random_req->method=(unsigned char *) ck_alloc(5);
+  memcpy(random_req->method,"HEAD",5);
   random[0]='/';
   gen_random(&random[1],16);
   tokenize_path(random,random_req,0);

@@ -88,7 +88,7 @@ struct feature *find_or_create_feature_by_label(const char *label){
     return result;
   }
 
-  result=calloc(1,sizeof(struct feature));
+  result=ck_alloc(sizeof(struct feature));
   result->id=-1;
   result->label=l_label;
   result->dirty=1;
@@ -234,7 +234,7 @@ void save_url_test(struct url_test *f){
 struct feature_test_result *find_or_create_ftr(int url_test_id, int feature_id){
   struct feature_test_result *result;
   int keylen = offsetof(struct feature_test_result, feature_id) + sizeof(int) - offsetof(struct feature_test_result, url_test_id);
-  struct ftr_lookup_key *lookup_key=calloc(sizeof(struct ftr_lookup_key),1);
+  struct ftr_lookup_key *lookup_key=ck_alloc(sizeof(struct ftr_lookup_key));
   lookup_key->url_test_id=url_test_id;
   lookup_key->feature_id=feature_id;
   HASH_FIND(hh, result_map, &lookup_key->url_test_id, keylen, result);
@@ -242,7 +242,7 @@ struct feature_test_result *find_or_create_ftr(int url_test_id, int feature_id){
   if(result!=NULL){
     return result;
   }
-  result=calloc(1,sizeof(struct feature_test_result));
+  result=ck_alloc(sizeof(struct feature_test_result));
   result->url_test_id=url_test_id;
   result->feature_id=feature_id;
   result->id=-1;
@@ -273,7 +273,7 @@ int load_features(){
 
 int load_feature(){
   struct feature *feat;
-  feat=calloc(1,sizeof(struct feature));
+  feat=ck_alloc(sizeof(struct feature));
   feat->id=sqlite3_column_int(get_tests_stmt,0);
   feat->label=(char *) strdup((const char *) sqlite3_column_text(get_tests_stmt,1));
   feat->count=sqlite3_column_int(get_tests_stmt,2);
@@ -284,7 +284,7 @@ int load_feature(){
 int load_ftr(){
   struct feature_test_result *result;
   int keylen;
-  result=calloc(1,sizeof(struct feature_test_result));
+  result=ck_alloc(sizeof(struct feature_test_result));
   
   result->id=sqlite3_column_int(get_tests_stmt,0);
   result->url_test_id=sqlite3_column_int(get_tests_stmt,1);
@@ -306,7 +306,7 @@ int load_ftr(){
 struct url_test *load_test(sqlite3_stmt *stmt){
     struct url_test *test;
     printf("load test\n");
-    test=calloc(1, sizeof(struct url_test));
+    test=ck_alloc(sizeof(struct url_test));
     test->id=sqlite3_column_int(stmt,0);
     printf("url\n");
     test->url=(char *) strdup((const char *) sqlite3_column_text(stmt,1));
@@ -334,7 +334,7 @@ void add_or_update_url(char *url, char *description, unsigned int flags){
     test=load_test(get_test_by_url_stmt);
   }
   else{
-    test=calloc(sizeof(struct url_test),1);
+    test=ck_alloc(sizeof(struct url_test));
     test->dirty=1;
     test->id=-1;
   }
