@@ -85,7 +85,7 @@ void do_scan(){
     run_time = end_time - st_time;
 
     req_sec = (req_count - queue_cur / 1.15) * 1000 / (run_time + 1);
-    http_req_list();
+    //  http_stats(st_time);
   }
   save_all();
 

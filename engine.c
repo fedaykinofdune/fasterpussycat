@@ -81,10 +81,15 @@ u8 process_test_result(struct http_request *req, struct http_response *rep){
       break;
     case 403:
       test->code_403++;
+      break;
     case 200:
       test->code_200++;
+      break;
     default:
       test->code_other++;
+  }
+  if(code!=404){
+      printf("CODE: %d http://%s%s\n",code,req->t->host,test->url);
   }
   DL_FOREACH(req->t->features,f) {
     ftr=find_or_create_ftr(test->id,f->data->id);
@@ -118,11 +123,18 @@ u8 process_test_result(struct http_request *req, struct http_response *rep){
 }
 
 int is_404(struct http_response *rep, struct target *t){
-  if(rep->code==404){
+  unsigned char *loc;
+  if(rep->code==404 || rep->code==0){
     return 1;
   }
-  if(t->fourohfour_detect_mode==DETECT_404_LOCATION && !strcasecmp((char *) t->fourohfour_location,(char *) GET_HDR((unsigned char *) "location", &rep->hdr))){
-    return 1;
+  if(t->fourohfour_detect_mode==DETECT_404_LOCATION){
+    loc=GET_HDR((unsigned char *) "location", &rep->hdr);
+    if(loc){
+      printf("LOC '%s' '%s'\n",t->fourohfour_location,loc);
+    }
+    if(loc && !strcasecmp((char *) t->fourohfour_location,(char *) loc)){
+      return 1;
+    }
   }
   return 0;
 }
