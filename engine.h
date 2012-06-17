@@ -21,7 +21,6 @@ struct test_score {
 
 struct target {
   unsigned char *host;
-  struct http_response *fourohfour_responses[MAX_404_QUERIES];
   unsigned char fourohfour_response_count;
   unsigned char fourohfour_detect_mode;
   unsigned char *fourohfour_location;

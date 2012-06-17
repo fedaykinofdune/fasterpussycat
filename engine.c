@@ -25,6 +25,8 @@ void add_feature_label_to_target(const char *label, struct target *t){
   }
   fn=(struct feature_node *) ck_alloc(sizeof(struct feature_node));
   fn->data=find_or_create_feature_by_label(label);
+  fn->data->count++;
+  fn->data->dirty=1;
   DL_APPEND(t->features,fn);
 }
 
@@ -141,8 +143,8 @@ void add_target(u8 *host){
   ADD_STR_DATA(url,cur_pos,host);
   ADD_STR_DATA(url,cur_pos,"/");
   parse_url(url,first,NULL);
-  t->prototype_request=ck_alloc(sizeof(struct http_request));
-  memcpy(t->prototype_request,first,sizeof(first));
+  t->prototype_request=req_copy(first,0);
+
   first->callback=process_first_page;
   first->t=t;
   async_request(first);
@@ -166,43 +168,50 @@ void gen_random(unsigned char *s, const int len) {
 unsigned char process_first_page(struct http_request *req, struct http_response *rep){
   int i;
   process_features(rep,req->t);
+  printf("code now %d\n",rep->code);
   for(i=0;i<MAX_404_QUERIES;i++){
     enqueue_random_request(req);
   }
   return 0;
 }
 
-int process_404_responses(struct target *t){
+int process_404(struct http_response *rep, struct target *t){
   int i;
   int mode;
-  struct http_response *first=t->fourohfour_responses[0];
-  struct http_response *next;
-  mode=DETECT_404_NONE;
-  if(first->code==404){
-    mode=DETECT_404_CODE;
+  unsigned char *loc;
+  if(t->fourohfour_response_count==1){
+    if(rep->code==404){
+      t->fourohfour_detect_mode=DETECT_404_CODE;
+
+      printf("detect 404\n");
+      return 1;
+    }
+    else {
+      loc=(unsigned char *) GET_HDR((unsigned char *) "location",&rep->hdr);
+      if(loc){
+        printf("detect loc\n");
+        t->fourohfour_location=strdup(loc);
+        t->fourohfour_detect_mode=DETECT_404_LOCATION;
+      }
+      return 1;
+    }
+    return 0;
   }
-  if((t->fourohfour_location=(unsigned char *) GET_HDR((unsigned char *) "location",&first->hdr))){
-    mode=DETECT_404_LOCATION;
-  }
-  for(i=1;i<MAX_404_QUERIES;i++){
-    next=t->fourohfour_responses[i];
-    switch(mode){
+  switch(t->fourohfour_detect_mode){
+      case DETECT_404_NONE:
+        return 0;
+        break;
       case DETECT_404_CODE:
-        if(next->code!=404){
+        if(rep->code!=404){
           return 0;
         }
         break;
       case DETECT_404_LOCATION:
-        if(strcasecmp((char *) t->fourohfour_location,(char *) GET_HDR((unsigned char *) "location", &next->hdr))){
+        if(strcasecmp((char *) t->fourohfour_location,(char *) GET_HDR((unsigned char *) "location", &rep->hdr))){
           return 0;
         }
         break;
-    }
   }
-  if(mode==DETECT_404_NONE){
-    return 0;
-  }
-  t->fourohfour_detect_mode=mode;
   return 1;
 }
 
@@ -226,7 +235,6 @@ void enqueue_tests(struct target *t){
   LL_SORT(t->test_scores,score_sort);
   LL_FOREACH(t->test_scores,score) {
      request=req_copy(t->prototype_request,0);
-
      request->method=(unsigned char *) ck_alloc(5);
      memcpy(request->method,"HEAD",5);
      url_cpy=ck_alloc(strlen(score->test->url)+1);
@@ -240,15 +248,15 @@ void enqueue_tests(struct target *t){
 }
 
 u8 process_random_request(struct http_request *req, struct http_response *rep){
-  int detected_404;
   struct target *t=req->t;
-  t->fourohfour_responses[t->fourohfour_response_count]=rep;
   t->fourohfour_response_count++;
-  if(t->fourohfour_response_count>=MAX_404_QUERIES){
-    detected_404=process_404_responses(t);
-    if(detected_404){
-      enqueue_tests(t);
-    }
+  printf("code %d\n", rep->code);
+  if(!process_404(rep,t)){
+    t->fourohfour_detect_mode=DETECT_404_NONE;
+    return 0;
+  }
+  if(t->fourohfour_response_count>=MAX_404_QUERIES && t->fourohfour_detect_mode!=DETECT_404_NONE){
+    enqueue_tests(t);
   }
   return 0;
 }
@@ -257,8 +265,11 @@ void enqueue_random_request(struct http_request *orig){
   struct http_request *random_req=req_copy(orig,0);
   u8 *random=ck_alloc(18);
   random_req->callback=process_random_request;
+  printf("method 1 %s",random_req->method);
   random_req->method=(unsigned char *) ck_alloc(5);
   memcpy(random_req->method,"HEAD",5);
+  
+  printf("method 2 %s",random_req->method);
   random[0]='/';
   gen_random(&random[1],16);
   tokenize_path(random,random_req,0);

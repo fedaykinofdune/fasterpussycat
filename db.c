@@ -92,6 +92,7 @@ struct feature *find_or_create_feature_by_label(const char *label){
   result->id=-1;
   result->label=l_label;
   result->dirty=1;
+  save_feature(result);
   HASH_ADD_KEYPTR( hh, feature_map, result->label, strlen(result->label), result);
   return result; 
 }
@@ -124,7 +125,7 @@ void save_all(){
   struct feature *feature_iter; 
   struct url_test *url_test_iter;
   struct feature_test_result *ftr_iter;
-
+  sqlite3_exec(db, "BEGIN", 0, 0, 0);
 
   for(feature_iter=feature_map; feature_iter!=NULL; feature_iter=feature_iter->hh.next){
     if(feature_iter->dirty){
@@ -143,6 +144,7 @@ void save_all(){
       save_ftr(ftr_iter);
     }
   }
+ sqlite3_exec(db, "COMMIT", 0, 0, 0);
 }
 
 
@@ -238,7 +240,7 @@ struct feature_test_result *find_or_create_ftr(int url_test_id, int feature_id){
   lookup_key->url_test_id=url_test_id;
   lookup_key->feature_id=feature_id;
   HASH_FIND(hh, result_map, &lookup_key->url_test_id, keylen, result);
-  free(lookup_key);
+  ck_free(lookup_key);
   if(result!=NULL){
     return result;
   }
@@ -274,10 +276,11 @@ int load_features(){
 int load_feature(){
   struct feature *feat;
   feat=ck_alloc(sizeof(struct feature));
-  feat->id=sqlite3_column_int(get_tests_stmt,0);
-  feat->label=(char *) strdup((const char *) sqlite3_column_text(get_tests_stmt,1));
-  feat->count=sqlite3_column_int(get_tests_stmt,2);
+  feat->id=sqlite3_column_int(get_features_stmt,0);
+  feat->label=(char *) strdup((const char *) sqlite3_column_text(get_features_stmt,1));
+  feat->count=sqlite3_column_int(get_features_stmt,2);
   HASH_ADD_KEYPTR( hh, feature_map, feat->label, strlen(feat->label), feat );
+  load_ftr_by_feature_id(feat->id);
   return 0;
 }
 
@@ -286,17 +289,17 @@ int load_ftr(){
   int keylen;
   result=ck_alloc(sizeof(struct feature_test_result));
   
-  result->id=sqlite3_column_int(get_tests_stmt,0);
-  result->url_test_id=sqlite3_column_int(get_tests_stmt,1);
-  result->feature_id=sqlite3_column_int(get_tests_stmt,2);
-  result->code_200=sqlite3_column_int(get_tests_stmt,3);
-  result->code_301=sqlite3_column_int(get_tests_stmt,4);
-  result->code_302=sqlite3_column_int(get_tests_stmt,5);
-  result->code_401=sqlite3_column_int(get_tests_stmt,6);
-  result->code_403=sqlite3_column_int(get_tests_stmt,7);
-  result->code_500=sqlite3_column_int(get_tests_stmt,8);
-  result->code_other=sqlite3_column_int(get_tests_stmt,9);
-  result->count=sqlite3_column_int(get_tests_stmt,10);
+  result->id=sqlite3_column_int(get_ftr_by_feature_stmt,0);
+  result->url_test_id=sqlite3_column_int(get_ftr_by_feature_stmt,1);
+  result->feature_id=sqlite3_column_int(get_ftr_by_feature_stmt,2);
+  result->code_200=sqlite3_column_int(get_ftr_by_feature_stmt,3);
+  result->code_301=sqlite3_column_int(get_ftr_by_feature_stmt,4);
+  result->code_302=sqlite3_column_int(get_ftr_by_feature_stmt,5);
+  result->code_401=sqlite3_column_int(get_ftr_by_feature_stmt,6);
+  result->code_403=sqlite3_column_int(get_ftr_by_feature_stmt,7);
+  result->code_500=sqlite3_column_int(get_ftr_by_feature_stmt,8);
+  result->code_other=sqlite3_column_int(get_ftr_by_feature_stmt,9);
+  result->count=sqlite3_column_int(get_ftr_by_feature_stmt,10);
   keylen =   offsetof(struct feature_test_result, feature_id) + sizeof(int) - offsetof(struct feature_test_result, url_test_id);
   HASH_ADD( hh, result_map, url_test_id, keylen, result);
   return 0;

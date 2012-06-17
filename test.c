@@ -63,7 +63,9 @@ u8 print_body(struct http_request *req, struct http_response *rep){
 /* Main entry point */
 
 void do_scan(){
-
+  load_features();
+  load_tests();
+  setup_bayes();
   struct timeval tv;
   gettimeofday(&tv, NULL);
   u64 st_time, en_time;
@@ -83,7 +85,10 @@ void do_scan(){
     run_time = end_time - st_time;
 
     req_sec = (req_count - queue_cur / 1.15) * 1000 / (run_time + 1);
+    http_req_list();
   }
+  save_all();
+
 
 }
 

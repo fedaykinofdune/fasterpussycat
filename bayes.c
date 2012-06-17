@@ -1,5 +1,6 @@
 #include "utlist.h"
 #include <gmp.h>
+#include "http_client.h"
 #include "db.h"
 #include "engine.h"
 
