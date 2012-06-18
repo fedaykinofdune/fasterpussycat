@@ -69,7 +69,7 @@ void do_scan(){
   struct timeval tv;
   gettimeofday(&tv, NULL);
   u64 st_time, en_time;
-  
+  long c=0; 
   st_time = tv.tv_sec * 1000LL + tv.tv_usec / 1000;
   while ((next_from_queue() && !stop_soon)) {
 
@@ -85,7 +85,10 @@ void do_scan(){
     run_time = end_time - st_time;
 
     req_sec = (req_count - queue_cur / 1.15) * 1000 / (run_time + 1);
-    //  http_stats(st_time);
+    if((c % 256)==0){ 
+      http_stats(st_time);
+    }
+    c++;
   }
   save_all();
 
