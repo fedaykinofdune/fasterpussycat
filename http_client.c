@@ -2630,7 +2630,7 @@ void http_req_list(void) {
 
   SAY(cLBL "In-flight requests (max 15 shown):\n\n");
 
-  for (i=0;i<50;i++) {
+  for (i=0;i<30;i++) {
 
     SAY("  " cGRA "[" cBLU "%02d" cGRA "] " cBRI, i + 1);
 

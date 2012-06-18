@@ -136,6 +136,8 @@ void parse_opts(int argc, char** argv){
             case 'd':
               flags|=F_DIRECTORY;
               break;
+            case 'g':
+              flags|=F_CGI;
             default:
               fprintf (stderr, "Unknown flag: '%c'",f ); 
               exit(1);

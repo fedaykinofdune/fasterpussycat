@@ -130,7 +130,6 @@ int is_404(struct http_response *rep, struct target *t){
   if(t->fourohfour_detect_mode==DETECT_404_LOCATION){
     loc=GET_HDR((unsigned char *) "location", &rep->hdr);
     if(loc){
-      printf("LOC '%s' '%s'\n",t->fourohfour_location,loc);
     }
     if(loc && !strcasecmp((char *) t->fourohfour_location,(char *) loc)){
       return 1;
@@ -165,8 +164,6 @@ void add_target(u8 *host){
 void gen_random(unsigned char *s, const int len) {
   int i;
   static const char alphanum[] =
-    "0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     "abcdefghijklmnopqrstuvwxyz";
 
   for (i = 0; i < len; ++i) {
@@ -182,7 +179,7 @@ unsigned char process_first_page(struct http_request *req, struct http_response 
   process_features(rep,req->t);
   printf("code now %d\n",rep->code);
   for(i=0;i<MAX_404_QUERIES;i++){
-    enqueue_random_request(req);
+    enqueue_random_request(req,(i==0),(i==1),0);
   }
   return 0;
 }
@@ -219,6 +216,9 @@ int process_404(struct http_response *rep, struct target *t){
         }
         break;
       case DETECT_404_LOCATION:
+        if(GET_HDR((unsigned char *) "location", &rep->hdr)==NULL){
+          return 0;
+        }
         if(strcasecmp((char *) t->fourohfour_location,(char *) GET_HDR((unsigned char *) "location", &rep->hdr))){
           return 0;
         }
@@ -239,6 +239,9 @@ void enqueue_tests(struct target *t){
   struct http_request *request;
   unsigned char *url_cpy;
   for(test=get_tests();test!=NULL;test=test->hh.next){
+    if(t->skip_dir && (test->flags && F_DIRECTORY)){
+      continue;
+    }
     score=ck_alloc(sizeof(struct test_score));
     score->test=test;
     score->score=get_test_probability(test,t);
@@ -246,6 +249,7 @@ void enqueue_tests(struct target *t){
   }
   LL_SORT(t->test_scores,score_sort);
   LL_FOREACH(t->test_scores,score) {
+     printf("enqueue http://%s%s score: %f\n",t->host,score->test->url,score->score);
      request=req_copy(t->prototype_request,0);
      request->method=(unsigned char *) ck_alloc(5);
      memcpy(request->method,"HEAD",5);
@@ -259,24 +263,44 @@ void enqueue_tests(struct target *t){
   }
 }
 
+
+
+u8 process_dir_request(struct http_request *req, struct http_response *rep){
+  struct target *t=req->t;
+  if(!process_404(rep,t)){
+    printf("FAILED DIR DETECT %s\n",t->host);
+    t->skip_dir=1;
+  }
+  enqueue_tests(t);
+  
+  return 0;
+}
+
+
 u8 process_random_request(struct http_request *req, struct http_response *rep){
   struct target *t=req->t;
   t->fourohfour_response_count++;
   printf("code %d\n", rep->code);
   if(!process_404(rep,t)){
+    printf("FAILED 404 DETECT %s\n",t->host);
     t->fourohfour_detect_mode=DETECT_404_NONE;
     return 0;
   }
   if(t->fourohfour_response_count>=MAX_404_QUERIES && t->fourohfour_detect_mode!=DETECT_404_NONE){
-    enqueue_tests(t);
+    enqueue_random_request(req,0,0,1);
   }
   return 0;
 }
 
-void enqueue_random_request(struct http_request *orig){
+void enqueue_random_request(struct http_request *orig, int slash,int php, int dir){
   struct http_request *random_req=req_copy(orig,0);
   u8 *random=ck_alloc(18);
-  random_req->callback=process_random_request;
+  if(dir){
+    random_req->callback=process_dir_request;
+  }
+  else{
+    random_req->callback=process_random_request;
+  }
   printf("method 1 %s",random_req->method);
   random_req->method=(unsigned char *) ck_alloc(5);
   memcpy(random_req->method,"HEAD",5);
@@ -284,6 +308,14 @@ void enqueue_random_request(struct http_request *orig){
   printf("method 2 %s",random_req->method);
   random[0]='/';
   gen_random(&random[1],16);
+  if(slash || dir){
+    random[7]='/';
+    if(dir) random[8]=0;
+  }
+  if(php){
+    memcpy(&random[7],".php",5);
+  }
+  printf("random path = %s\n",random);
   tokenize_path(random,random_req,0);
   random_req->t=orig->t;
   async_request(random_req);

@@ -24,6 +24,7 @@ struct target {
   unsigned char fourohfour_response_count;
   unsigned char fourohfour_detect_mode;
   unsigned char *fourohfour_location;
+  unsigned char skip_dir;
   struct http_request *prototype_request;
   struct feature_node *features;
   struct test_score  *test_scores;
@@ -43,4 +44,5 @@ int process_404_responses(struct target *t);
 int score_sort(struct test_score *lhs, struct test_score *rhs);
 void enqueue_tests(struct target *t);
 unsigned char process_random_request(struct http_request *req, struct http_response *rep);
-void enqueue_random_request(struct http_request *orig);
+unsigned char process_dir_request(struct http_request *req, struct http_response *rep);
+void enqueue_random_request(struct http_request *orig, int slash, int php, int dir);

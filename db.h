@@ -16,6 +16,7 @@
 #define F_CRITICAL  (1 << 0) /* 0x01 */
 #define F_DIRECTORY (1 << 1) /* 0x02 */
 #define F_INFO (1 << 2) /* 0x04 */
+#define F_CGI (1 << 3) /* 0x08 */
 
 struct feature {
   int id;

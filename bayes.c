@@ -38,7 +38,15 @@ unsigned int get_test_successes(struct url_test *test, unsigned int codes){
   return successes;
 }
 
+unsigned int get_codes_for_test(struct url_test *test){
+  unsigned int codes=CODE_200;
+  if(test->flags & F_DIRECTORY){
+    codes=codes | CODE_401;
+    codes=codes | CODE_403;
+  }
+  return codes;
 
+}
 
 unsigned int get_ftr_successes(struct feature_test_result *test, unsigned int codes){
   unsigned int successes=0;
@@ -81,7 +89,7 @@ void calculate_new_posterior(mpq_t *posterior, struct url_test *test, struct fea
 }
 
 double get_test_probability(struct url_test *test, struct target *t){
-  int codes=ALL_CODES;
+  int codes=get_codes_for_test(test);
   struct feature_node *fn;
   struct feature *f;
   struct feature_test_result *ftr;
