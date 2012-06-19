@@ -115,7 +115,7 @@ void add_features_from_triggers(struct http_response *rep, struct target *t){
   ac_search_init(aho_corasick,rep->payload,rep->pay_len);
   while(ac_search(aho_corasick, &meh,&id)){
     HASH_FIND_INT(trigger_map, &id, trig);
-    printf("trigger feature %s\n",trig->trigger);
+    printf("trigger feature '%s'\n",trig->trigger);
     HASH_FIND_INT(feature_map_by_id, &trig->feature_id,f);
     if(f==NULL){
       printf("feature is null, feature_id=%d\n",trig->feature_id);
