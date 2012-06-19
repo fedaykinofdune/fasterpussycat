@@ -22,9 +22,9 @@
 PROGNAME   = skipfish
 VERSION    = 2.05b
 
-OBJFILES   = http_client.c db.c bayes.c engine.c
+OBJFILES   = http_client.c db.c bayes.c engine.c ac.c
 INCFILES   = alloc-inl.h string-inl.h debug.h types.h http_client.h \
-            config.h db.h bayes.h engine.h
+            config.h db.h bayes.h engine.h ac.h
 
 CFLAGS_GEN = -Wall -funsigned-char -g -ggdb -I/usr/local/include/ \
              -I/opt/local/include/ $(CFLAGS) -DVERSION=\"$(VERSION)\"

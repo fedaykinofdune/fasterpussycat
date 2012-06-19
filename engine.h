@@ -34,6 +34,8 @@ struct target {
 /* engine.c */
 struct target *target_by_host(unsigned char *host);
 void add_feature_label_to_target(const char *label, struct target *t);
+
+void add_feature_to_target(struct feature *f, struct target *t);
 void process_features(struct http_response *rep, struct target *t);
 unsigned char process_test_result(struct http_request *req, struct http_response *rep);
 int is_404(struct http_response *rep, struct target *t);

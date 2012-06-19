@@ -30,6 +30,23 @@ void add_feature_label_to_target(const char *label, struct target *t){
   DL_APPEND(t->features,fn);
 }
 
+
+
+
+void add_feature_to_target(struct feature *f, struct target *t){
+  struct feature_node *fn;
+  DL_FOREACH(t->features, fn){
+    if(!strcasecmp(fn->data->label, f->label)){
+      return;
+    }
+  }
+  fn=(struct feature_node *) ck_alloc(sizeof(struct feature_node));
+  fn->data=f;
+  fn->data->count++;
+  fn->data->dirty=1;
+  DL_APPEND(t->features,fn);
+}
+
 void process_features(struct http_response *rep, struct target *t){
   unsigned char *server=GET_HDR((unsigned char *) "server",&rep->hdr);
   char *label;
@@ -177,6 +194,7 @@ void gen_random(unsigned char *s, const int len) {
 unsigned char process_first_page(struct http_request *req, struct http_response *rep){
   int i;
   process_features(rep,req->t);
+  add_features_from_triggers(rep,req->t);
   printf("code now %d\n",rep->code);
   for(i=0;i<MAX_404_QUERIES;i++){
     enqueue_random_request(req,(i==0),(i==1),0);

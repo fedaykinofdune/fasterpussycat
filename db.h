@@ -18,12 +18,23 @@
 #define F_INFO (1 << 2) /* 0x04 */
 #define F_CGI (1 << 3) /* 0x08 */
 
+
+
+struct trigger {
+  int id;
+  char *trigger;
+  int feature_id;
+  UT_hash_handle hh;
+};
+
 struct feature {
   int id;
   char *label;
   int count;
   int dirty;
   UT_hash_handle hh;
+
+  UT_hash_handle hhl;
 };
 
 struct feature_test_result {
@@ -67,6 +78,9 @@ struct url_test {
 
 
 int open_database(void);
+void load_aho_corasick_triggers(void);
+void add_features_from_triggers(struct http_response *rep, struct target *t;);
+void add_aho_corasick_trigger(char *trigger, char *feature);
 struct feature *find_or_create_feature_by_label(const char *label);
 void save_feature(struct feature *f);
 void save_all(void);

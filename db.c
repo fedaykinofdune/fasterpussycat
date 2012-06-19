@@ -6,10 +6,15 @@
 #include "types.h"
 #include "alloc-inl.h"
 #include "string-inl.h"
-#include "db.h"
 #include "http_client.h"
+#include "db.h"
+#include "ac.h"
+#include "engine.h"
 
 #define GET_TESTS_SQL "SELECT id, url, description, code_200, code_301, code_302, code_401, code_403, code_500, code_other, count, flags FROM url_tests"
+
+
+#define GET_TRIGGERS_SQL "SELECT id, trigger, feature_id FROM aho_corasick_feature_triggers"
 
 #define GET_TEST_BY_URL_SQL "SELECT id, url, description, code_200, code_301, code_302, code_401, code_403, code_500, code_other, count, flags FROM url_tests WHERE url=? LIMIT 1"
 #define GET_FEATURES_SQL "SELECT id, label, count FROM features"
@@ -24,6 +29,10 @@
 #define INSERT_FEATURE_TEST_RESULT_SQL "INSERT INTO feature_test_results (url_test_id,feature_id,code_200,code_301,code_302,code_401,code_403,code_500,code_other,count) VALUES (?,?,?,?,?,?,?,?,?,?)" 
 
 
+#define INSERT_TRIGGER_SQL "INSERT OR REPLACE INTO aho_corasick_feature_triggers (feature_id,trigger) VALUES (?,?)" 
+
+
+
 #define UPDATE_FEATURE_TEST_RESULT_SQL "UPDATE feature_test_results SET code_200=?,code_301=?,code_302=?,code_401=?,code_403=?,code_500=?,code_other=?,count=? WHERE id =?" 
 
 #define INSERT_URL_TEST_SQL "INSERT INTO url_tests (url,description,flags) VALUES (?,?,?)" 
@@ -31,18 +40,24 @@
 
 #define UPDATE_URL_TEST_SQL "UPDATE url_tests SET description=?, code_200=?, code_301=?, code_302=?, code_401=?, code_403=?, code_500=?, code_other=?, count=?, flags=? WHERE id=?" 
 
+static AC_STRUCT *aho_corasick;
 static struct url_test *test_map=NULL;
 static struct url_test *test_map_by_url=NULL;
 static struct feature_test_result *result_map=NULL;
 static struct feature *feature_map=NULL;
+static struct feature *feature_map_by_id=NULL;
+static struct trigger *trigger_map=NULL;
 static sqlite3 *db;
 
 static sqlite3_stmt *get_ftr_by_feature_stmt;
 static sqlite3_stmt *get_tests_stmt;
 static sqlite3_stmt *get_test_by_url_stmt;
 static sqlite3_stmt *get_features_stmt;
+static sqlite3_stmt *get_triggers_stmt;
 
 static sqlite3_stmt *insert_feature_stmt;
+
+static sqlite3_stmt *insert_trigger_stmt;
 static sqlite3_stmt *update_feature_stmt;
 static sqlite3_stmt *insert_ftr_stmt;
 static sqlite3_stmt *update_ftr_stmt;
@@ -63,6 +78,8 @@ int open_database(){
   sqlite3_prepare_v2(db, GET_FTR_BY_FEATURE_SQL, -1, &get_ftr_by_feature_stmt,NULL);
   sqlite3_prepare_v2(db, GET_FEATURES_SQL, -1, &get_features_stmt,NULL);
   sqlite3_prepare_v2(db, INSERT_FEATURE_SQL, -1, &insert_feature_stmt,NULL);
+  sqlite3_prepare_v2(db, INSERT_TRIGGER_SQL, -1, &insert_trigger_stmt,NULL);
+  sqlite3_prepare_v2(db, GET_TRIGGERS_SQL, -1,   &get_triggers_stmt,NULL);
   sqlite3_prepare_v2(db, UPDATE_FEATURE_SQL, -1, &update_feature_stmt,NULL);
   sqlite3_prepare_v2(db, INSERT_FEATURE_TEST_RESULT_SQL, -1, &insert_ftr_stmt,NULL);
   sqlite3_prepare_v2(db, UPDATE_FEATURE_TEST_RESULT_SQL, -1, &update_ftr_stmt,NULL);
@@ -71,8 +88,64 @@ int open_database(){
   return 0;
 }
 
+void load_aho_corasick_triggers(){
+  aho_corasick=ac_alloc();  
+  sqlite3_reset(get_triggers_stmt);
+  while (sqlite3_step(get_triggers_stmt) == SQLITE_ROW){
+    struct trigger *t=ck_alloc(sizeof(struct trigger));
+    t->id=sqlite3_column_int(get_triggers_stmt,0);
+    t->trigger=(char *) strdup((const char *) sqlite3_column_text(get_triggers_stmt,1));
+    t->feature_id=sqlite3_column_int(get_triggers_stmt,2);
+    HASH_ADD_INT( trigger_map, id, t );
+    ac_add_string(aho_corasick, t->trigger,strlen(t->trigger),t->id);
+  }
+  ac_prep(aho_corasick);
+}
+
+
 struct url_test *get_tests(){
   return test_map;
+}
+
+void add_features_from_triggers(struct http_response *rep, struct target *t){
+  int meh;
+  int id;
+  struct trigger *trig;
+  struct feature *f;
+  ac_search_init(aho_corasick,rep->payload,rep->pay_len);
+  while(ac_search(aho_corasick, &meh,&id)){
+    HASH_FIND_INT(trigger_map, &id, trig);
+    printf("trigger feature %s\n",trig->trigger);
+    HASH_FIND_INT(feature_map_by_id, &trig->feature_id,f);
+    if(f==NULL){
+      printf("feature is null, feature_id=%d\n",trig->feature_id);
+      exit(-1);
+    }
+    add_feature_to_target(f,t);
+  }
+}
+
+void add_aho_corasick_trigger(char *trigger, char *feature){
+  struct feature *f;
+  open_database();
+  
+  sqlite3_exec(db, "BEGIN", 0, 0, 0);
+  load_features();
+
+  sqlite3_exec(db, "COMMIT", 0, 0, 0);
+  f=find_or_create_feature_by_label(feature);
+  if(f->id==-1){
+    save_feature(f);
+  }
+  sqlite3_reset(insert_trigger_stmt);
+  sqlite3_bind_int(insert_trigger_stmt,1,f->id);
+  sqlite3_bind_text(insert_trigger_stmt,2,trigger, -1, SQLITE_TRANSIENT);
+
+  if(sqlite3_step(insert_trigger_stmt)!=SQLITE_DONE){
+      printf("SOME KIND OF FAIL IN TRIGGER INSERT");
+      printf("%s\n",sqlite3_errmsg(db));
+      exit(-1);
+  }
 }
 
 struct feature *find_or_create_feature_by_label(const char *label){
@@ -82,7 +155,7 @@ struct feature *find_or_create_feature_by_label(const char *label){
   for (i = 0; l_label[i]; i++){
     l_label[i]=tolower(l_label[i]);
   }
-  HASH_FIND_STR(feature_map, l_label, result);
+  HASH_FIND(hhl, feature_map, label, strlen(label), result);
   if(result!=NULL){
     free(l_label);
     return result;
@@ -93,7 +166,9 @@ struct feature *find_or_create_feature_by_label(const char *label){
   result->label=l_label;
   result->dirty=1;
   save_feature(result);
-  HASH_ADD_KEYPTR( hh, feature_map, result->label, strlen(result->label), result);
+  HASH_ADD_KEYPTR( hhl, feature_map, result->label, strlen(result->label), result);
+
+  HASH_ADD_INT( feature_map_by_id, id, result);
   return result; 
 }
 
@@ -266,8 +341,11 @@ int load_ftr_by_feature_id(int feature_id){
 
 int load_features(){
   sqlite3_reset(get_features_stmt);
+  int c=0;
   while (sqlite3_step(get_features_stmt) == SQLITE_ROW){
+    c++;
     load_feature();
+    printf("%d\n",c);
   }
   return 0;
 }
@@ -279,7 +357,9 @@ int load_feature(){
   feat->id=sqlite3_column_int(get_features_stmt,0);
   feat->label=(char *) strdup((const char *) sqlite3_column_text(get_features_stmt,1));
   feat->count=sqlite3_column_int(get_features_stmt,2);
-  HASH_ADD_KEYPTR( hh, feature_map, feat->label, strlen(feat->label), feat );
+  printf("%s\n", feat->label);
+  HASH_ADD_KEYPTR( hhl, feature_map, feat->label, strlen(feat->label), feat );
+  HASH_ADD_INT( feature_map_by_id, id, feat );
   load_ftr_by_feature_id(feat->id);
   return 0;
 }
@@ -308,12 +388,9 @@ int load_ftr(){
 
 struct url_test *load_test(sqlite3_stmt *stmt){
     struct url_test *test;
-    printf("load test\n");
     test=ck_alloc(sizeof(struct url_test));
     test->id=sqlite3_column_int(stmt,0);
-    printf("url\n");
     test->url=(char *) strdup((const char *) sqlite3_column_text(stmt,1));
-    printf("desc\n");
     test->description=(char *) strdup((const char *) sqlite3_column_text(stmt,2));
     test->code_200=sqlite3_column_int(stmt,3);
     test->code_301=sqlite3_column_int(stmt,4);
@@ -325,7 +402,6 @@ struct url_test *load_test(sqlite3_stmt *stmt){
     test->count=sqlite3_column_int(stmt,10);
     test->flags=(unsigned int) sqlite3_column_int(stmt,11);
     HASH_ADD_INT( test_map, id, test );
-    printf("fin test\n");
     return test;
 }
 

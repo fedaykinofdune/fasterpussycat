@@ -40,6 +40,8 @@
 
 #include "http_client.h"
 #include "db.h"
+#include "engine.h"
+
 #ifdef DEBUG_ALLOCATOR
 struct __AD_trk_obj* __AD_trk[ALLOC_BUCKETS];
 u32 __AD_trk_cnt[ALLOC_BUCKETS];
@@ -47,6 +49,7 @@ u32 __AD_trk_cnt[ALLOC_BUCKETS];
 
 #define MODE_DB_ADD 1
 #define MODE_ATTACK 2
+#define MODE_TRIGGER_ADD 3
 
 /* Ctrl-C handler... */
 
@@ -65,7 +68,9 @@ u8 print_body(struct http_request *req, struct http_response *rep){
 void do_scan(){
   load_features();
   load_tests();
+  load_aho_corasick_triggers();
   setup_bayes();
+
   struct timeval tv;
   gettimeofday(&tv, NULL);
   u64 st_time, en_time;
@@ -101,18 +106,23 @@ void parse_opts(int argc, char** argv){
   int i;
   unsigned int f;
   char *url=NULL;
+  char *trigger;
+  char *feature;
   char *description="";
   char *flag_string;
   unsigned int flags=0;
   struct option long_options[] = {        /* long options array. Items are all caSe SensiTivE! */
-    { "db-add", no_argument, NULL, 'A'   },      /* --add or -a  */
+    { "db-add", no_argument, NULL, 'A'   }, 
+    { "trigger-add", no_argument, NULL, 'T'},
+    { "trigger", required_argument,NULL, 't'},
+    { "feature", required_argument,NULL, 'e'},
     { "url", required_argument, NULL, 'u' },
     { "description", required_argument, NULL, 'd' },
     { "flags", required_argument, NULL, 'f' },
     { 0,    0,    0,    0   }       /* terminating -0 item */
   };
   int opt;
-  while((opt=getopt_long( argc, argv, "-Au:d:f:", long_options, &longIndex ))!=-1){
+  while((opt=getopt_long( argc, argv, "-ATu:d:f:", long_options, &longIndex ))!=-1){
     switch(opt){
       case 1:
         add_target(optarg);
@@ -120,11 +130,21 @@ void parse_opts(int argc, char** argv){
       case 'A':
         mode=MODE_DB_ADD;
         break;
+      case 'T':
+        mode=MODE_TRIGGER_ADD;
+        printf("trigger add\n");
+        break;
       case 'u':
         url=optarg;
         break;
       case 'd':
         description=optarg;
+        break;
+      case 'e':
+        feature=optarg;
+        break;
+      case 't':
+        trigger=optarg;
         break;
       case 'f':
         for(i=0; i<strlen(optarg); i++){
@@ -155,9 +175,15 @@ void parse_opts(int argc, char** argv){
     case MODE_DB_ADD:
       add_or_update_url(url, description, flags);
       exit(0);
+      break;
     case MODE_ATTACK:
       do_scan();
       exit(0);
+      break;
+    case MODE_TRIGGER_ADD:
+      add_aho_corasick_trigger(trigger, feature);
+      exit(0);
+      break;
   }
 
 }
@@ -180,7 +206,6 @@ int main(int argc, char** argv) {
 
   open_database();
   parse_opts(argc, argv);
-  /* Come up with a quasi-decent random seed. */
 
   gettimeofday(&tv, NULL);
   seed = tv.tv_usec ^ (tv.tv_sec << 16) ^ getpid();
