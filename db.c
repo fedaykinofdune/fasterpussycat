@@ -177,7 +177,8 @@ void save_feature(struct feature *f){
     sqlite3_reset(insert_feature_stmt);
     sqlite3_bind_text(insert_feature_stmt,1,f->label, -1, SQLITE_TRANSIENT);
     if(sqlite3_step(insert_feature_stmt)!=SQLITE_DONE){
-      printf("SOME KIND OF FAIL IN FEATURE INSERT");
+      printf("%s\n",sqlite3_errmsg(db));
+      printf("SOME KIND OF FAIL IN FEATURE INSERT %s", feature->label);
       exit(-1);
     }
     f->id=sqlite3_last_insert_rowid(db);
