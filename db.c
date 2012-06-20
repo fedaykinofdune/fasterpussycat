@@ -155,7 +155,7 @@ struct feature *find_or_create_feature_by_label(const char *label){
   for (i = 0; l_label[i]; i++){
     l_label[i]=tolower(l_label[i]);
   }
-  HASH_FIND(hhl, feature_map, label, strlen(label), result);
+  HASH_FIND(hhl, feature_map, l_label, strlen(l_label), result);
   if(result!=NULL){
     free(l_label);
     return result;
@@ -178,7 +178,7 @@ void save_feature(struct feature *f){
     sqlite3_bind_text(insert_feature_stmt,1,f->label, -1, SQLITE_TRANSIENT);
     if(sqlite3_step(insert_feature_stmt)!=SQLITE_DONE){
       printf("%s\n",sqlite3_errmsg(db));
-      printf("SOME KIND OF FAIL IN FEATURE INSERT %s", feature->label);
+      printf("SOME KIND OF FAIL IN FEATURE INSERT '%s'", f->label);
       exit(-1);
     }
     f->id=sqlite3_last_insert_rowid(db);

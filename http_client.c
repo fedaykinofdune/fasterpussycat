@@ -2345,7 +2345,7 @@ SSL_read_more:
         if (to_host < max_conn_host && conn_cur < max_connections) {
           conn_associate(0, q);
           goto next_q_entry;
-        } else tear_down_idle = 1;
+        } else if (to_host<max_conn_host) tear_down_idle = 1;
 
       }
 
