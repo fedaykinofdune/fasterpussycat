@@ -105,7 +105,7 @@ u8 process_test_result(struct http_request *req, struct http_response *rep){
     default:
       test->code_other++;
   }
-  if(code!=404){
+  if(code==200 || ((test->flags & F_DIRECTORY) && (code==401 || code==403))){
       printf("CODE: %d http://%s%s\n",code,req->t->host,test->url);
   }
   DL_FOREACH(req->t->features,f) {
@@ -130,8 +130,10 @@ u8 process_test_result(struct http_request *req, struct http_response *rep){
         break;
       case 403:
         ftr->code_403++;
+        break;
       case 200:
         ftr->code_200++;
+        break;
       default:
         ftr->code_other++;
     }
@@ -193,6 +195,9 @@ void gen_random(unsigned char *s, const int len) {
 
 unsigned char process_first_page(struct http_request *req, struct http_response *rep){
   int i;
+  if(rep->state==STATE_DNSERR){
+    return 0;
+  }
   process_features(rep,req->t);
   add_features_from_triggers(rep,req->t);
   printf("code now %d\n",rep->code);

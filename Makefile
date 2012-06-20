@@ -19,7 +19,7 @@
 # limitations under the License.
 #
 
-PROGNAME   = skipfish
+PROGNAME   = fasterpussycat
 VERSION    = 2.05b
 
 OBJFILES   = http_client.c db.c bayes.c engine.c ac.c
@@ -28,7 +28,7 @@ INCFILES   = alloc-inl.h string-inl.h debug.h types.h http_client.h \
 
 CFLAGS_GEN = -Wall -funsigned-char -g -ggdb -I/usr/local/include/ \
              -I/opt/local/include/ $(CFLAGS) -DVERSION=\"$(VERSION)\"
-CFLAGS_DBG = -DLOG_STDERR=1 -DDEBUG_ALLOCATOR=1 $(CFLAGS_GEN)
+CFLAGS_DBG = -pg -DLOG_STDERR=1 -DDEBUG_ALLOCATOR=1 $(CFLAGS_GEN)
 CFLAGS_OPT = -O3 -Wno-format $(CFLAGS_GEN)
 
 LDFLAGS   += -L/usr/local/lib/ -L/opt/local/lib
@@ -52,12 +52,12 @@ debug: $(PROGNAME).c $(OBJFILES) $(INCFILES)
 
 clean:
 	rm -f $(PROGNAME) *.exe *.o *~ a.out core core.[1-9][0-9]* *.stackdump \
-	      LOG same_test
+	      LOG test
 	rm -rf tmpdir
 
 
 
-test: test.c $(OBJFILES) $(INCFILES)
+test: $(OBJFILES) $(INCFILES)
 	$(CC) test.c -o test $(CFLAGS_DBG) $(OBJFILES) $(LDFLAGS) \
 	      $(LIBS)
 

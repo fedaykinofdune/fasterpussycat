@@ -18,9 +18,9 @@
 
 #define GET_TEST_BY_URL_SQL "SELECT id, url, description, code_200, code_301, code_302, code_401, code_403, code_500, code_other, count, flags FROM url_tests WHERE url=? LIMIT 1"
 #define GET_FEATURES_SQL "SELECT id, label, count FROM features"
-#define GET_FTR_BY_TEST_AND_FEATURE_SQL "SELECT id, url_test_id, feature_id, code_200, code_301, code_302, code_401, code_403, code_500, code_other, count FROM feature_test_results WHERE url_test_id=? AND feature_test_id=?"
+#define GET_FTR_BY_TEST_AND_FEATURE_SQL "SELECT id, url_test_id, feature_id, code_200, code_301, code_302, code_401, code_403, code_500, code_other, count FROM feature_test_results WHERE url_test_id=? AND feature_id=?"
 
-#define GET_FTR_BY_FEATURE_SQL "SELECT id, url_test_id, feature_id, code_200, code_301, code_302, code_401, code_403, code_500, code_other, count FROM feature_test_results WHERE feature_test_id=?"  
+#define GET_FTR_BY_FEATURE_SQL "SELECT id, url_test_id, feature_id, code_200, code_301, code_302, code_401, code_403, code_500, code_other, count FROM feature_test_results WHERE feature_id=?"  
 
 #define INSERT_FEATURE_SQL "INSERT INTO features (label) VALUES (?)" 
 
