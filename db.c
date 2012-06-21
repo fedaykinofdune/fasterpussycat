@@ -11,38 +11,37 @@
 #include "ac.h"
 #include "engine.h"
 
-#define GET_TESTS_SQL "SELECT id, url, description, code_200, code_301, code_302, code_401, code_403, code_500, code_other, count, flags FROM url_tests"
+#define GET_TESTS_SQL "SELECT id, url, description, success, count, flags FROM url_tests"
 
 
 #define GET_TRIGGERS_SQL "SELECT id, trigger, feature_id FROM aho_corasick_feature_triggers"
 
-#define GET_TEST_BY_URL_SQL "SELECT id, url, description, code_200, code_301, code_302, code_401, code_403, code_500, code_other, count, flags FROM url_tests WHERE url=? LIMIT 1"
+#define GET_TEST_BY_URL_SQL "SELECT id, url, success, count, flags FROM url_tests WHERE url=? LIMIT 1"
 #define GET_FEATURES_SQL "SELECT id, label, count FROM features"
-#define GET_FTR_BY_TEST_AND_FEATURE_SQL "SELECT id, url_test_id, feature_id, code_200, code_301, code_302, code_401, code_403, code_500, code_other, count FROM feature_test_results WHERE url_test_id=? AND feature_id=?"
+#define GET_FTR_BY_TEST_AND_FEATURE_SQL "SELECT id, url_test_id, feature_id, success, count FROM feature_test_results WHERE url_test_id=? AND feature_id=?"
 
-#define GET_FTR_BY_FEATURE_SQL "SELECT id, url_test_id, feature_id, code_200, code_301, code_302, code_401, code_403, code_500, code_other, count FROM feature_test_results WHERE feature_id=?"  
+#define GET_FTR_BY_FEATURE_SQL "SELECT id, url_test_id, feature_id, success, count FROM feature_test_results WHERE feature_id=?"  
 
 #define INSERT_FEATURE_SQL "INSERT INTO features (label) VALUES (?)" 
 
 #define UPDATE_FEATURE_SQL "UPDATE features SET count=? WHERE id=?" 
 
-#define INSERT_FEATURE_TEST_RESULT_SQL "INSERT INTO feature_test_results (url_test_id,feature_id,code_200,code_301,code_302,code_401,code_403,code_500,code_other,count) VALUES (?,?,?,?,?,?,?,?,?,?)" 
+#define INSERT_FEATURE_TEST_RESULT_SQL "INSERT INTO feature_test_results (url_test_id,feature_id,success,count) VALUES (?,?,?,?,?,?,?,?,?,?)" 
 
 
 #define INSERT_TRIGGER_SQL "INSERT OR REPLACE INTO aho_corasick_feature_triggers (feature_id,trigger) VALUES (?,?)" 
 
 
 
-#define UPDATE_FEATURE_TEST_RESULT_SQL "UPDATE feature_test_results SET code_200=?,code_301=?,code_302=?,code_401=?,code_403=?,code_500=?,code_other=?,count=? WHERE id =?" 
+#define UPDATE_FEATURE_TEST_RESULT_SQL "UPDATE feature_test_results SET success=?,count=? WHERE id =?" 
 
-#define INSERT_URL_TEST_SQL "INSERT INTO url_tests (url,description,flags) VALUES (?,?,?)" 
+#define INSERT_URL_TEST_SQL "INSERT INTO url_tests (url,flags) VALUES (?,?)" 
 
 
-#define UPDATE_URL_TEST_SQL "UPDATE url_tests SET description=?, code_200=?, code_301=?, code_302=?, code_401=?, code_403=?, code_500=?, code_other=?, count=?, flags=? WHERE id=?" 
+#define UPDATE_URL_TEST_SQL "UPDATE url_tests SET success=?, count=?, flags=? WHERE id=?" 
 
 static AC_STRUCT *aho_corasick;
 static struct url_test *test_map=NULL;
-static struct url_test *test_map_by_url=NULL;
 static struct feature_test_result *result_map=NULL;
 static struct feature *feature_map=NULL;
 static struct feature *feature_map_by_id=NULL;
@@ -112,7 +111,7 @@ void add_features_from_triggers(struct http_response *rep, struct target *t){
   int id;
   struct trigger *trig;
   struct feature *f;
-  ac_search_init(aho_corasick,rep->payload,rep->pay_len);
+  ac_search_init(aho_corasick,(char *) rep->payload,rep->pay_len);
   while(ac_search(aho_corasick, &meh,&id)){
     HASH_FIND_INT(trigger_map, &id, trig);
     printf("trigger feature '%s'\n",trig->trigger);
@@ -230,14 +229,8 @@ void save_ftr(struct feature_test_result *f){
     sqlite3_reset(insert_ftr_stmt);
     sqlite3_bind_int(insert_ftr_stmt,1,f->url_test_id);
     sqlite3_bind_int(insert_ftr_stmt,2,f->feature_id);
-    sqlite3_bind_int(insert_ftr_stmt,3,f->code_200);
-    sqlite3_bind_int(insert_ftr_stmt,4,f->code_301);
-    sqlite3_bind_int(insert_ftr_stmt,5,f->code_302);
-    sqlite3_bind_int(insert_ftr_stmt,6,f->code_401);
-    sqlite3_bind_int(insert_ftr_stmt,7,f->code_403);
-    sqlite3_bind_int(insert_ftr_stmt,8,f->code_500);
-    sqlite3_bind_int(insert_ftr_stmt,9,f->code_other);
-    sqlite3_bind_int(insert_ftr_stmt,10,f->count);
+    sqlite3_bind_int(insert_ftr_stmt,3,f->success);
+    sqlite3_bind_int(insert_ftr_stmt,4,f->count);
     if(sqlite3_step(insert_ftr_stmt)!=SQLITE_DONE){
       printf("SOME KIND OF FAIL IN FTR INSERT");
       exit(-1);
@@ -248,15 +241,9 @@ void save_ftr(struct feature_test_result *f){
   else{
     sqlite3_reset(update_ftr_stmt);
 
-    sqlite3_bind_int(update_ftr_stmt,1,f->code_200);
-    sqlite3_bind_int(update_ftr_stmt,2,f->code_301);
-    sqlite3_bind_int(update_ftr_stmt,3,f->code_302);
-    sqlite3_bind_int(update_ftr_stmt,4,f->code_401);
-    sqlite3_bind_int(update_ftr_stmt,5,f->code_403);
-    sqlite3_bind_int(update_ftr_stmt,6,f->code_500);
-    sqlite3_bind_int(update_ftr_stmt,7,f->code_other);
-    sqlite3_bind_int(update_ftr_stmt,8,f->count);
-    sqlite3_bind_int(update_ftr_stmt,9,f->id);
+    sqlite3_bind_int(update_ftr_stmt,1,f->success);
+    sqlite3_bind_int(update_ftr_stmt,2,f->count);
+    sqlite3_bind_int(update_ftr_stmt,3,f->id);
     if(sqlite3_step(update_ftr_stmt)!=SQLITE_DONE){
       printf("SOME KIND OF FAIL IN FTR UPDATE");
       exit(-1);
@@ -274,8 +261,7 @@ void save_url_test(struct url_test *f){
   if(f->id==-1){
     sqlite3_reset(insert_url_test_stmt);
     sqlite3_bind_text(insert_url_test_stmt,1,f->url,-1,SQLITE_STATIC);
-    sqlite3_bind_text(insert_url_test_stmt,2,f->description,-1,SQLITE_STATIC);
-    sqlite3_bind_int(insert_url_test_stmt,3,f->flags);
+    sqlite3_bind_int(insert_url_test_stmt,2,f->flags);
     if(sqlite3_step(insert_url_test_stmt)!=SQLITE_DONE){
       printf("SOME KIND OF FAIL IN URL TEST INSERT");
       exit(-1);
@@ -286,17 +272,10 @@ void save_url_test(struct url_test *f){
   else{
     sqlite3_reset(update_url_test_stmt);
 
-    sqlite3_bind_text(update_url_test_stmt,1,f->description,-1,SQLITE_STATIC);
-    sqlite3_bind_int(update_url_test_stmt,2,f->code_200);
-    sqlite3_bind_int(update_url_test_stmt,3,f->code_301);
-    sqlite3_bind_int(update_url_test_stmt,4,f->code_302);
-    sqlite3_bind_int(update_url_test_stmt,5,f->code_401);
-    sqlite3_bind_int(update_url_test_stmt,6,f->code_403);
-    sqlite3_bind_int(update_url_test_stmt,7,f->code_500);
-    sqlite3_bind_int(update_url_test_stmt,8,f->code_other);
-    sqlite3_bind_int(update_url_test_stmt,9,f->count);
-    sqlite3_bind_int(update_url_test_stmt,10, f->flags);
-    sqlite3_bind_int(update_url_test_stmt,11,f->id);
+    sqlite3_bind_int(update_url_test_stmt,1,f->success);
+    sqlite3_bind_int(update_url_test_stmt,2,f->count);
+    sqlite3_bind_int(update_url_test_stmt,3, f->flags);
+    sqlite3_bind_int(update_url_test_stmt,4,f->id);
     
     if((rc=sqlite3_step(update_url_test_stmt))!=SQLITE_DONE){
       printf("%s\n",sqlite3_errmsg(db));
@@ -373,14 +352,8 @@ int load_ftr(){
   result->id=sqlite3_column_int(get_ftr_by_feature_stmt,0);
   result->url_test_id=sqlite3_column_int(get_ftr_by_feature_stmt,1);
   result->feature_id=sqlite3_column_int(get_ftr_by_feature_stmt,2);
-  result->code_200=sqlite3_column_int(get_ftr_by_feature_stmt,3);
-  result->code_301=sqlite3_column_int(get_ftr_by_feature_stmt,4);
-  result->code_302=sqlite3_column_int(get_ftr_by_feature_stmt,5);
-  result->code_401=sqlite3_column_int(get_ftr_by_feature_stmt,6);
-  result->code_403=sqlite3_column_int(get_ftr_by_feature_stmt,7);
-  result->code_500=sqlite3_column_int(get_ftr_by_feature_stmt,8);
-  result->code_other=sqlite3_column_int(get_ftr_by_feature_stmt,9);
-  result->count=sqlite3_column_int(get_ftr_by_feature_stmt,10);
+  result->success=sqlite3_column_int(get_ftr_by_feature_stmt,3);
+  result->count=sqlite3_column_int(get_ftr_by_feature_stmt,4);
   keylen =   offsetof(struct feature_test_result, feature_id) + sizeof(int) - offsetof(struct feature_test_result, url_test_id);
   HASH_ADD( hh, result_map, url_test_id, keylen, result);
   return 0;
@@ -392,16 +365,9 @@ struct url_test *load_test(sqlite3_stmt *stmt){
     test=ck_alloc(sizeof(struct url_test));
     test->id=sqlite3_column_int(stmt,0);
     test->url=(char *) strdup((const char *) sqlite3_column_text(stmt,1));
-    test->description=(char *) strdup((const char *) sqlite3_column_text(stmt,2));
-    test->code_200=sqlite3_column_int(stmt,3);
-    test->code_301=sqlite3_column_int(stmt,4);
-    test->code_302=sqlite3_column_int(stmt,5);
-    test->code_401=sqlite3_column_int(stmt,6);
-    test->code_403=sqlite3_column_int(stmt,7);
-    test->code_500=sqlite3_column_int(stmt,8);
-    test->code_other=sqlite3_column_int(stmt,9);
-    test->count=sqlite3_column_int(stmt,10);
-    test->flags=(unsigned int) sqlite3_column_int(stmt,11);
+    test->success=sqlite3_column_int(stmt,2);
+    test->count=sqlite3_column_int(stmt,3);
+    test->flags=(unsigned int) sqlite3_column_int(stmt,4);
     HASH_ADD_INT( test_map, id, test );
     return test;
 }

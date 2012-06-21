@@ -70,6 +70,10 @@ void process_features(struct http_response *rep, struct target *t){
   free(server);
 }
 
+char is_success(struct url_test *test, int code){
+  return (code==200 || ((test->flags & F_DIRECTORY) && (code==401 || code==403)));
+} 
+
 u8 process_test_result(struct http_request *req, struct http_response *rep){
   int code=rep->code;
   struct url_test *test;
@@ -81,62 +85,16 @@ u8 process_test_result(struct http_request *req, struct http_response *rep){
   }
   test->count++;
   test->dirty=1;
-  switch(code){
-    case 404:
-      break;
-    case 301:
-      test->code_301++;
-      break;
-    case 302:
-      test->code_302++;
-      break;
-    case 500:
-      test->code_500++;
-      break;
-    case 401:
-      test->code_401++;
-      break;
-    case 403:
-      test->code_403++;
-      break;
-    case 200:
-      test->code_200++;
-      break;
-    default:
-      test->code_other++;
-  }
-  if(code==200 || ((test->flags & F_DIRECTORY) && (code==401 || code==403))){
+  
+  if(is_success(test,code)){
+      test->success++;
       printf("CODE: %d http://%s%s\n",code,req->t->host,test->url);
   }
   DL_FOREACH(req->t->features,f) {
     ftr=find_or_create_ftr(test->id,f->data->id);
     ftr->count++;
     ftr->dirty=1;
-
-    switch(code){
-      case 404:
-        break;
-      case 301:
-        ftr->code_301++;
-        break;
-      case 302:
-        ftr->code_302++;
-        break;
-      case 500:
-        ftr->code_500++;
-        break;
-      case 401:
-        ftr->code_401++;
-        break;
-      case 403:
-        ftr->code_403++;
-        break;
-      case 200:
-        ftr->code_200++;
-        break;
-      default:
-        ftr->code_other++;
-    }
+    if(is_success(test,code)) ftr->success++;
   }
   return 0;
 }
@@ -148,8 +106,6 @@ int is_404(struct http_response *rep, struct target *t){
   }
   if(t->fourohfour_detect_mode==DETECT_404_LOCATION){
     loc=GET_HDR((unsigned char *) "location", &rep->hdr);
-    if(loc){
-    }
     if(loc && !strcasecmp((char *) t->fourohfour_location,(char *) loc)){
       return 1;
     }
@@ -208,8 +164,6 @@ unsigned char process_first_page(struct http_request *req, struct http_response 
 }
 
 int process_404(struct http_response *rep, struct target *t){
-  int i;
-  int mode;
   unsigned char *loc;
   if(t->fourohfour_response_count==1){
     if(rep->code==404){
@@ -222,7 +176,7 @@ int process_404(struct http_response *rep, struct target *t){
       loc=(unsigned char *) GET_HDR((unsigned char *) "location",&rep->hdr);
       if(loc){
         printf("detect loc\n");
-        t->fourohfour_location=strdup(loc);
+        t->fourohfour_location=(unsigned char *) strdup((char *) loc);
         t->fourohfour_detect_mode=DETECT_404_LOCATION;
       }
       return 1;

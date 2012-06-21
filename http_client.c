@@ -1281,7 +1281,7 @@ u8 parse_response(struct http_request* req, struct http_response* res,
       total_chunk = 0,
       http_ver;
   u8  chunked = 0, compressed = 0, must_close = 0;
-      if (req->method && !strcmp(req->method,"HEAD")){
+      if (req->method && !strcmp((char *) req->method,"HEAD")){
         pay_len = 0;
       }
   if (res->code)
@@ -1333,7 +1333,7 @@ u8 parse_response(struct http_request* req, struct http_response* res,
       /* The value in Content-Length header would be useful for seeing if we
          have all the requested data already. Reject invalid values to avoid
          integer overflows, etc, though. */
-      if (req->method && !strcmp(req->method,"HEAD")){
+      if (req->method && !strcmp((char *) req->method,"HEAD")){
         pay_len = 0;
       }
       else if (sscanf((char*)cur_line + 15, "%d", &pay_len) == 1) {

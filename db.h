@@ -2,14 +2,12 @@
 /* db.c */
 
 #define CODE_200 (1 << 0) /* 0x01 */
-#define CODE_301 (1 << 1) /* 0x02 */
-#define CODE_302 (1 << 2) /* 0x04 */
+#define CODE_RELOC (1 << 1) /* 0x02 */
 #define CODE_401 (1 << 3) /* 0x08 */
 #define CODE_403 (1 << 4) /* 0x10 */
 #define CODE_500 (1 << 5) /* 0x20 */
-#define CODE_OTHER (1 << 7) /* 0x80 */
 
-#define ALL_CODES (CODE_200 | CODE_301 | CODE_302 | CODE_401 | CODE_403 | CODE_500 | CODE_OTHER)
+#define ALL_CODES (CODE_200 | CODE_RELOC | CODE_401 | CODE_403 | CODE_500)
 
 
 
@@ -41,13 +39,7 @@ struct feature_test_result {
   int id;
   int url_test_id;
   int feature_id;
-  int code_200;
-  int code_301;
-  int code_302;
-  int code_500;
-  int code_403;
-  int code_401;
-  int code_other;
+  int success;
   int count;
   int dirty;
   UT_hash_handle hh;
@@ -62,13 +54,7 @@ struct url_test {
   int id;
   char *url;
   char *description;
-  int code_200;
-  int code_301;
-  int code_302;
-  int code_500;
-  int code_403;
-  int code_401;
-  int code_other;
+  int success;
   int count;
   int dirty;
   unsigned int flags;

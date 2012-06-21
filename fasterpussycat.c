@@ -33,7 +33,7 @@
 #include <sys/stat.h>
 #include <termios.h>
 #include <fcntl.h>
-
+#include <gmp.h>
 #include "types.h"
 #include "alloc-inl.h"
 #include "string-inl.h"
@@ -41,6 +41,7 @@
 #include "http_client.h"
 #include "db.h"
 #include "engine.h"
+#include "bayes.h"
 
 #ifdef DEBUG_ALLOCATOR
 struct __AD_trk_obj* __AD_trk[ALLOC_BUCKETS];
@@ -53,7 +54,7 @@ u32 __AD_trk_cnt[ALLOC_BUCKETS];
 
 /* Ctrl-C handler... */
 
-static u8 stop_soon, clear_screen;
+static u8 stop_soon;
 
 static void ctrlc_handler(int sig) {
   stop_soon = 1;
@@ -73,12 +74,11 @@ void do_scan(){
 
   struct timeval tv;
   gettimeofday(&tv, NULL);
-  u64 st_time, en_time;
+  u64 st_time;
   long c=0; 
   st_time = tv.tv_sec * 1000LL + tv.tv_usec / 1000;
   while ((next_from_queue() && !stop_soon)) {
 
-    u8 keybuf[8];
 
     u64 end_time;
     u64 run_time;
@@ -106,10 +106,9 @@ void parse_opts(int argc, char** argv){
   int i;
   unsigned int f;
   char *url=NULL;
-  char *trigger;
-  char *feature;
+  char *trigger=NULL;
+  char *feature=NULL;
   char *description="";
-  char *flag_string;
   unsigned int flags=0;
   struct option long_options[] = {        /* long options array. Items are all caSe SensiTivE! */
     { "db-add", no_argument, NULL, 'A'   }, 
@@ -125,7 +124,7 @@ void parse_opts(int argc, char** argv){
   while((opt=getopt_long( argc, argv, "-ATu:d:f:", long_options, &longIndex ))!=-1){
     switch(opt){
       case 1:
-        add_target(optarg);
+        add_target((unsigned char *) optarg);
         break;
       case 'A':
         mode=MODE_DB_ADD;
@@ -189,23 +188,11 @@ void parse_opts(int argc, char** argv){
 }
 
 int main(int argc, char** argv) {
-  s32 opt;
-  u32 loop_cnt = 0, purge_age = 0, seed;
-  u8  show_once = 0, be_quiet = 0, display_mode = 0, has_fake = 0;
-  u8 *wordlist = NULL, *output_dir = NULL;
-  u8* gtimeout_str = NULL;
-  u32 gtimeout = 0;
-
-  struct termios term;
+  u32 seed;
   struct timeval tv;
-  u64 st_time, en_time;
-
   signal(SIGINT, ctrlc_handler);
   signal(SIGPIPE, SIG_IGN);
   SSL_library_init();
-
-  open_database();
-  parse_opts(argc, argv);
 
   gettimeofday(&tv, NULL);
   seed = tv.tv_usec ^ (tv.tv_sec << 16) ^ getpid();
@@ -217,15 +204,8 @@ int main(int argc, char** argv) {
 
   if (max_connections < max_conn_host)
     max_connections = max_conn_host;
-
-  struct http_request *req = ck_alloc(sizeof(struct http_request));
-  u8 *url=(u8*) "http://retail.circlesoft.net/";
-  if (parse_url((u8*) url, req, NULL))
-      FATAL("Scan target '%s' is not a valid absolute URL.", argv[optind]);
-  req->callback=print_body;
-  async_request(req);
-
-
+  open_database();
+  parse_opts(argc, argv);
   fflush(0);
 
   EVP_cleanup();

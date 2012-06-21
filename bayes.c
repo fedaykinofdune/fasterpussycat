@@ -27,48 +27,14 @@ void setup_bayes(){
 
 
 
-unsigned int get_test_successes(struct url_test *test, unsigned int codes){
-  unsigned int successes=0;
-  if(codes & CODE_200) successes+=test->code_200;
-  if(codes & CODE_301) successes+=test->code_301;
-  if(codes & CODE_302) successes+=test->code_302;
-  if(codes & CODE_401) successes+=test->code_401;
-  if(codes & CODE_403) successes+=test->code_403;
-  if(codes & CODE_500) successes+=test->code_500;
-  if(codes & CODE_OTHER) successes+=test->code_other;
-  return successes;
-}
-
-unsigned int get_codes_for_test(struct url_test *test){
-  unsigned int codes=CODE_200;
-  if(test->flags & F_DIRECTORY){
-    codes=codes | CODE_401;
-    codes=codes | CODE_403;
-  }
-  return codes;
-
-}
-
-unsigned int get_ftr_successes(struct feature_test_result *test, unsigned int codes){
-  unsigned int successes=0;
-  if(codes & CODE_200) successes+=test->code_200;
-  if(codes & CODE_301) successes+=test->code_301;
-  if(codes & CODE_302) successes+=test->code_302;
-  if(codes & CODE_401) successes+=test->code_401;
-  if(codes & CODE_403) successes+=test->code_403;
-  if(codes & CODE_500) successes+=test->code_500;
-  if(codes & CODE_OTHER) successes+=test->code_other;
-  return successes;
-}
-
-void calculate_new_posterior(mpq_t *posterior, struct url_test *test, struct feature_test_result *ftr,unsigned int codes){
+void calculate_new_posterior(mpq_t *posterior, struct url_test *test, struct feature_test_result *ftr){
   if(ftr->count==0) return;
   if(mpq_equal(*posterior,zero)) return;
   if(mpq_equal(*posterior,one)) return;
  
   mpq_sub(neg_posterior,one,*posterior);
-  unsigned int url_test_success=get_test_successes(test,codes);
-  unsigned int ftr_success=get_ftr_successes(ftr,codes);
+  unsigned int url_test_success=test->success;
+  unsigned int ftr_success=ftr->success;
   unsigned int url_test_fail=test->count-url_test_success;
   unsigned int ftr_fail=ftr->count-ftr_success;
 
@@ -99,16 +65,15 @@ void calculate_new_posterior(mpq_t *posterior, struct url_test *test, struct fea
 }
 
 double get_test_probability(struct url_test *test, struct target *t){
-  int codes=get_codes_for_test(test);
   struct feature_node *fn;
   struct feature *f;
   struct feature_test_result *ftr;
-  mpq_set_ui(posterior,get_test_successes(test,codes),test->count);
+  mpq_set_ui(posterior,test->success,test->count);
   mpq_canonicalize(posterior);
   DL_FOREACH(t->features,fn){
     f=fn->data;
     ftr=find_or_create_ftr(test->id,f->id);
-    calculate_new_posterior(&posterior,test,ftr,codes);
+    calculate_new_posterior(&posterior,test,ftr);
   }
   return mpq_get_d(posterior);
 }
