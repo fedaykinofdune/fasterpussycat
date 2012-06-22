@@ -1,16 +1,6 @@
 #include "uthash.h"
 /* db.c */
 
-#define CODE_200 (1 << 0) /* 0x01 */
-#define CODE_RELOC (1 << 1) /* 0x02 */
-#define CODE_401 (1 << 3) /* 0x08 */
-#define CODE_403 (1 << 4) /* 0x10 */
-#define CODE_500 (1 << 5) /* 0x20 */
-
-#define ALL_CODES (CODE_200 | CODE_RELOC | CODE_401 | CODE_403 | CODE_500)
-
-
-
 #define F_CRITICAL  (1 << 0) /* 0x01 */
 #define F_DIRECTORY (1 << 1) /* 0x02 */
 #define F_INFO (1 << 2) /* 0x04 */

@@ -11,7 +11,7 @@
 #include "ac.h"
 #include "engine.h"
 
-#define GET_TESTS_SQL "SELECT id, url, description, success, count, flags FROM url_tests"
+#define GET_TESTS_SQL "SELECT id, url, success, count, flags FROM url_tests"
 
 
 #define GET_TRIGGERS_SQL "SELECT id, trigger, feature_id FROM aho_corasick_feature_triggers"
@@ -26,7 +26,7 @@
 
 #define UPDATE_FEATURE_SQL "UPDATE features SET count=? WHERE id=?" 
 
-#define INSERT_FEATURE_TEST_RESULT_SQL "INSERT INTO feature_test_results (url_test_id,feature_id,success,count) VALUES (?,?,?,?,?,?,?,?,?,?)" 
+#define INSERT_FEATURE_TEST_RESULT_SQL "INSERT INTO feature_test_results (url_test_id,feature_id,success,count) VALUES (?,?,?,?)" 
 
 
 #define INSERT_TRIGGER_SQL "INSERT OR REPLACE INTO aho_corasick_feature_triggers (feature_id,trigger) VALUES (?,?)" 
@@ -131,7 +131,6 @@ void add_aho_corasick_trigger(char *trigger, char *feature){
   sqlite3_exec(db, "BEGIN", 0, 0, 0);
   load_features();
 
-  sqlite3_exec(db, "COMMIT", 0, 0, 0);
   f=find_or_create_feature_by_label(feature);
   if(f->id==-1){
     save_feature(f);
@@ -145,6 +144,8 @@ void add_aho_corasick_trigger(char *trigger, char *feature){
       printf("%s\n",sqlite3_errmsg(db));
       exit(-1);
   }
+
+  sqlite3_exec(db, "COMMIT", 0, 0, 0);
 }
 
 struct feature *find_or_create_feature_by_label(const char *label){
@@ -323,9 +324,7 @@ int load_features(){
   sqlite3_reset(get_features_stmt);
   int c=0;
   while (sqlite3_step(get_features_stmt) == SQLITE_ROW){
-    c++;
     load_feature();
-    printf("%d\n",c);
   }
   return 0;
 }
@@ -337,7 +336,6 @@ int load_feature(){
   feat->id=sqlite3_column_int(get_features_stmt,0);
   feat->label=(char *) strdup((const char *) sqlite3_column_text(get_features_stmt,1));
   feat->count=sqlite3_column_int(get_features_stmt,2);
-  printf("%s\n", feat->label);
   HASH_ADD_KEYPTR( hhl, feature_map, feat->label, strlen(feat->label), feat );
   HASH_ADD_INT( feature_map_by_id, id, feat );
   load_ftr_by_feature_id(feat->id);
@@ -374,6 +372,13 @@ struct url_test *load_test(sqlite3_stmt *stmt){
 
 void add_or_update_url(char *url, char *description, unsigned int flags){
   struct url_test *test;
+  if(url[strlen(url)-1]=='/') flags|=F_DIRECTORY;
+  if(url[0]!='/'){
+    char *new=malloc(strlen(url)+2);
+    strcpy(&new[1],url);
+    new[0]='/';
+    url=new;
+  }
   sqlite3_reset(get_test_by_url_stmt);
   sqlite3_bind_text(get_test_by_url_stmt,1,url,-1,SQLITE_STATIC);
   if(sqlite3_step(get_test_by_url_stmt) == SQLITE_ROW){
