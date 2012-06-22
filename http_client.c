@@ -47,16 +47,16 @@
 
 /* Assorted exported settings: */
 
-u32 max_connections  = MAX_CONNECTIONS,
-    max_conn_host    = MAX_CONN_HOST,
+
+u32 max_conn_host    = 10,
     max_hosts        = 10,
+    max_connections  = 100,
     max_requests     = MAX_REQUESTS,
     max_fail         = MAX_FAIL,
     idle_tmout       = IDLE_TMOUT,
     resp_tmout       = RESP_TMOUT,
     rw_tmout         = RW_TMOUT,
     size_limit       = SIZE_LIMIT;
-
 u8 browser_type      = BROWSER_FAST;
 u8 auth_type         = AUTH_NONE;
 
@@ -1835,12 +1835,12 @@ void async_request(struct http_request* req) {
   
   h=host_queue;
   while(h){
-    if(h->addr==q->addr) break;
+    if(h->addr==req->addr) break;
     h=h->next;
   }
   if(!h){
-    new=ck_alloc(sizeof struct host_entry);
-    h->addr=q->addr;
+    new=ck_alloc(sizeof(struct host_entry));
+    h->addr=req->addr;
     new->prev=host_tail;
     if(new->prev) new->prev->next=new;
     host_tail=new;
@@ -1854,8 +1854,7 @@ void async_request(struct http_request* req) {
   h->q_tail->req  = req;
   h->q_tail->res  = res;
   h->q_tail->prev = qe;
-
-  if (h->q_tail->prev) q_tail->prev->next = q_tail;
+  if (h->q_tail->prev) h->q_tail->prev->next = h->q_tail;
   if (!h->q_head) h->q_head = h->q_tail;
   queue_cur++;
   req_count++;
@@ -1957,7 +1956,7 @@ static void conn_associate(struct conn_entry* use_c, struct queue_entry* q) {
     c->proto = q->req->proto;
     c->addr  = q->req->addr;
     c->port  = q->req->port;
-
+    c->h=q->h;
     c->fd = socket(PF_INET, SOCK_STREAM, 0);
 
     if (c->fd < 0) {
@@ -2015,10 +2014,10 @@ connect_error:
 
     /* Make it official. */
 
-    c->next  = conn;
-    conn     = c;
-    if (c->next) c->next->prev = c;
-
+    c->next        = c->h->c_head;
+    c->h->c_head   = c;
+    if (c->next)   c->next->prev = c;
+    c->h->connections++;
     conn_cur++;
 
   }
@@ -2042,20 +2041,20 @@ connect_error:
 u32 next_from_queue(void) {
 
   u32 cur_time = time(0);
-
+  u32 hi=0;
   if (conn_cur) {
     static struct pollfd* p;
     static struct host_entry *h;
     static struct conn_entry **ca;
-    struct conn_entry* c = conn;
-    u32 i = 0,hi=0;
+    struct conn_entry* c;
+    u32 i = 0;
     h=host_queue;
     
     if (!p)
       p = __DFL_ck_alloc(sizeof(struct pollfd) * max_connections);
 
     if (!ca)
-      c1= __DFL_ck_alloc(sizeof(struct conn_entry *) * max_connections);
+      ca= __DFL_ck_alloc(sizeof(struct conn_entry *) * max_connections);
     /* First, go through all connections, handle connects, SSL handshakes, data
        reads and writes, and exceptions. */
     while(h && hi<max_hosts){
@@ -2080,7 +2079,6 @@ u32 next_from_queue(void) {
 
     for (i=0;i<conn_cur;i++) {
 
-      struct conn_entry* next = c->next;
       c=ca[i];
       /* Connection closed: see if we have any pending data to write. If yes,
          fail. If not, try parse_response() to see if we have all the data.
@@ -2280,8 +2278,7 @@ SSL_read_more:
 
         if ((c->q && (cur_time - c->last_rw > rw_tmout ||
             cur_time - c->req_start > resp_tmout)) ||
-            (!c->q && (cur_time - c->last_rw > idle_tmout)) ||
-            (!c->q && tear_down_idle)) {
+            (!c->q && (cur_time - c->last_rw > idle_tmout))) {
 
           if (c->q) {
             c->q->res->state = STATE_CONNERR;
@@ -2309,60 +2306,78 @@ SSL_read_more:
      pair them up with something. */
 
   if (queue_cur) {
-    struct queue_entry *q = queue;
+    struct host_entry *h=host_queue;
+    struct host_entry *nh;
+    struct queue_entry *q;
+    hi=0;
 
-    while (q) {
-      u32 to_host = 0;
-
-      // enforce the max requests per seconds requirement
-      if (max_requests_sec && req_sec > max_requests_sec) {
-        u32 diff = req_sec - max_requests_sec;
-
-        DEBUG("req_sec=%f max=%f diff=%u\n", req_sec, max_requests_sec, diff);
-        if ((iterations_cnt++)%(diff + 1) != 0) {
-            idle = 1;
-            return queue_cur;
+    while(h && hi<max_hosts){
+      nh=h->next;
+      q=h->q_head;
+      if(!q){
+        struct conn_entry* c = h->c_head;
+        struct conn_entry* nc;
+        while(c){
+          nc=c->next;
+          destroy_unlink_conn(c, 0);
+          c=nc;
         }
+        if(h->prev){
+          h->prev->next=nh;
+        }
+        else{
+          host_queue=nh;
+        }
+        if(nh){
+        nh->prev=h->prev;
+        }
+        else{
+          host_tail=h->prev;
+        }
+        ck_free(h);
       }
-      idle = 0;
+      
+      while (q) {
 
-      struct queue_entry* next = q->next;
+        struct queue_entry* next = q->next;
 
-      if (!q->c) {
+        if (!q->c) {
 
-        struct conn_entry* c = conn;
+          struct conn_entry* c = h->c_head;
 
-        /* Let's try to find a matching, idle connection first. */
+          /* Let's try to find a matching, idle connection first. */
 
-        while (c) {
-          struct conn_entry* cnext = c->next;
+          while (c) {
+            struct conn_entry* cnext = c->next;
 
-          if (c->addr == q->req->addr   && (++to_host) &&
-              c->port == q->req->port   &&
-              c->proto == q->req->proto && !c->q) {
-            conn_associate(c, q);
-            goto next_q_entry;
+            if (c->addr == q->req->addr  &&
+                c->port == q->req->port   &&
+                c->proto == q->req->proto && !c->q) {
+              conn_associate(c, q);
+              goto next_q_entry;
+            }
+
+            c = cnext;
           }
 
-          c = cnext;
+          /* No match. If we are out of slots, request some other idle
+             connection to be nuked soon. */
+
+          if (h->connections < max_conn_host) {
+            conn_associate(0, q);
+            goto next_q_entry;
+          } else break; /* no idle connections and everything is full */
+
         }
-
-        /* No match. If we are out of slots, request some other idle
-           connection to be nuked soon. */
-
-        if (to_host < max_conn_host && conn_cur < max_connections) {
-          conn_associate(0, q);
-          goto next_q_entry;
-        } else if (to_host<max_conn_host) tear_down_idle = 1;
-
-      }
 
 next_q_entry:
 
-      q = next;
+        q = next;
 
+      }
+      hi++;
+      h=nh;
     }
-
   }
 
   return queue_cur;
@@ -2566,8 +2581,6 @@ void destroy_http() {
   ck_free(global_http_par.n);
   ck_free(global_http_par.v);
 
-  while (conn) destroy_unlink_conn(conn,0 );
-  while (queue) destroy_unlink_queue(queue,0 );
 
   cur = dns;
 
@@ -2634,7 +2647,7 @@ void http_stats(u64 st_time) {
 
 void http_req_list(void) {
   u32 i;
-  struct conn_entry* c = conn;
+  struct conn_entry* c = NULL;
 
   SAY(cLBL "In-flight requests (max 15 shown):\n\n");
 
