@@ -49,6 +49,7 @@
 
 u32 max_connections  = MAX_CONNECTIONS,
     max_conn_host    = MAX_CONN_HOST,
+    max_hosts        = 10,
     max_requests     = MAX_REQUESTS,
     max_fail         = MAX_FAIL,
     idle_tmout       = IDLE_TMOUT,
@@ -102,13 +103,9 @@ u8  ignore_cookies,
 
 /* Internal globals for queue management: */
 
-static struct queue_entry* queue;
-static struct conn_entry*  conn;
+static struct host_entry* host_queue;
+static struct host_entry* host_tail;
 static struct dns_entry*   dns;
-
-#ifdef QUEUE_FILO
-static struct queue_entry* q_tail;
-#endif /* QUEUE_FILO */
 
 static u8 tear_down_idle;
 
@@ -1728,10 +1725,8 @@ static void destroy_unlink_queue(struct queue_entry* q, u8 keep) {
     if (q->req) destroy_request(q->req);
     if (q->res) destroy_response(q->res);
   }
-  if (!q->prev) queue = q->next; else q->prev->next = q->next;
-#ifdef QUEUE_FILO
-  if (!q->next) q_tail = q->prev;
-#endif /* QUEUE_FILO */
+  if (!q->prev) q->h->q_head = q->next; else q->prev->next = q->next;
+  if (!q->next) q->h->q_tail = q->prev;
   if (q->next) q->next->prev = q->prev;
   ck_free(q);
   queue_cur--;
@@ -1744,14 +1739,15 @@ static void destroy_unlink_queue(struct queue_entry* q, u8 keep) {
 
 static void destroy_unlink_conn(struct conn_entry* c, u8 keep) {
   if (c->q) destroy_unlink_queue(c->q, keep);
-  if (!c->prev) conn = c->next; else c->prev->next = c->next;
-  if (c->next) c->next->prev = c->prev;
+  if (!c->prev) c->h->c_head = c->next; else c->prev->next = c->next;
+  if (!c->next) c->h->c_tail = c->prev; else c->next->prev = c->prev;
   if (c->srv_ssl) SSL_free(c->srv_ssl);
   if (c->srv_ctx) SSL_CTX_free(c->srv_ctx);
   ck_free(c->write_buf);
   ck_free(c->read_buf);
   close(c->fd);
   ck_free(c);
+  c->h->connections--;
   conn_cur--;
 }
 
@@ -1777,6 +1773,8 @@ static void reuse_conn(struct conn_entry* c, u8 keep) {
 void async_request(struct http_request* req) {
   struct queue_entry *qe;
   struct http_response *res;
+  struct host_entry *h;
+  struct host_entry *new;
 
   if (req->proto == PROTO_NONE || !req->callback)
     FATAL("uninitialized http_request");
@@ -1814,6 +1812,7 @@ void async_request(struct http_request* req) {
     conn_failed++;
     return;
   }
+    
 
   /* Enforce user limits. */
 
@@ -1827,35 +1826,37 @@ void async_request(struct http_request* req) {
     req_dropped++;
     return;
   }
+  
 
   /* OK, looks like we're good to go. Insert the request
      into the the queue. */
+  
+  /* find host entry */ 
+  
+  h=host_queue;
+  while(h){
+    if(h->addr==q->addr) break;
+    h=h->next;
+  }
+  if(!h){
+    new=ck_alloc(sizeof struct host_entry);
+    h->addr=q->addr;
+    new->prev=host_tail;
+    if(new->prev) new->prev->next=new;
+    host_tail=new;
+    if(!host_queue) host_queue=host_tail;
+    h=host_tail;
+  }
+ 
 
-#ifdef QUEUE_FILO
+  qe = h->q_tail;
+  h->q_tail = ck_alloc(sizeof(struct queue_entry));
+  h->q_tail->req  = req;
+  h->q_tail->res  = res;
+  h->q_tail->prev = qe;
 
-  qe = q_tail;
-  q_tail = ck_alloc(sizeof(struct queue_entry));
-  q_tail->req  = req;
-  q_tail->res  = res;
-  q_tail->prev = qe;
-
-  if (q_tail->prev) q_tail->prev->next = q_tail;
-
-  if (!queue) queue = q_tail;
-
-#else
-
-  qe = queue;
-
-  queue = ck_alloc(sizeof(struct queue_entry));
-  queue->req  = req;
-  queue->res  = res;
-  queue->next = qe;
-
-  if (queue->next) queue->next->prev = queue;
-
-#endif /* ^QUEUE_FILO */
-
+  if (h->q_tail->prev) q_tail->prev->next = q_tail;
+  if (!h->q_head) h->q_head = h->q_tail;
   queue_cur++;
   req_count++;
 
@@ -2044,34 +2045,43 @@ u32 next_from_queue(void) {
 
   if (conn_cur) {
     static struct pollfd* p;
-
+    static struct host_entry *h;
+    static struct conn_entry **ca;
     struct conn_entry* c = conn;
-    u32 i = 0;
-
-    /* First, go through all connections, handle connects, SSL handshakes, data
-       reads and writes, and exceptions. */
-
+    u32 i = 0,hi=0;
+    h=host_queue;
+    
     if (!p)
       p = __DFL_ck_alloc(sizeof(struct pollfd) * max_connections);
 
-    while (c) {
-      p[i].fd = c->fd;
-      p[i].events = POLLIN | POLLERR | POLLHUP;
-      if (c->write_len - c->write_off || c->SSL_rd_w_wr)
-        p[i].events |= POLLOUT;
-      p[i].revents = 0;
-      c = c->next;
-      i++;
+    if (!ca)
+      c1= __DFL_ck_alloc(sizeof(struct conn_entry *) * max_connections);
+    /* First, go through all connections, handle connects, SSL handshakes, data
+       reads and writes, and exceptions. */
+    while(h && hi<max_hosts){
+    
+      c=h->c_head;
+      while (c) {
+        ca[i]=c;
+        p[i].fd = c->fd;
+        p[i].events = POLLIN | POLLERR | POLLHUP;
+        if (c->write_len - c->write_off || c->SSL_rd_w_wr)
+          p[i].events |= POLLOUT;
+        p[i].revents = 0;
+        c = c->next;
+        i++;
+      }
+      hi++;
+      h=h->next;
     }
 
     poll(p, conn_cur, 100);
 
-    c = conn;
 
     for (i=0;i<conn_cur;i++) {
 
       struct conn_entry* next = c->next;
-
+      c=ca[i];
       /* Connection closed: see if we have any pending data to write. If yes,
          fail. If not, try parse_response() to see if we have all the data.
          Clean up. */
@@ -2289,8 +2299,6 @@ SSL_read_more:
         }
 
       }
-
-      c = next;
 
     }
 

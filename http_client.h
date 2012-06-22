@@ -202,11 +202,27 @@ struct conn_entry {
   u32 write_len;
 
   struct queue_entry* q;        /* Current queue entry          */
-
+  struct host_entry*  h;
   struct conn_entry*  prev;     /* Previous connection entry    */
   struct conn_entry*  next;     /* Next connection entry        */
 
 };
+
+
+
+/* Request queue descriptor: */
+
+struct host_entry {
+  u32 addr;
+  int connections;
+  struct queue_entry*   q_head;
+  struct queue_entry*   q_tail;
+  struct conn_entry*    c_head;
+  struct conn_entry*    c_tail;
+  struct host_entry*    next;
+  struct host_entry*    prev;
+};
+
 
 /* Request queue descriptor: */
 
@@ -214,6 +230,7 @@ struct queue_entry {
   struct http_request*  req;    /* Request descriptor           */
   struct http_response* res;    /* Response descriptor          */
   struct conn_entry*    c;      /* Connection currently used    */
+  struct host_entry*    h;
   struct queue_entry*   prev;   /* Previous queue entry         */
   struct queue_entry*   next;   /* Next queue entry             */
   u8 retrying;                  /* Request being retried?       */
