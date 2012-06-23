@@ -49,25 +49,35 @@ void add_feature_to_target(struct feature *f, struct target *t){
 
 void process_features(struct http_response *rep, struct target *t){
   unsigned char *server=GET_HDR((unsigned char *) "server",&rep->hdr);
+  unsigned char *powered=GET_HDR((unsigned char *) "x-powered-by",&rep->hdr);
   char *label;
-  int i;
+  char *f_str;
+  int i, size, server_l, power_l;
   if(!server){
     return;
   }
-  server=(unsigned char *) strdup((char *) server);
-  for(i=0;server[i];i++){
-    if(server[i]<'A' || server[i]>'z'){
-      server[i]=' ';
+  server_l=strlen((char *) server);
+  size=server_l+1;
+  if(powered) size+=strlen((char *) powered)+1;
+  f_str=malloc(size);
+  strcpy(f_str,(char *) server);
+  if(powered){
+     f_str[server_l]=' ';
+     strcpy(&f_str[server_l+1],(char *) powered);
+  }
+  for(i=0;f_str[i];i++){
+    if(f_str[i]<'A' || f_str[i]>'z'){
+      f_str[i]=' ';
     }
   }
-  label=strtok((char *) server," ");
+  label=strtok((char *) f_str," ");
   while(label!=NULL){
     if(strlen((char *) label)>2){
       add_feature_label_to_target(label, t);
     }
     label=strtok(NULL," ");
   }
-  free(server);
+  free(f_str);
 }
 
 char is_success(struct url_test *test, int code){

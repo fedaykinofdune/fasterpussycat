@@ -1840,7 +1840,7 @@ void async_request(struct http_request* req) {
   }
   if(!h){
     new=ck_alloc(sizeof(struct host_entry));
-    h->addr=req->addr;
+    new->addr=req->addr;
     new->prev=host_tail;
     if(new->prev) new->prev->next=new;
     host_tail=new;
@@ -1854,6 +1854,7 @@ void async_request(struct http_request* req) {
   h->q_tail->req  = req;
   h->q_tail->res  = res;
   h->q_tail->prev = qe;
+  h->q_tail->h=h;
   if (h->q_tail->prev) h->q_tail->prev->next = h->q_tail;
   if (!h->q_head) h->q_head = h->q_tail;
   queue_cur++;
