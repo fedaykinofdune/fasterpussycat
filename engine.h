@@ -4,6 +4,8 @@
 #define DETECT_404_CODE 1
 #define DETECT_404_LOCATION 2
 
+extern int check_dir;
+extern int check_cgi_bin;
 
 struct feature_node {
   struct feature *data;
@@ -24,7 +26,9 @@ struct target {
   unsigned char fourohfour_response_count;
   unsigned char fourohfour_detect_mode;
   unsigned char *fourohfour_location;
+  int checks;
   unsigned char skip_dir;
+  unsigned char skip_cgi_bin;
   struct http_request *prototype_request;
   struct feature_node *features;
   struct test_score  *test_scores;
@@ -34,7 +38,7 @@ struct target {
 /* engine.c */
 struct target *target_by_host(unsigned char *host);
 void add_feature_label_to_target(const char *label, struct target *t);
-
+void maybe_enqueue_tests(struct target *t);
 void add_feature_to_target(struct feature *f, struct target *t);
 void process_features(struct http_response *rep, struct target *t);
 unsigned char process_test_result(struct http_request *req, struct http_response *rep);
@@ -47,4 +51,4 @@ int score_sort(struct test_score *lhs, struct test_score *rhs);
 void enqueue_tests(struct target *t);
 unsigned char process_random_request(struct http_request *req, struct http_response *rep);
 unsigned char process_dir_request(struct http_request *req, struct http_response *rep);
-void enqueue_random_request(struct http_request *orig, int slash, int php, int dir);
+void enqueue_random_request(struct target *t, int slash, int php, int dir);

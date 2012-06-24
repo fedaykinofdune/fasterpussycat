@@ -55,12 +55,6 @@ void calculate_new_posterior(mpq_t *posterior, struct url_test *test, struct fea
     mpq_set_ui(feat_given_fail_ratio,0,1);
   }
   mpq_add(evidence,feat_given_fail_ratio,feat_given_succ_ratio);
-  printf("ftr_s %d ftr_f %d post ",ftr_success, ftr_fail);
-  mpq_out_str(stdout, 10, *posterior);
-  printf("\n");
-  printf("ftr %d t %d f %d evidence: ",ftr->id,ftr->url_test_id, ftr->feature_id);
-  mpq_out_str(stdout, 10, evidence);
-  printf("\n");
   mpq_div(*posterior,feat_given_succ_ratio,evidence);
 }
 

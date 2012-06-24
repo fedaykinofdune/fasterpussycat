@@ -49,8 +49,8 @@
 
 
 u32 max_conn_host    = 10,
-    max_hosts        = 10,
-    max_connections  = 100,
+    max_hosts        = 20,
+    max_connections  = 200,
     max_requests     = MAX_REQUESTS,
     max_fail         = MAX_FAIL,
     idle_tmout       = IDLE_TMOUT,

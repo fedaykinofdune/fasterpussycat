@@ -8,6 +8,8 @@
 #include "bayes.h"
 
 static struct target *targets=NULL;
+int check_dir=1;
+int check_cgi_bin=1;
 
 
 struct target *target_by_host(u8 *host){
@@ -52,7 +54,7 @@ void process_features(struct http_response *rep, struct target *t){
   unsigned char *powered=GET_HDR((unsigned char *) "x-powered-by",&rep->hdr);
   char *label;
   char *f_str;
-  int i, size, server_l, power_l;
+  int i, size, server_l;
   if(!server){
     return;
   }
@@ -140,7 +142,8 @@ void add_target(u8 *host){
   ADD_STR_DATA(url,cur_pos,"/");
   parse_url(url,first,NULL);
   t->prototype_request=req_copy(first,0);
-
+  t->prototype_request->method=ck_alloc(5);
+  memcpy(t->prototype_request->method,"HEAD",5);
   first->callback=process_first_page;
   first->t=t;
   async_request(first);
@@ -158,17 +161,25 @@ void gen_random(unsigned char *s, const int len) {
   s[len] = 0;
 }
 
+inline struct http_request *new_request(struct target *t){
+  struct http_request *r=req_copy(t->prototype_request,0);
+  r->t=t;
+  r->method=ck_strdup(t->prototype_request->method);
+  return r;
+}
 
 unsigned char process_first_page(struct http_request *req, struct http_response *rep){
   int i;
-  if(rep->state==STATE_DNSERR){
+  if(rep->state==STATE_DNSERR || rep->code==0){
+
+    /* hambone detected fail immediately */
+
     return 0;
   }
   process_features(rep,req->t);
   add_features_from_triggers(rep,req->t);
-  printf("code now %d\n",rep->code);
   for(i=0;i<MAX_404_QUERIES;i++){
-    enqueue_random_request(req,(i==0),(i==1),0);
+    enqueue_random_request(req->t,(i==0),(i==1),0);
   }
   return 0;
 }
@@ -224,9 +235,22 @@ void enqueue_tests(struct target *t){
   struct url_test *test;
   struct test_score *score;
   struct http_request *request;
+  struct feature_node *fn;
+  struct feature_test_result *ftr;
   unsigned char *url_cpy;
   for(test=get_tests();test!=NULL;test=test->hh.next){
     if(t->skip_dir && (test->flags && F_DIRECTORY)){
+      continue;
+    }
+
+    if(t->skip_cgi_bin && (test->flags && F_CGI)){
+      test->count++;
+      test->dirty=1;
+      DL_FOREACH(t->features,fn){
+        ftr=find_or_create_ftr(test->id,fn->data->id);
+        ftr->count++;
+        ftr->dirty=1;
+      }  
       continue;
     }
     score=ck_alloc(sizeof(struct test_score));
@@ -236,14 +260,10 @@ void enqueue_tests(struct target *t){
   }
   LL_SORT(t->test_scores,score_sort);
   LL_FOREACH(t->test_scores,score) {
-     printf("enqueue http://%s%s score: %f\n",t->host,score->test->url,score->score);
-     request=req_copy(t->prototype_request,0);
-     request->method=(unsigned char *) ck_alloc(5);
-     memcpy(request->method,"HEAD",5);
+     request=new_request(t);
      url_cpy=ck_alloc(strlen(score->test->url)+1);
      memcpy(url_cpy,score->test->url,strlen(score->test->url)+1);
      tokenize_path(url_cpy, request, 0);
-     request->t=t;
      request->user_val=score->test->id;
      request->callback=process_test_result;
      async_request(request);
@@ -254,33 +274,73 @@ void enqueue_tests(struct target *t){
 
 u8 process_dir_request(struct http_request *req, struct http_response *rep){
   struct target *t=req->t;
+  t->checks--;
   if(!process_404(rep,t)){
     printf("FAILED DIR DETECT %s\n",t->host);
     t->skip_dir=1;
   }
-  enqueue_tests(t);
+  maybe_enqueue_tests(t);
   
   return 0;
 }
+
+u8 process_cgi_check_request(struct http_request *req, struct http_response *rep){
+  if(!(rep->code==200 || rep->code==403)){
+    printf("FAILED CGI DETECT %s\n",req->t->host);
+    req->t->skip_cgi_bin=1;
+  }
+  req->t->checks--;
+  maybe_enqueue_tests(req->t);
+  return 0;
+}
+
+
+void enqueue_cgi_bin_check(struct target *t){
+  struct http_request *req=new_request(t);
+  unsigned char *url_cpy=ck_strdup((unsigned char *) "/cgi-bin/");
+  tokenize_path(url_cpy, req, 0);
+  req->callback=process_cgi_check_request;
+  async_request(req);
+}
+
+
+inline void maybe_enqueue_tests(struct target *t){
+  if(!t->checks){
+    enqueue_tests(t);
+  }
+}
+
+
+void enqueue_checks(struct target *t){
+  if(check_dir){
+    t->checks++;
+    enqueue_random_request(t,0,0,1);
+  }
+  if(check_cgi_bin){
+    t->checks++;
+    enqueue_cgi_bin_check(t);
+  }
+  maybe_enqueue_tests(t);
+}
+
 
 
 u8 process_random_request(struct http_request *req, struct http_response *rep){
   struct target *t=req->t;
   t->fourohfour_response_count++;
-  printf("code %d\n", rep->code);
   if(!process_404(rep,t)){
     printf("FAILED 404 DETECT %s\n",t->host);
     t->fourohfour_detect_mode=DETECT_404_NONE;
     return 0;
   }
   if(t->fourohfour_response_count>=MAX_404_QUERIES && t->fourohfour_detect_mode!=DETECT_404_NONE){
-    enqueue_random_request(req,0,0,1);
+    enqueue_checks(t);
   }
   return 0;
 }
 
-void enqueue_random_request(struct http_request *orig, int slash,int php, int dir){
-  struct http_request *random_req=req_copy(orig,0);
+void enqueue_random_request(struct target *t, int slash,int php, int dir){
+  struct http_request *random_req=new_request(t);
   u8 *random=ck_alloc(18);
   if(dir){
     random_req->callback=process_dir_request;
@@ -288,22 +348,15 @@ void enqueue_random_request(struct http_request *orig, int slash,int php, int di
   else{
     random_req->callback=process_random_request;
   }
-  printf("method 1 %s",random_req->method);
-  random_req->method=(unsigned char *) ck_alloc(5);
-  memcpy(random_req->method,"HEAD",5);
-  
-  printf("method 2 %s",random_req->method);
   random[0]='/';
   gen_random(&random[1],16);
   if(slash || dir){
-    random[7]='/';
-    if(dir) random[8]=0;
+    random[8]='/';
+    if(dir) random[9]=0;
   }
   if(php){
     memcpy(&random[7],".php",5);
   }
-  printf("random path = %s\n",random);
   tokenize_path(random,random_req,0);
-  random_req->t=orig->t;
   async_request(random_req);
 }

@@ -383,6 +383,7 @@ struct http_response* res_copy(struct http_response* res);
 
 extern u32 max_connections,
            max_conn_host,
+           max_hosts,
            max_requests,
            max_fail,
            idle_tmout,

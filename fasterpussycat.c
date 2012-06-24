@@ -105,15 +105,18 @@ void parse_opts(int argc, char** argv){
   int mode=MODE_ATTACK;
   int i;
   unsigned int f;
+
   char *url=NULL;
   char *trigger=NULL;
   char *feature=NULL;
   char *description="";
   unsigned int flags=0;
   struct option long_options[] = {        /* long options array. Items are all caSe SensiTivE! */
-    { "db-add", no_argument, NULL, 'A'   }, 
-    { "trigger-add", no_argument, NULL, 'T'},
+    { "add-url", no_argument, NULL, 'A'   }, 
+    { "add-trigger", no_argument, NULL, 'T'},
     { "trigger", required_argument,NULL, 't'},
+    { "hosts", required_argument,NULL, 'h'},
+    { "connections", required_argument,NULL, 'c'},
     { "feature", required_argument,NULL, 'e'},
     { "url", required_argument, NULL, 'u' },
     { "description", required_argument, NULL, 'd' },
@@ -121,7 +124,7 @@ void parse_opts(int argc, char** argv){
     { 0,    0,    0,    0   }       /* terminating -0 item */
   };
   int opt;
-  while((opt=getopt_long( argc, argv, "-ATu:d:f:", long_options, &longIndex ))!=-1){
+  while((opt=getopt_long( argc, argv, "-ATu:d:f:h:s:", long_options, &longIndex ))!=-1){
     switch(opt){
       case 1:
         add_target((unsigned char *) optarg);
@@ -138,6 +141,12 @@ void parse_opts(int argc, char** argv){
         break;
       case 'd':
         description=optarg;
+        break;
+      case 'c':
+        max_conn_host=atoi(optarg);
+        break;
+      case 'h':
+        max_hosts=atoi(optarg);
         break;
       case 'e':
         feature=optarg;
@@ -172,6 +181,7 @@ void parse_opts(int argc, char** argv){
 
   switch(mode){
     case MODE_DB_ADD:
+      max_connections=max_hosts * max_conn_host;
       add_or_update_url(url, description, flags);
       exit(0);
       break;
