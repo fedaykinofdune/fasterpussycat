@@ -372,7 +372,7 @@ struct url_test *load_test(sqlite3_stmt *stmt){
 void add_or_update_url(char *url, char *description, unsigned int flags){
   struct url_test *test;
   if(url[strlen(url)-1]=='/') flags|=F_DIRECTORY;
-  if(strstr("/cgi-bin/",url)==0) flags|=F_CGI;
+  if(strstr(url, "/cgi-bin/")) flags|=F_CGI;
   if(url[0]!='/'){
     char *new=malloc(strlen(url)+2);
     strcpy(&new[1],url);
