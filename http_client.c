@@ -51,6 +51,7 @@
 u32 max_conn_host    = 10,
     max_hosts        = 20,
     max_connections  = 200,
+    hosts            = 0,
     max_requests     = MAX_REQUESTS,
     max_fail         = MAX_FAIL,
     idle_tmout       = IDLE_TMOUT,
@@ -1839,6 +1840,7 @@ void async_request(struct http_request* req) {
     h=h->next;
   }
   if(!h){
+    hosts++;
     new=ck_alloc(sizeof(struct host_entry));
     new->addr=req->addr;
     new->prev=host_tail;
@@ -2017,7 +2019,7 @@ connect_error:
 
     c->next        = c->h->c_head;
     c->h->c_head   = c;
-    if (c->next)   c->next->prev = c;
+    if (c->next)   c->next->prev = c; else c->h->c_tail=c;
     c->h->connections++;
     conn_cur++;
 
@@ -2074,9 +2076,13 @@ u32 next_from_queue(void) {
       hi++;
       h=h->next;
     }
+    if(i!=conn_cur){
+      printf("something is fucked... %d %d",i,conn_cur);
+      exit(-1);
+    }
 
     poll(p, conn_cur, 100);
-
+    
 
     for (i=0;i<conn_cur;i++) {
 
@@ -2336,6 +2342,7 @@ SSL_read_more:
           host_tail=h->prev;
         }
         ck_free(h);
+        hosts--;
       }
       
       while (q) {
@@ -2615,8 +2622,8 @@ void http_stats(u64 st_time) {
       cGRA " TCP handshakes : " cNOR "%u total (%.01f req/conn)  \n"
       cGRA "     TCP faults : " cNOR "%u failures, %u timeouts, %u purged\n"
       cGRA " External links : " cNOR "%u skipped\n"
-      cGRA "   Reqs pending : " cNOR "%u        \n",
-
+      cGRA "   Reqs pending : " cNOR "%u        \n"
+      cGRA "          Hosts : " cNOR "%u        \n",
       /* hrs */ (u32)((en_time - st_time) / 1000 / 60 / 60),
       /* min */ (u32)((en_time - st_time) / 1000 / 60) % 60,
       /* sec */ (u32)((en_time - st_time) / 1000) % 60,
@@ -2637,7 +2644,7 @@ void http_stats(u64 st_time) {
 
       conn_count, (float) req_count / conn_count,
       conn_failed, conn_busy_tmout, conn_idle_tmout,
-      url_scope, queue_cur);
+      url_scope, queue_cur, hosts);
 }
 
 

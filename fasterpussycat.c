@@ -51,6 +51,7 @@ u32 __AD_trk_cnt[ALLOC_BUCKETS];
 #define MODE_DB_ADD 1
 #define MODE_ATTACK 2
 #define MODE_TRIGGER_ADD 3
+#define MODE_HELP 4
 
 /* Ctrl-C handler... */
 
@@ -115,16 +116,15 @@ void parse_opts(int argc, char** argv){
     { "add-url", no_argument, NULL, 'A'   }, 
     { "add-trigger", no_argument, NULL, 'T'},
     { "trigger", required_argument,NULL, 't'},
-    { "hosts", required_argument,NULL, 'h'},
-    { "connections", required_argument,NULL, 'c'},
+    { "max-hosts", required_argument,NULL, 'n'},
+    { "max-connections", required_argument,NULL, 'c'},
     { "feature", required_argument,NULL, 'e'},
     { "url", required_argument, NULL, 'u' },
-    { "description", required_argument, NULL, 'd' },
     { "flags", required_argument, NULL, 'f' },
     { 0,    0,    0,    0   }       /* terminating -0 item */
   };
   int opt;
-  while((opt=getopt_long( argc, argv, "-ATu:d:f:h:s:", long_options, &longIndex ))!=-1){
+  while((opt=getopt_long( argc, argv, "-ATu:f:n:s:c:", long_options, &longIndex ))!=-1){
     switch(opt){
       case 1:
         add_target((unsigned char *) optarg);
@@ -146,6 +146,9 @@ void parse_opts(int argc, char** argv){
         max_conn_host=atoi(optarg);
         break;
       case 'h':
+        mode=MODE_HELP;
+        break;
+      case 'n':
         max_hosts=atoi(optarg);
         break;
       case 'e':
@@ -181,11 +184,11 @@ void parse_opts(int argc, char** argv){
 
   switch(mode){
     case MODE_DB_ADD:
-      max_connections=max_hosts * max_conn_host;
       add_or_update_url(url, description, flags);
       exit(0);
       break;
     case MODE_ATTACK:
+      max_connections=max_hosts * max_conn_host;
       do_scan();
       exit(0);
       break;
