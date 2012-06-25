@@ -99,7 +99,7 @@ u32 use_proxy_addr;
 u16 use_proxy_port;
 #endif /* PROXY_SUPPORT */
 
-u8  ignore_cookies,
+u8  ignore_cookies=1,
     idle;
 
 /* Internal globals for queue management: */
