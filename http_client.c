@@ -943,8 +943,14 @@ u8* build_request_data(struct http_request* req) {
   ASD("\r\n");
 
   /* Insert generic browser headers first. */
+  if (browser_type == BROWSER_METAL) {
+      
+    /* ASD("Connection: keep-alive\r\n"); */
 
-  if (browser_type == BROWSER_FAST) {
+    
+  }
+
+  else if (browser_type == BROWSER_FAST) {
 
     ASD("Accept-Encoding: gzip\r\n");
     ASD("Connection: keep-alive\r\n");
@@ -1009,7 +1015,7 @@ u8* build_request_data(struct http_request* req) {
      Note that some Oracle servers apparently fail on certain ranged
      requests, so allowing -H override seems like a good idea. */
 
-  if (!GET_HDR((u8*)"Range", &global_http_par)) {
+  if (!GET_HDR((u8*)"Range", &global_http_par) && (!req->method || strcasecmp(req->method, "HEAD"))) {
     u8 limit[32];
     sprintf((char*)limit, "Range: bytes=0-%u\r\n", size_limit - 1);
     ASD(limit);
@@ -1017,7 +1023,7 @@ u8* build_request_data(struct http_request* req) {
 
   /* Include a dummy "Referer" header, to avoid certain XSRF checks. */
 
-  if (!GET_HDR((u8*)"Referer", &req->par)) {
+  if (!GET_HDR((u8*)"Referer", &req->par) && browser_type!=BROWSER_METAL) {
     ASD("Referer: http");
     if (req->proto == PROTO_HTTPS) ASD("s");
     ASD("://");
@@ -2630,7 +2636,7 @@ void http_stats(u64 st_time) {
       /* ms  */ (u32)((en_time - st_time) % 1000),
 
       req_count - queue_cur,
-      (float) (req_count - queue_cur / 1.15) * 1000 / (en_time - st_time + 1),
+      (float) (req_sec),
       (unsigned long long int) bytes_recv / 1024,
       (unsigned long long int) bytes_sent / 1024,
       (float) (bytes_recv + bytes_sent) / 1.024 / (en_time - st_time + 1),

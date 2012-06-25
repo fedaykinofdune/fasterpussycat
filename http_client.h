@@ -421,6 +421,7 @@ extern u8  ignore_cookies,
 #define BROWSER_MSIE    1       /* Try to mimic MSIE            */
 #define BROWSER_FFOX    2       /* Try to mimic Firefox         */
 #define BROWSER_PHONE   3       /* Try to mimic iPhone          */
+#define BROWSER_METAL   4       /* Bare metal HTTP headers       */
 
 extern u8 browser_type;
 

@@ -53,6 +53,44 @@ u32 __AD_trk_cnt[ALLOC_BUCKETS];
 #define MODE_TRIGGER_ADD 3
 #define MODE_HELP 4
 
+
+void usage(){
+printf(
+"Usage:  fasterpussycat [OPTIONS] HOST1 HOST2 HOST3 ...\n"
+"        fasterpussycat --add-url --url URL [--flags flags]\n"
+"        fasterpussycat --add-trigger --trigger TRIGGER --feature FEATURE\n"
+"\n"
+"Options:\n"
+"\n"
+"Attack mode:\n"
+"\n"
+"  -B  --browser-type=TYPE       emulate browser headers of TYPE. The following\n"
+"                                options are supported: metal (bare metal\n"
+"                                request), minimal, firefox, explorer, iphone.\n"
+"                                NOTE: Use metal or minimal when upload\n"
+"                                bandwith is constrained\n"
+"\n"
+"  -n, --max_hosts=N             maximum simultaneous hosts to scan\n"
+"  -c, --max-conn=N              maximum connections per a host\n"
+"      --skip-dir-check          skips check to see if we can identify dirs\n"
+"      --skip-cgi-bin-check      skips check for cgi-bin\n"
+"\n"
+"Database:\n"
+"\n"
+"  -T  --add-trigger             adds a trigger to the database, requires the\n"
+"                                feature and trigger options\n"
+"\n"
+"  -U  --add-url                 adds or updates a url test in the database,\n"
+"                                requires the url and optional flag option.\n"
+"\n"
+"  -u  --url=PATH                the url path to manipulate NOTE: no host or\n"
+"                                protocol sections i.e. \"/index.php\"\n"
+"\n"
+"Other:\n"
+"  -h  --help                    this help\n"
+);
+}
+
 /* Ctrl-C handler... */
 
 static u8 stop_soon;
@@ -72,12 +110,14 @@ void do_scan(){
   load_tests();
   load_aho_corasick_triggers();
   setup_bayes();
-
   struct timeval tv;
   gettimeofday(&tv, NULL);
   u64 st_time;
-  long c=0; 
+  long c=0;
+  u32 last_req=0;
+  u64 last_time;
   st_time = tv.tv_sec * 1000LL + tv.tv_usec / 1000;
+  last_time=st_time;
   while ((next_from_queue() && !stop_soon)) {
 
 
@@ -89,8 +129,11 @@ void do_scan(){
     end_time = tv_tmp.tv_sec * 1000LL + tv_tmp.tv_usec / 1000;
 
     run_time = end_time - st_time;
-
-    req_sec = (req_count - queue_cur / 1.15) * 1000 / (run_time + 1);
+    if(end_time-last_time>1000){
+      req_sec = ((req_count - queue_cur)-last_req) * 1000.0 / ((end_time-last_time) + 1);
+      last_time=end_time;
+      last_req=(req_count - queue_cur);
+    }
     if((c % 256)==0){ 
       http_stats(st_time);
     }
@@ -101,12 +144,13 @@ void do_scan(){
 
 }
 
+
 void parse_opts(int argc, char** argv){
   int longIndex;
   int mode=MODE_ATTACK;
   int i;
   unsigned int f;
-
+  int t=0;
   char *url=NULL;
   char *trigger=NULL;
   char *feature=NULL;
@@ -118,16 +162,19 @@ void parse_opts(int argc, char** argv){
     { "trigger", required_argument,NULL, 't'},
     { "max-hosts", required_argument,NULL, 'n'},
     { "max-connections", required_argument,NULL, 'c'},
+    { "browser-type", required_argument, NULL, 'B' },
     { "feature", required_argument,NULL, 'e'},
     { "url", required_argument, NULL, 'u' },
     { "flags", required_argument, NULL, 'f' },
+    { "help", required_argument, NULL, 'h' },
     { 0,    0,    0,    0   }       /* terminating -0 item */
   };
   int opt;
-  while((opt=getopt_long( argc, argv, "-ATu:f:n:s:c:", long_options, &longIndex ))!=-1){
+  while((opt=getopt_long( argc, argv, "-ATu:f:n:s:c:B:h", long_options, &longIndex ))!=-1){
     switch(opt){
       case 1:
         add_target((unsigned char *) optarg);
+        t++;
         break;
       case 'A':
         mode=MODE_DB_ADD;
@@ -136,6 +183,20 @@ void parse_opts(int argc, char** argv){
         mode=MODE_TRIGGER_ADD;
         printf("trigger add\n");
         break;
+      case 'B':
+        if (!strcasecmp("metal",optarg)) browser_type=BROWSER_METAL;
+        else if (!strcasecmp("minimal",optarg)) browser_type=BROWSER_FAST;
+        else if (!strcasecmp("firefox",optarg)) browser_type=BROWSER_FFOX;
+        else if (!strcasecmp("explorer",optarg)) browser_type=BROWSER_MSIE;
+        else if (!strcasecmp("iphone",optarg)) browser_type=BROWSER_PHONE;
+        else {
+          printf("ERROR: Browser type '%s' is not supported.\n",optarg);
+          exit(1);
+        }
+        break;
+      case 'h':
+        usage();
+        exit(0);
       case 'u':
         url=optarg;
         break;
@@ -144,9 +205,6 @@ void parse_opts(int argc, char** argv){
         break;
       case 'c':
         max_conn_host=atoi(optarg);
-        break;
-      case 'h':
-        mode=MODE_HELP;
         break;
       case 'n':
         max_hosts=atoi(optarg);
@@ -188,6 +246,10 @@ void parse_opts(int argc, char** argv){
       exit(0);
       break;
     case MODE_ATTACK:
+      if(!t){
+        usage();
+        exit(0);
+      }
       max_connections=max_hosts * max_conn_host;
       do_scan();
       exit(0);
