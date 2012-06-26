@@ -143,6 +143,7 @@ void add_aho_corasick_trigger(char *trigger, char *feature){
   }
 
   sqlite3_exec(db, "COMMIT", 0, 0, 0);
+  info("saved trigger!\n");
 }
 
 struct feature *find_or_create_feature_by_label(const char *label){
@@ -195,6 +196,7 @@ void save_all(){
   struct feature *feature_iter; 
   struct url_test *url_test_iter;
   struct feature_test_result *ftr_iter;
+  info("saving results\n");
   sqlite3_exec(db, "BEGIN", 0, 0, 0);
 
   for(feature_iter=feature_map; feature_iter!=NULL; feature_iter=feature_iter->hh.next){
@@ -309,6 +311,7 @@ int load_ftr_by_feature_id(int feature_id){
 
 
 int load_features(){
+  info("loading features...\n");
   sqlite3_reset(get_features_stmt);
   while (sqlite3_step(get_features_stmt) == SQLITE_ROW){
     load_feature();
@@ -381,6 +384,7 @@ void add_or_update_url(char *url, char *description, unsigned int flags){
   test->description=description;
   test->flags=flags;
   save_url_test(test);
+  info("saved url!\n");
 }
 
 int load_tests(){
