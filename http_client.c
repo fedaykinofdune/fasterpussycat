@@ -52,7 +52,6 @@ u32 max_conn_host    = 10,
     max_hosts        = 20,
     max_connections  = 200,
     hosts            = 0,
-    max_requests     = MAX_REQUESTS,
     max_fail         = MAX_FAIL,
     idle_tmout       = IDLE_TMOUT,
     resp_tmout       = RESP_TMOUT,
@@ -1015,7 +1014,7 @@ u8* build_request_data(struct http_request* req) {
      Note that some Oracle servers apparently fail on certain ranged
      requests, so allowing -H override seems like a good idea. */
 
-  if (!GET_HDR((u8*)"Range", &global_http_par) && (!req->method || strcasecmp(req->method, "HEAD"))) {
+  if (!GET_HDR((u8*)"Range", &global_http_par) && (!req->method || strcasecmp((char *) req->method, "HEAD"))) {
     u8 limit[32];
     sprintf((char*)limit, "Range: bytes=0-%u\r\n", size_limit - 1);
     ASD(limit);
@@ -1821,18 +1820,6 @@ void async_request(struct http_request* req) {
   }
     
 
-  /* Enforce user limits. */
-
-  if (req_count > max_requests) {
-    DEBUG("!!! Total request limit exceeded!\n");
-    res->state = STATE_SUPPRESS;
-    if (!req->callback(req, res)) {
-      destroy_request(req);
-      destroy_response(res);
-    }
-    req_dropped++;
-    return;
-  }
   
 
   /* OK, looks like we're good to go. Insert the request

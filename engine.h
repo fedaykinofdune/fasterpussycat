@@ -6,7 +6,10 @@
 
 extern int check_dir;
 extern int check_cgi_bin;
-
+extern unsigned int max_requests;
+extern int train;
+extern unsigned int max_train_count;
+extern int force_save;
 struct feature_node {
   struct feature *data;
   struct feature_node *prev;

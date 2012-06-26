@@ -10,6 +10,7 @@
 #include "db.h"
 #include "ac.h"
 #include "engine.h"
+#include "util.h"
 
 #define GET_TESTS_SQL "SELECT id, url, success, count, flags FROM url_tests"
 
@@ -114,11 +115,9 @@ void add_features_from_triggers(struct http_response *rep, struct target *t){
   ac_search_init(aho_corasick,(char *) rep->payload,rep->pay_len);
   while(ac_search(aho_corasick, &meh,&id)){
     HASH_FIND_INT(trigger_map, &id, trig);
-    printf("trigger feature '%s'\n",trig->trigger);
     HASH_FIND_INT(feature_map_by_id, &trig->feature_id,f);
     if(f==NULL){
-      printf("feature is null, feature_id=%d\n",trig->feature_id);
-      exit(-1);
+      fatal("feature is null, feature_id=%d\n",trig->feature_id);
     }
     add_feature_to_target(f,t);
   }
@@ -140,9 +139,7 @@ void add_aho_corasick_trigger(char *trigger, char *feature){
   sqlite3_bind_text(insert_trigger_stmt,2,trigger, -1, SQLITE_TRANSIENT);
 
   if(sqlite3_step(insert_trigger_stmt)!=SQLITE_DONE){
-      printf("SOME KIND OF FAIL IN TRIGGER INSERT");
-      printf("%s\n",sqlite3_errmsg(db));
-      exit(-1);
+      fatal("SOME KIND OF FAIL IN TRIGGER INSERT: %s\n",sqlite3_errmsg(db));
   }
 
   sqlite3_exec(db, "COMMIT", 0, 0, 0);
@@ -177,9 +174,7 @@ void save_feature(struct feature *f){
     sqlite3_reset(insert_feature_stmt);
     sqlite3_bind_text(insert_feature_stmt,1,f->label, -1, SQLITE_TRANSIENT);
     if(sqlite3_step(insert_feature_stmt)!=SQLITE_DONE){
-      printf("%s\n",sqlite3_errmsg(db));
-      printf("SOME KIND OF FAIL IN FEATURE INSERT '%s'", f->label);
-      exit(-1);
+      fatal("SOME KIND OF FAIL IN FEATURE INSERT '%s' %s\n", f->label, sqlite3_errmsg(db));
     }
     f->id=sqlite3_last_insert_rowid(db);
     f->dirty=0;
@@ -189,8 +184,7 @@ void save_feature(struct feature *f){
     sqlite3_bind_int(update_feature_stmt,1,f->count);
     sqlite3_bind_int(update_feature_stmt,2,f->id);
     if(sqlite3_step(update_feature_stmt)!=SQLITE_DONE){
-      printf("SOME KIND OF FAIL IN FEATURE UPDATE");
-      exit(-1);
+      fatal("SOME KIND OF FAIL IN FEATURE UPDATE %s\n",sqlite3_errmsg(db));
     }
     f->dirty=0;
   }
@@ -233,8 +227,7 @@ void save_ftr(struct feature_test_result *f){
     sqlite3_bind_int(insert_ftr_stmt,3,f->success);
     sqlite3_bind_int(insert_ftr_stmt,4,f->count);
     if(sqlite3_step(insert_ftr_stmt)!=SQLITE_DONE){
-      printf("SOME KIND OF FAIL IN FTR INSERT");
-      exit(-1);
+      fatal("SOME KIND OF FAIL IN FTR INSERT %s\n",sqlite3_errmsg(db));
     }
     f->id=sqlite3_last_insert_rowid(db);
     f->dirty=0;
@@ -246,8 +239,7 @@ void save_ftr(struct feature_test_result *f){
     sqlite3_bind_int(update_ftr_stmt,2,f->count);
     sqlite3_bind_int(update_ftr_stmt,3,f->id);
     if(sqlite3_step(update_ftr_stmt)!=SQLITE_DONE){
-      printf("SOME KIND OF FAIL IN FTR UPDATE");
-      exit(-1);
+      fatal("SOME KIND OF FAIL IN FTR UPDATE %s\n",sqlite3_errmsg(db));
     }
     f->dirty=0;
   }
@@ -258,14 +250,12 @@ void save_ftr(struct feature_test_result *f){
 
 void save_url_test(struct url_test *f){
   int rc;
-  printf("save url test");
   if(f->id==-1){
     sqlite3_reset(insert_url_test_stmt);
     sqlite3_bind_text(insert_url_test_stmt,1,f->url,-1,SQLITE_STATIC);
     sqlite3_bind_int(insert_url_test_stmt,2,f->flags);
     if(sqlite3_step(insert_url_test_stmt)!=SQLITE_DONE){
-      printf("SOME KIND OF FAIL IN URL TEST INSERT");
-      exit(-1);
+       fatal("SOME KIND OF FAIL IN FTR UPDATE %s\n",sqlite3_errmsg(db));
     }
     f->id=sqlite3_last_insert_rowid(db);
     f->dirty=0;
@@ -279,9 +269,7 @@ void save_url_test(struct url_test *f){
     sqlite3_bind_int(update_url_test_stmt,4,f->id);
     
     if((rc=sqlite3_step(update_url_test_stmt))!=SQLITE_DONE){
-      printf("%s\n",sqlite3_errmsg(db));
-      printf("SOME KIND OF FAIL IN URL TEST UPDATE %d",rc);
-      exit(-1);
+      fatal("SOME KIND OF FAIL IN URL TEST UPDATE %s\n",sqlite3_errmsg(db));
     }
     f->dirty=0;
   }

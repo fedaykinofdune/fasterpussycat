@@ -10,8 +10,10 @@
 static struct target *targets=NULL;
 int check_dir=1;
 int check_cgi_bin=1;
-
-
+unsigned int max_requests=0;
+int train=0;
+int force_save=0;
+unsigned int max_train_count=0;
 struct target *target_by_host(u8 *host){
   struct target *t;
   HASH_FIND_STR(targets, (char *) host, t);
@@ -238,7 +240,13 @@ void enqueue_tests(struct target *t){
   struct feature_node *fn;
   struct feature_test_result *ftr;
   unsigned char *url_cpy;
+  unsigned int queued=0;
   for(test=get_tests();test!=NULL;test=test->hh.next){
+    
+    if(train && max_train_count && test->count>max_train_count){
+      continue;
+    }
+    
     if(t->skip_dir && (test->flags && F_DIRECTORY)){
       continue;
     }
@@ -267,6 +275,8 @@ void enqueue_tests(struct target *t){
      request->user_val=score->test->id;
      request->callback=process_test_result;
      async_request(request);
+     queued++;
+     if(max_requests && queued>=max_requests) break;
   }
 }
 
