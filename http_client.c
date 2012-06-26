@@ -2038,7 +2038,6 @@ connect_error:
   c->req_start  = c->last_rw = time(0);
   c->write_buf  = build_request_data(q->req);
   c->write_len  = strlen((char*)c->write_buf);
-
 }
 
 

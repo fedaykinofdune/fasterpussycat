@@ -64,7 +64,7 @@ printf(
 "\n"
 "Attack mode:\n"
 "\n"
-"  -B  --browser-type=TYPE       emulate browser headers of TYPE. The following\n"
+"  -B  --browser=TYPE       emulate browser headers of TYPE. The following\n"
 "                                options are supported: metal (bare metal\n"
 "                                request), minimal, firefox, explorer, iphone.\n"
 "                                NOTE: Use metal or minimal when upload\n"
@@ -162,7 +162,7 @@ void parse_opts(int argc, char** argv){
     { "trigger", required_argument,NULL, 't'},
     { "max-hosts", required_argument,NULL, 'n'},
     { "max-connections", required_argument,NULL, 'c'},
-    { "browser-type", required_argument, NULL, 'B' },
+    { "browser", required_argument, NULL, 'B' },
     { "feature", required_argument,NULL, 'e'},
     { "url", required_argument, NULL, 'u' },
     { "flags", required_argument, NULL, 'f' },
