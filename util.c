@@ -1,6 +1,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 inline void maybe_newline(FILE *f, char *format){
   if(format[strlen(format)-1]!='\n'){

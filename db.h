@@ -6,8 +6,6 @@
 #define F_INFO (1 << 2) /* 0x04 */
 #define F_CGI (1 << 3) /* 0x08 */
 
-
-
 struct trigger {
   int id;
   char *trigger;
@@ -51,8 +49,19 @@ struct url_test {
   UT_hash_handle hh;
 };
 
+struct dir_link {
+  int id;
+  struct url_test *parent;
+  struct url_test *child;
+  int count;
+  int success;
+  int parent_seen_success;
+  int parent_seen;
+  int dirty;  
+};
 
 
+struct feature *get_features(void);
 int open_database(void);
 void load_aho_corasick_triggers(void);
 void add_features_from_triggers(struct http_response *rep, struct target *t;);

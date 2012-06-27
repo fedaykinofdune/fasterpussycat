@@ -107,6 +107,10 @@ struct url_test *get_tests(){
   return test_map;
 }
 
+struct feature *get_features(){
+  return feature_map;
+}
+
 void add_features_from_triggers(struct http_response *rep, struct target *t){
   int meh;
   int id;

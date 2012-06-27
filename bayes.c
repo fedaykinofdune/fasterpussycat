@@ -27,7 +27,7 @@ void setup_bayes(){
 
 
 
-void calculate_new_posterior(mpq_t *posterior, struct url_test *test, struct feature_test_result *ftr){
+void calculate_new_posterior(mpq_t *posterior, struct url_test *test, struct feature_test_result *ftr, int evidence_seen){
   if(ftr->count==0) return;
   if(mpq_equal(*posterior,zero)) return;
   if(mpq_equal(*posterior,one)) return;
@@ -41,6 +41,9 @@ void calculate_new_posterior(mpq_t *posterior, struct url_test *test, struct fea
   if(url_test_success!=0){
     mpq_set_ui(feat_given_succ_ratio, ftr_success, url_test_success);
     mpq_canonicalize(feat_given_succ_ratio);
+    if(!evidence_seen){
+      mpq_sub(feat_given_succ_ratio, one, feat_given_succ_ratio);
+    }
     mpq_mul(feat_given_succ_ratio,*posterior, feat_given_succ_ratio);
   }
   else{
@@ -49,6 +52,9 @@ void calculate_new_posterior(mpq_t *posterior, struct url_test *test, struct fea
   if(url_test_fail!=0){
     mpq_set_ui(feat_given_fail_ratio, ftr_fail, url_test_fail);
     mpq_canonicalize(feat_given_fail_ratio);
+    if(!evidence_seen){
+      mpq_sub(feat_given_fail_ratio, one, feat_given_fail_ratio);
+    }
     mpq_mul(feat_given_fail_ratio,neg_posterior, feat_given_fail_ratio);
   }
   else{
@@ -58,16 +64,27 @@ void calculate_new_posterior(mpq_t *posterior, struct url_test *test, struct fea
   mpq_div(*posterior,feat_given_succ_ratio,evidence);
 }
 
-double get_test_probability(struct url_test *test, struct target *t){
+inline int feature_seen(struct feature *f, struct target *t){
+  struct feature *f2;
   struct feature_node *fn;
+  DL_FOREACH(t->features,fn){
+    f2=fn->data;
+    if(f2==f){
+      return 1;
+    }
+  }
+  return 0;
+}
+
+double get_test_probability(struct url_test *test, struct target *t){
   struct feature *f;
   struct feature_test_result *ftr;
   mpq_set_ui(posterior,test->success,test->count);
   mpq_canonicalize(posterior);
-  DL_FOREACH(t->features,fn){
-    f=fn->data;
+  for(f=get_features();f!=NULL;f=f->hh.next){
+    if(f->count<200) continue;
     ftr=find_or_create_ftr(test->id,f->id);
-    calculate_new_posterior(&posterior,test,ftr);
+    calculate_new_posterior(&posterior,test,ftr,feature_seen(f,t));
   }
   return mpq_get_d(posterior);
 }
