@@ -32,7 +32,7 @@ CFLAGS_DBG = -pg -DLOG_STDERR=1 -DDEBUG_ALLOCATOR=1 $(CFLAGS_GEN)
 CFLAGS_OPT = -O3 -Wno-format $(CFLAGS_GEN)
 
 LDFLAGS   += -L/usr/local/lib/ -L/opt/local/lib
-LIBS      += -lcrypto -lssl -lidn -lz -lsqlite3 -lgmp
+LIBS      += -lcrypto -lssl -lidn -lz -lsqlite3 -lgmp -lm
 
 all: $(PROGNAME)
 

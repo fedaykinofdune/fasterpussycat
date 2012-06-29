@@ -56,6 +56,7 @@ u32 __AD_trk_cnt[ALLOC_BUCKETS];
 #define FEATURE 6
 #define URL 7
 #define FLAGS 8
+#define STATISTICS 9
 
 void usage(){
 printf(
@@ -72,7 +73,7 @@ printf(
 "  -c, --max-conn=N              maximum connections per a host\n"
 "  -r, --max-requests=N          check only the top N requests per a host (0 to\n"
 "                                   scan all urls in the database)\n"
-"  -S  --statistics=N            print scan statistics every N seconds, (0 to\n"
+"  -P  --progress=N              print scan progress every N seconds, (0 to\n"
 "                                   disable)\n"
 "  -B  --browser={metal|minimal|firefox|explorer|iphone}\n"     
 "                                emulate browser headers. The following\n"
@@ -94,6 +95,7 @@ printf(
 "                                   requires the url and optional flag option.\n"
 "      --url=PATH                the url path to manipulate NOTE: no host or\n"
 "                                  protocol sections i.e. \"/index.php\"\n"
+"      --statistics              print statistics\n"
 "\n"
 "Other:\n"
 "  -h  --help                    this help\n"
@@ -103,7 +105,7 @@ printf(
 /* Ctrl-C handler... */
 
 static u8 stop_soon;
-static u32 statistics=10;
+static u32 progress=10;
 static void ctrlc_handler(int sig) {
   stop_soon = 1;
 }
@@ -117,7 +119,6 @@ void do_scan(){
   load_features();
   load_tests();
   load_aho_corasick_triggers();
-  setup_bayes();
   struct timeval tv;
   gettimeofday(&tv, NULL);
   u64 st_time;
@@ -136,7 +137,7 @@ void do_scan(){
     end_time = tv_tmp.tv_sec * 1000LL + tv_tmp.tv_usec / 1000;
 
     run_time = end_time - st_time;
-    if(statistics && ((end_time-last_time)>(1000*statistics))){
+    if(progress && ((end_time-last_time)>(1000*progress))){
       req_sec = ((req_count - queue_cur)-last_req) * 1000.0 / ((end_time-last_time) + 1);
       last_time=end_time;
       last_req=(req_count - queue_cur);
@@ -168,7 +169,8 @@ void parse_opts(int argc, char** argv){
     { "max-hosts", required_argument,NULL, 'n'},
     { "max-connections", required_argument,NULL, 'c'},
     { "max-requests", required_argument,NULL, 'r'},
-    { "statistics", required_argument, NULL, 'S' },
+    { "progress", required_argument, NULL, 'P' },
+    { "statistics", no_argument, NULL, STATISTICS },
     { "browser", required_argument, NULL, 'B' },
     { "train",  optional_argument, NULL, 'T' },
     { "feature", required_argument,NULL, FEATURE},
@@ -181,7 +183,7 @@ void parse_opts(int argc, char** argv){
     { 0,    0,    0,    0   }       /* terminating -0 item */
   };
   int opt;
-  while((opt=getopt_long( argc, argv, "-n:S:c:B:h:r:T::", long_options, &longIndex ))!=-1){
+  while((opt=getopt_long( argc, argv, "-n:P:c:B:h:r:T::", long_options, &longIndex ))!=-1){
     switch(opt){
       case 1:
         add_target((unsigned char *) optarg);
@@ -210,8 +212,14 @@ void parse_opts(int argc, char** argv){
       case 'r':
         max_requests=atoi(optarg);
         break;
-      case 'S':
-        statistics=atoi(optarg);
+      case 'P':
+        progress=atoi(optarg);
+        break;
+      case STATISTICS:
+        load_tests();
+        load_features();
+        show_feature_predictive_values();
+        exit(0);
         break;
       case 'T':
         train=1;
@@ -296,6 +304,7 @@ int main(int argc, char** argv) {
   if (max_connections < max_conn_host)
     max_connections = max_conn_host;
   open_database();
+  setup_bayes();
   parse_opts(argc, argv);
   fflush(0);
 
