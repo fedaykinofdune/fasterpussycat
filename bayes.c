@@ -6,8 +6,8 @@
 #include "db.h"
 #include "engine.h"
 
-static mpq_t feat_given_succ_ratio;
-static mpq_t feat_given_fail_ratio; 
+static mpq_t prob_feat_given_true;
+static mpq_t prob_feat_given_false; 
 static mpq_t neg_posterior; 
 static mpq_t evidence;
 static mpq_t one;
@@ -76,41 +76,39 @@ double merit(struct url_test *test, struct feature *f){
 
 
 
-void calculate_new_posterior(mpq_t *posterior, struct url_test *test, struct feature_test_result *ftr, int evidence_seen){
+void calculate_new_posterior(mpq_t *posterior, int sample_true, int sample_size, int feature_and_sample_true, int feature_detected_count, int feature_detected ){
   if(ftr->count==0) return;
   if(mpq_equal(*posterior,zero)) return;
   if(mpq_equal(*posterior,one)) return;
  
   mpq_sub(neg_posterior,one,*posterior);
-  unsigned int url_test_success=test->success;
-  unsigned int ftr_success=ftr->success;
-  unsigned int url_test_fail=test->count-url_test_success;
-  unsigned int ftr_fail=ftr->count-ftr_success;
+  unsigned int sample_false=sample_size-sample_true;
+  unsigned int sample_false_and_feature=feature_detected - feature_and_sample_true;
 
   if(url_test_success!=0){
-    mpq_set_ui(feat_given_succ_ratio, ftr_success, url_test_success);
-    mpq_canonicalize(feat_given_succ_ratio);
+    mpq_set_ui(prob_feat_given_true, feature_and_sample_true, sample_true);
+    mpq_canonicalize(prob_feat_given_true);
     if(!evidence_seen){
-      mpq_sub(feat_given_succ_ratio, one, feat_given_succ_ratio);
+      mpq_sub(prob_feat_given_true, one, prob_feat_given_true);
     }
-    mpq_mul(feat_given_succ_ratio,*posterior, feat_given_succ_ratio);
+    mpq_mul(prob_feat_given_true,*posterior, prob_feat_given_true);
   }
   else{
     mpq_set_ui(feat_given_succ_ratio,0,1);
   }
   if(url_test_fail!=0){
-    mpq_set_ui(feat_given_fail_ratio, ftr_fail, url_test_fail);
-    mpq_canonicalize(feat_given_fail_ratio);
+    mpq_set_ui(prob_feat_given_false,sample_false_and_feature, sample_false);
+    mpq_canonicalize(prob_feat_given_false);
     if(!evidence_seen){
-      mpq_sub(feat_given_fail_ratio, one, feat_given_fail_ratio);
+      mpq_sub(prob_feat_given_false, one, prob_feat_given_false);
     }
-    mpq_mul(feat_given_fail_ratio,neg_posterior, feat_given_fail_ratio);
+    mpq_mul(prob_feat_given_false,neg_posterior, prob_feat_given_false);
   }
   else{
-    mpq_set_ui(feat_given_fail_ratio,0,1);
+    mpq_set_ui(prob_feat_given_false,0,1);
   }
-  mpq_add(evidence,feat_given_fail_ratio,feat_given_succ_ratio);
-  mpq_div(*posterior,feat_given_succ_ratio,evidence);
+  mpq_add(evidence,prob_feat_given_false,prob_feat_given_true);
+  mpq_div(*posterior,prob_feat_given_true,evidence);
 }
 
 
@@ -186,7 +184,7 @@ double get_test_probability(struct url_test *test, struct target *t){
   for(f=get_features();f!=NULL;f=f->hh.next){
     if(f->count<200) continue;
     ftr=find_or_create_ftr(test->id,f->id);
-    calculate_new_posterior(&posterior,test,ftr,feature_seen(f,t));
+    calculate_new_posterior(&posterior,test->success,test->count,ftr->success,ftr->count,feature_seen(f,t));
   }
   return mpq_get_d(posterior);
 }
