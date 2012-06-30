@@ -291,7 +291,9 @@ void enqueue_tests(struct target *t){
     }
     score=ck_alloc(sizeof(struct test_score));
     score->test=test;
-    score->score=get_test_probability(test,t);
+  
+    if(train) score->score=rand(); /* if training randomize order to prevent bias */
+    else score->score=get_test_probability(test,t);
     LL_PREPEND(t->test_scores,score); 
   }
   LL_SORT(t->test_scores,score_sort);
