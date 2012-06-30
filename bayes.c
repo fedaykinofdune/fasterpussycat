@@ -183,9 +183,10 @@ double expected_change_ratio(struct test_score *score, struct feature *f){
 double get_test_probability(struct url_test *test, struct target *t){
   struct feature *f;
   struct feature_test_result *ftr;
+  struct feature_selection *fs;
   double posterior=(double) test->success / (double) test->count;
-  for(f=get_features();f!=NULL;f=f->hh.next){
-    if(f->count<200) continue;
+  for(fs=test->feature_selections;fs!=NULL;fs=fs->next){
+    f=fs->feature;
     ftr=find_or_create_ftr(test->id,f->id);
     posterior=calculate_new_posterior(posterior,test->success,test->count, ftr->success,ftr->count, feature_seen(f,t));
   }

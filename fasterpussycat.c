@@ -123,6 +123,7 @@ void do_scan(){
   load_features();
   load_tests();
   load_aho_corasick_triggers();
+  load_feature_selections();
   struct timeval tv;
   gettimeofday(&tv, NULL);
   u64 st_time;
@@ -290,8 +291,8 @@ void parse_opts(int argc, char** argv){
     case MODE_ANALYZE:
       load_tests();
       load_features();
-      info("building id3 decision tree...");
-      build_tree(NULL);
+      info("performing feature selection...");
+      do_feature_selection();
       exit(0);
   }
 

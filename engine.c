@@ -6,6 +6,7 @@
 #include "db.h"
 #include "engine.h"
 #include "bayes.h"
+#include "util.h"
 
 static struct target *targets=NULL;
 int check_dir=1;

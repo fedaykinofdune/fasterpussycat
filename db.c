@@ -14,6 +14,7 @@
 
 #define GET_TESTS_SQL "SELECT id, url, success, count, flags FROM url_tests"
 
+#define GET_FEATURE_SELECTIONS_SQL "SELECT url_test_id, feature_id FROM feature_selections"
 
 #define GET_TRIGGERS_SQL "SELECT id, trigger, feature_id FROM aho_corasick_feature_triggers"
 
@@ -41,6 +42,10 @@
 
 #define UPDATE_URL_TEST_SQL "UPDATE url_tests SET success=?, count=?, flags=? WHERE id=?" 
 
+#define INSERT_FEATURE_SELECTION_SQL "INSERT INTO feature_selections (url_test_id,feature_test_id) VALUES (?,?)"
+
+#define DELETE_FEATURE_SELECTION_SQL "DELETE FROM feature_selections WHERE url_test_id=?"
+
 static AC_STRUCT *aho_corasick;
 static struct url_test *test_map=NULL;
 static struct feature_test_result *result_map=NULL;
@@ -64,7 +69,10 @@ static sqlite3_stmt *update_ftr_stmt;
 static sqlite3_stmt *insert_url_test_stmt;
 static sqlite3_stmt *update_url_test_stmt;
 
+static sqlite3_stmt *insert_feature_selection_stmt;
 
+static sqlite3_stmt *get_feature_selections_stmt;
+static sqlite3_stmt *delete_feature_selection_stmt;
 
 int open_database(){
   int rc=sqlite3_open("fasterpussycat.sqlite3", &db);
@@ -73,6 +81,10 @@ int open_database(){
     sqlite3_close(db);
     FATAL("bad db :(");
   }
+
+  sqlite3_prepare_v2(db, INSERT_FEATURE_SELECTION_SQL, -1, &insert_feature_selection_stmt,NULL);
+  sqlite3_prepare_v2(db, DELETE_FEATURE_SELECTION_SQL, -1, &delete_feature_selection_stmt,NULL);
+  sqlite3_prepare_v2(db, GET_FEATURE_SELECTIONS_SQL, -1, &get_feature_selections_stmt,NULL);
   sqlite3_prepare_v2(db, GET_TESTS_SQL, -1, &get_tests_stmt,NULL);
   sqlite3_prepare_v2(db, GET_TEST_BY_URL_SQL, -1, &get_test_by_url_stmt,NULL);
   sqlite3_prepare_v2(db, GET_FTR_BY_FEATURE_SQL, -1, &get_ftr_by_feature_stmt,NULL);
@@ -86,6 +98,49 @@ int open_database(){
   sqlite3_prepare_v2(db, INSERT_URL_TEST_SQL, -1, &insert_url_test_stmt,NULL);
   sqlite3_prepare_v2(db, UPDATE_URL_TEST_SQL, -1, &update_url_test_stmt,NULL);
   return 0;
+}
+
+
+void load_feature_selections(){
+  info("loading feature selections...");
+  sqlite3_reset(get_feature_selections_stmt);
+  struct feature_selection *fs;
+  struct feature *f;
+  struct url_test *t;
+  int f_id,t_id;
+  while (sqlite3_step(get_feature_selections_stmt) == SQLITE_ROW){
+    fs=malloc(sizeof(struct feature_selection));
+    t_id=sqlite3_column_int(get_feature_selections_stmt,0);
+    f_id=sqlite3_column_int(get_feature_selections_stmt,1);
+    HASH_FIND_INT(test_map, &t_id,t);
+    HASH_FIND_INT(feature_map_by_id,&f_id,f);
+    fs->feature=f;
+    fs->next=t->feature_selections;
+    t->feature_selections=fs;
+  }
+}
+
+void update_feature_selection(struct url_test *test){
+  struct feature_selection *fs;
+
+  sqlite3_exec(db, "BEGIN", 0, 0, 0);
+  sqlite3_reset(delete_feature_selection_stmt);
+  sqlite3_bind_int(delete_feature_selection_stmt,1,test->id);
+  
+  if(sqlite3_step(delete_feature_selection_stmt)!=SQLITE_DONE){
+    fatal("SOME KIND OF FAIL IN FEATURE SELECTION DELETE '%s' %s\n", test->url, sqlite3_errmsg(db));
+  }
+  for(fs=test->feature_selections;fs!=NULL;fs=fs->next){
+    sqlite3_reset(insert_feature_selection_stmt);
+    sqlite3_bind_int(insert_feature_selection_stmt,1,test->id);
+    sqlite3_bind_int(insert_feature_selection_stmt,2,fs->feature->id);
+    if(sqlite3_step(delete_feature_selection_stmt)!=SQLITE_DONE){
+      fatal("SOME KIND OF FAIL IN FEATURE SELECTION INSERTION '%s' '%s' %s\n", test->url, fs->feature->label, sqlite3_errmsg(db));
+    }
+  }
+
+  sqlite3_exec(db, "COMMIT", 0, 0, 0);
+  
 }
 
 void load_aho_corasick_triggers(){
@@ -392,6 +447,7 @@ void add_or_update_url(char *url, char *description, unsigned int flags){
 }
 
 int load_tests(){
+  info("loading tests...");
   while (sqlite3_step(get_tests_stmt) == SQLITE_ROW){
     load_test(get_tests_stmt);
   }
