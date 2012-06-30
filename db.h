@@ -64,7 +64,7 @@ struct dir_link {
 struct feature *get_features(void);
 int open_database(void);
 void load_aho_corasick_triggers(void);
-void add_features_from_triggers(struct http_response *rep, struct target *t;);
+void add_features_from_triggers(struct http_response *rep, struct target *t);
 void add_aho_corasick_trigger(char *trigger, char *feature);
 struct feature *find_or_create_feature_by_label(const char *label);
 void save_feature(struct feature *f);

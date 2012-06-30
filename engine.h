@@ -1,11 +1,15 @@
-#define MAX_404_QUERIES 3
+#define MAX_404_QUERIES 5
 
 #define DETECT_404_NONE 0
 #define DETECT_404_CODE 1
 #define DETECT_404_LOCATION 2
 
+#define MAX_REPEATED_SIZE_COUNT 10
+
+
 extern int check_dir;
 extern int check_cgi_bin;
+extern int check_404_size;
 extern unsigned int max_requests;
 extern int train;
 extern unsigned int max_train_count;
@@ -28,7 +32,11 @@ struct target {
   unsigned char *host;
   unsigned char fourohfour_response_count;
   unsigned char fourohfour_detect_mode;
+  unsigned int  fourohfour_content_length;
+  unsigned int  twohundred_size;
+  unsigned int  twohundred_size_count;
   unsigned char *fourohfour_location;
+  unsigned int  last_code;
   int checks;
   unsigned char skip_dir;
   unsigned char skip_cgi_bin;
@@ -54,4 +62,4 @@ int score_sort(struct test_score *lhs, struct test_score *rhs);
 void enqueue_tests(struct target *t);
 unsigned char process_random_request(struct http_request *req, struct http_response *rep);
 unsigned char process_dir_request(struct http_request *req, struct http_response *rep);
-void enqueue_random_request(struct target *t, int slash, int php, int dir);
+void enqueue_random_request(struct target *t, int slash, int php, int dir, int pl);

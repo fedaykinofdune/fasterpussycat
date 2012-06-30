@@ -1771,6 +1771,26 @@ static void reuse_conn(struct conn_entry* c, u8 keep) {
 }
 
 
+void remove_host_from_queue(u8 *host) {
+  struct host_entry *e;
+  struct queue_entry *q;
+  struct queue_entry *n;
+  u32 addr;
+  addr=maybe_lookup_host(host);
+  if (!addr) return;
+  for(e=host_queue;e!=NULL;e=e->next){
+    if(addr==e->addr){
+      q=e->q_head;
+      while(q){
+        n=q->next;
+        if(!strcmp((char *) q->req->host,(char *) host) && !q->c) destroy_unlink_queue(q,0);
+        q=n;
+      }
+      break;
+    }
+  }
+}
+
 /* Schedules a new asynchronous request (does not make a copy of the
    original http_request struct, may deallocate it immediately or
    later on); req->callback() will be invoked when the request is

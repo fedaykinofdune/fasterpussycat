@@ -19,6 +19,8 @@ void info(char *format, ...){
   fflush(stdout);
 }
 
+
+
 void fatal(char *format, ...){
   va_list ap;
   va_start(ap, format);
@@ -28,4 +30,14 @@ void fatal(char *format, ...){
   maybe_newline(stderr,format);
   fflush(stderr);
   abort();
+}
+
+void warn(char *format, ...){
+  va_list ap;
+  va_start(ap, format);
+  fprintf(stdout, " :! ");
+  vfprintf(stdout, format, ap);
+  va_end(ap);
+  maybe_newline(stdout,format);
+  fflush(stdout);
 }

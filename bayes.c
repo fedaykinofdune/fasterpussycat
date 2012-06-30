@@ -5,6 +5,7 @@
 #include "http_client.h"
 #include "db.h"
 #include "engine.h"
+#include "bayes.h"
 
 static mpq_t feat_given_succ_ratio;
 static mpq_t feat_given_fail_ratio; 
@@ -52,15 +53,13 @@ double information(double prob){
   return (prob*(-log2(prob)))+((1-prob)*(-log2(1-prob)));
 }
 
-
-double merit(struct url_test *test, struct feature *f){
+double information_gain(struct test_score *score, struct feature *f){
+  struct url_test *test=score->test;
   struct feature_test_result *ftr=find_or_create_ftr(test->id,f->id);
-  double m;
   if(test->count==0) return 0.0;
-  double pF=(double) ftr->count / test->count;
-  double PA=(double) test->success / test->count;
-  double PB=1 - PA;
-  double base_info=information(PA);
+  
+  double pF=(((double) ftr->success/(double) test->success)*score->score)+((((double) ftr->count-ftr->success)/((double) test->count-test->success))*(1-score->score));
+  double base_info=information(score->score);
   double not_f_count=test->count-ftr->count;
   double false_count=(test->count-test->success)-(ftr->count-ftr->success);
   double entropy_evidence;
@@ -76,74 +75,42 @@ double merit(struct url_test *test, struct feature *f){
 
 
 
-void calculate_new_posterior(mpq_t *posterior, struct url_test *test, struct feature_test_result *ftr, int evidence_seen){
-  if(ftr->count==0) return;
-  if(mpq_equal(*posterior,zero)) return;
-  if(mpq_equal(*posterior,one)) return;
- 
-  mpq_sub(neg_posterior,one,*posterior);
-  unsigned int url_test_success=test->success;
-  unsigned int ftr_success=ftr->success;
-  unsigned int url_test_fail=test->count-url_test_success;
-  unsigned int ftr_fail=ftr->count-ftr_success;
+double calculate_new_posterior(double posterior, unsigned int hypothesis_true, unsigned int sample_size, unsigned int evidence_and_hypothesis_true, unsigned int evidence_count, int evidence_occurred ){
+  if(evidence_count==0) return posterior;
 
-  if(url_test_success!=0){
-    mpq_set_ui(feat_given_succ_ratio, ftr_success, url_test_success);
-    mpq_canonicalize(feat_given_succ_ratio);
-    if(!evidence_seen){
-      mpq_sub(feat_given_succ_ratio, one, feat_given_succ_ratio);
+  unsigned int hypothesis_false=sample_size-hypothesis_true;
+  unsigned int evidence_and_hypothesis_false=evidence_count-evidence_and_hypothesis_true;
+  double prob_evidence_given_hypothesis_true;
+  double prob_evidence_given_hypothesis_false;
+  double evidence;
+
+  if(hypothesis_true!=0){
+    prob_evidence_given_hypothesis_true = (double) evidence_and_hypothesis_true / (double) hypothesis_true;
+    if(!evidence_occurred){
+      prob_evidence_given_hypothesis_true=1-prob_evidence_given_hypothesis_true;
     }
-    mpq_mul(feat_given_succ_ratio,*posterior, feat_given_succ_ratio);
   }
   else{
-    mpq_set_ui(feat_given_succ_ratio,0,1);
+    prob_evidence_given_hypothesis_true=0;  
   }
-  if(url_test_fail!=0){
-    mpq_set_ui(feat_given_fail_ratio, ftr_fail, url_test_fail);
-    mpq_canonicalize(feat_given_fail_ratio);
-    if(!evidence_seen){
-      mpq_sub(feat_given_fail_ratio, one, feat_given_fail_ratio);
+  if(hypothesis_false!=0){
+    prob_evidence_given_hypothesis_false = (double) evidence_and_hypothesis_false / (double) hypothesis_false;
+    if(!evidence_occurred){
+      prob_evidence_given_hypothesis_false=1-prob_evidence_given_hypothesis_false;
     }
-    mpq_mul(feat_given_fail_ratio,neg_posterior, feat_given_fail_ratio);
   }
   else{
-    mpq_set_ui(feat_given_fail_ratio,0,1);
+    prob_evidence_given_hypothesis_false=0;
   }
-  mpq_add(evidence,feat_given_fail_ratio,feat_given_succ_ratio);
-  mpq_div(*posterior,feat_given_succ_ratio,evidence);
-}
-
-
-double merit2(struct url_test *test, struct feature *f){
-  struct feature_test_result *ftr=find_or_create_ftr(test->id,f->id);
-  double m;
-  if(test->count==0) return 0.0;
-  double pF=(double) ftr->count / test->count;
-  double PA=(double) test->success / test->count;
-  double PB=1 - PA;
-  mpq_set_ui(posterior,test->success, test->count);
-  mpq_canonicalize(posterior);
-  calculate_new_posterior(&posterior, test, ftr, 1);
-  double base_info=information(PA);
-  double not_f_count=test->count-ftr->count;
-  double false_count=(test->count-test->success)-(ftr->count-ftr->success);
-  double entropy_evidence=information(mpq_get_d(posterior));
-  
-  mpq_set_ui(posterior,test->success, test->count);
-  mpq_canonicalize(posterior);
-  calculate_new_posterior(&posterior, test, ftr, 0);
-  double entropy_not_evidence=information(mpq_get_d(posterior));
-  double after_entropy=(pF*entropy_evidence)+((1-pF)*entropy_not_evidence);;
-  //return base_info-after;
-  // printf("%f %f %f\n",pa,pb,log(pa/pb));
-  return base_info-after_entropy;
-
+  evidence=(posterior*prob_evidence_given_hypothesis_true)+((1-posterior) * prob_evidence_given_hypothesis_false);
+  return (posterior*prob_evidence_given_hypothesis_true)/evidence;
 }
 
 void show_feature_predictive_values(){
   struct feature *f;
   struct url_test *test;
   double ppv, npv, m, m2;
+  struct test_score score;
   for(f=get_features();f!=NULL;f=f->hh.next){
     if(f->count<50) continue;
     ppv=0;
@@ -151,9 +118,12 @@ void show_feature_predictive_values(){
     m=0;
     m2=0;
     int count=0;
+
     for(test=get_tests();test!=NULL;test=test->hh.next){
       if(test->success<10) continue;
-      m2=merit(test,f);
+      score.score=(double) test->success/test->count;
+      score.test=test;
+      m2=information_gain(&score,f);
     //  if(isnan(m2)){
     //    m2=0;
     //  }
@@ -178,17 +148,48 @@ inline int feature_seen(struct feature *f, struct target *t){
   return 0;
 }
 
+
+
+double expected_change(struct test_score *score, struct feature *f){
+  struct url_test *test=score->test;
+  struct feature_test_result *ftr=find_or_create_ftr(test->id,f->id);
+  
+  if(test->count==0) return 0.0;
+  
+  double pF=(((double) ftr->success/(double) test->success)*score->score)+((((double) ftr->count-ftr->success)/((double) test->count-test->success))*(1-score->score));
+  double change_y=fabs(score->score-calculate_new_posterior(score->score,test->success,test->count,ftr->success,ftr->count,1));
+  double change_n=fabs(score->score-calculate_new_posterior(score->score,test->success,test->count,ftr->success,ftr->count,0));
+  return ((pF*change_y)+((1-pF)*change_n));
+  
+  
+}
+
+
+
+double expected_change_ratio(struct test_score *score, struct feature *f){
+  struct url_test *test=score->test;
+  struct feature_test_result *ftr=find_or_create_ftr(test->id,f->id);
+  
+  if(test->count==0 || score->score==0) return 0.0;
+   
+  double pF=(((double) ftr->success/(double) test->success)*score->score)+((((double) ftr->count-ftr->success)/((double) test->count-test->success))*(1-score->score));
+  double change_y=fabs(score->score-calculate_new_posterior(score->score,test->success,test->count,ftr->success,ftr->count,1))/score->score;
+  double change_n=fabs(score->score-calculate_new_posterior(score->score,test->success,test->count,ftr->success,ftr->count,0))/score->score;
+  return ((pF*change_y)+((1-pF)*change_n));
+  
+  
+}
+
 double get_test_probability(struct url_test *test, struct target *t){
   struct feature *f;
   struct feature_test_result *ftr;
-  mpq_set_ui(posterior,test->success,test->count);
-  mpq_canonicalize(posterior);
+  double posterior=(double) test->success / (double) test->count;
   for(f=get_features();f!=NULL;f=f->hh.next){
     if(f->count<200) continue;
     ftr=find_or_create_ftr(test->id,f->id);
-    calculate_new_posterior(&posterior,test,ftr,feature_seen(f,t));
+    posterior=calculate_new_posterior(posterior,test->success,test->count, ftr->success,ftr->count, feature_seen(f,t));
   }
-  return mpq_get_d(posterior);
+  return posterior;
 }
 
 

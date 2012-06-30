@@ -37,11 +37,13 @@
 #include "types.h"
 #include "alloc-inl.h"
 #include "string-inl.h"
-
 #include "http_client.h"
+#include "util.h"
 #include "db.h"
 #include "engine.h"
 #include "bayes.h"
+#include "id3.h"
+
 
 #ifdef DEBUG_ALLOCATOR
 struct __AD_trk_obj* __AD_trk[ALLOC_BUCKETS];
@@ -57,6 +59,7 @@ u32 __AD_trk_cnt[ALLOC_BUCKETS];
 #define URL 7
 #define FLAGS 8
 #define STATISTICS 9
+#define MODE_ANALYZE 10
 
 void usage(){
 printf(
@@ -96,6 +99,7 @@ printf(
 "      --url=PATH                the url path to manipulate NOTE: no host or\n"
 "                                  protocol sections i.e. \"/index.php\"\n"
 "      --statistics              print statistics\n"
+"      --analyze                 build decision tree\n"
 "\n"
 "Other:\n"
 "  -h  --help                    this help\n"
@@ -180,6 +184,7 @@ void parse_opts(int argc, char** argv){
     { "skip-dir-check", no_argument, &check_dir, 0},
     { "skip-cgi-bin-check", no_argument, &check_cgi_bin, 0},
     { "force-save", no_argument, &force_save, 1},
+    { "analyze", no_argument, &mode, MODE_ANALYZE},
     { 0,    0,    0,    0   }       /* terminating -0 item */
   };
   int opt;
@@ -282,6 +287,12 @@ void parse_opts(int argc, char** argv){
       add_aho_corasick_trigger(trigger, feature);
       exit(0);
       break;
+    case MODE_ANALYZE:
+      load_tests();
+      load_features();
+      info("building id3 decision tree...");
+      build_tree(NULL);
+      exit(0);
   }
 
 }

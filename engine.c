@@ -10,6 +10,8 @@
 static struct target *targets=NULL;
 int check_dir=1;
 int check_cgi_bin=1;
+int check_404_size=0;
+int check_200_size=1;
 unsigned int max_requests=0;
 int train=0;
 int force_save=0;
@@ -92,8 +94,25 @@ u8 process_test_result(struct http_request *req, struct http_response *rep){
   int code=rep->code;
   struct url_test *test;
   struct feature_node *f;
+  struct target *t=req->t;
   struct feature_test_result *ftr;
+  int size=0;
+  
   HASH_FIND_INT(get_tests(), &req->user_val, test ); 
+  if(GET_HDR((unsigned char *) "content-length", &rep->hdr)) size=atoi(GET_HDR((unsigned char *) "content-length", &rep->hdr));
+  if(size>0 && rep->code==200 && !(test->flags && F_DIRECTORY)){
+    if(t->twohundred_size==size) t->twohundred_size_count++;
+    else if(t->twohundred_size!=-1){ 
+      t->twohundred_size=size;
+      t->twohundred_size_count=0;
+    }
+    
+  }
+  if(t->twohundred_size_count>MAX_REPEATED_SIZE_COUNT && t->twohundred_size!=-1){
+    warn("Over %d repeated 200 responses of size %d from %s... looks bogus, removing host",MAX_REPEATED_SIZE_COUNT,size,t->host);
+    t->twohundred_size=-1;
+    remove_host_from_queue(t->host);
+  }
   if(is_404(rep,req->t)){
     code=404;
   }
@@ -110,6 +129,7 @@ u8 process_test_result(struct http_request *req, struct http_response *rep){
     ftr->dirty=1;
     if(is_success(test,code)) ftr->success++;
   }
+  t->last_code=code;
   return 0;
 }
 
@@ -118,6 +138,9 @@ int is_404(struct http_response *rep, struct target *t){
   if(rep->code==404 || rep->code==0){
     return 1;
   }
+  if(check_404_size && t->fourohfour_content_length>0
+  && GET_HDR((unsigned char *) "content-length", &rep->hdr) 
+  && atoi(GET_HDR((unsigned char *) "content-length", &rep->hdr))==t->fourohfour_content_length) return 1;
   if(t->fourohfour_detect_mode==DETECT_404_LOCATION){
     loc=GET_HDR((unsigned char *) "location", &rep->hdr);
     if(loc && !strcasecmp((char *) t->fourohfour_location,(char *) loc)){
@@ -181,18 +204,22 @@ unsigned char process_first_page(struct http_request *req, struct http_response 
   process_features(rep,req->t);
   add_features_from_triggers(rep,req->t);
   for(i=0;i<MAX_404_QUERIES;i++){
-    enqueue_random_request(req->t,(i==0),(i==1),0);
+    enqueue_random_request(req->t,(i==0),(i==1),0,(i==2));
   }
   return 0;
 }
 
 int process_404(struct http_response *rep, struct target *t){
   unsigned char *loc;
+  unsigned char *len;
   if(t->fourohfour_response_count==1){
     if(rep->code==404){
       t->fourohfour_detect_mode=DETECT_404_CODE;
-
-      printf("detect 404\n");
+      len=GET_HDR((unsigned char *) "content-length",&rep->hdr);
+      if(len){
+        t->fourohfour_content_length=atoi(len);
+      }
+      printf("detect 404 %d\n",t->fourohfour_content_length);
       return 1;
     }
     else {
@@ -324,7 +351,7 @@ inline void maybe_enqueue_tests(struct target *t){
 void enqueue_checks(struct target *t){
   if(check_dir){
     t->checks++;
-    enqueue_random_request(t,0,0,1);
+    enqueue_random_request(t,0,0,1,0);
   }
   if(check_cgi_bin){
     t->checks++;
@@ -349,7 +376,7 @@ u8 process_random_request(struct http_request *req, struct http_response *rep){
   return 0;
 }
 
-void enqueue_random_request(struct target *t, int slash,int php, int dir){
+void enqueue_random_request(struct target *t, int slash,int php, int dir, int pl){
   struct http_request *random_req=new_request(t);
   u8 *random=ck_alloc(18);
   if(dir){
@@ -366,6 +393,10 @@ void enqueue_random_request(struct target *t, int slash,int php, int dir){
   }
   if(php){
     memcpy(&random[7],".php",5);
+  }
+
+  if(pl){
+    memcpy(&random[7],".pl",5);
   }
   tokenize_path(random,random_req,0);
   async_request(random_req);

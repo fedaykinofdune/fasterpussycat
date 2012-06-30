@@ -22,9 +22,9 @@
 PROGNAME   = fasterpussycat
 VERSION    = 2.05b
 
-OBJFILES   = http_client.c db.c bayes.c engine.c ac.c util.c
+OBJFILES   = http_client.c db.c bayes.c engine.c ac.c util.c id3.c
 INCFILES   = alloc-inl.h string-inl.h debug.h types.h http_client.h \
-            config.h db.h bayes.h engine.h ac.h util.h
+            config.h db.h bayes.h engine.h ac.h util.h id3.h
 
 CFLAGS_GEN = -Wall -funsigned-char -g -ggdb -I/usr/local/include/ \
              -I/opt/local/include/ $(CFLAGS) -DVERSION=\"$(VERSION)\"
