@@ -87,10 +87,6 @@ void process_features(struct http_response *rep, struct target *t){
   free(f_str);
 }
 
-char is_success(struct url_test *test, int code){
-  return (code==200 || ((test->flags & F_DIRECTORY) && (code==401 || code==403)));
-} 
-
 u8 process_test_result(struct http_request *req, struct http_response *rep){
   int code=rep->code;
   struct url_test *test;
@@ -98,29 +94,18 @@ u8 process_test_result(struct http_request *req, struct http_response *rep){
   struct target *t=req->t;
   struct feature_test_result *ftr;
   int size=0;
-  
-  HASH_FIND_INT(get_tests(), &req->user_val, test ); 
-  if(GET_HDR((unsigned char *) "content-length", &rep->hdr)) size=atoi(GET_HDR((unsigned char *) "content-length", &rep->hdr));
-  if(size>0 && rep->code==200 && !(test->flags && F_DIRECTORY)){
-    if(t->twohundred_size==size) t->twohundred_size_count++;
-    else if(t->twohundred_size!=-1){ 
-      t->twohundred_size=size;
-      t->twohundred_size_count=0;
-    }
-    
+  int success=0;
+  int rc=0;
+  rc=is_404(req->t->detect_404,req,rep);
+  if(rc==DETECT_UNKNOWN){
+    return 0;
   }
-  if(t->twohundred_size_count>MAX_REPEATED_SIZE_COUNT && t->twohundred_size!=-1){
-    warn("Over %d repeated 200 responses of size %d from %s... looks bogus, removing host",MAX_REPEATED_SIZE_COUNT,size,t->host);
-    t->twohundred_size=-1;
-    remove_host_from_queue(t->host);
-  }
-  if(is_404(rep,req->t)){
-    code=404;
-  }
+  success=(rc==DETECT_SUCCESS);
+  test=req->test;
   test->count++;
   test->dirty=1;
-  
-  if(is_success(test,code)){
+
+  if(success){
       test->success++;
       printf("CODE: %d http://%s%s\n",code,req->t->host,test->url);
   }
@@ -128,25 +113,7 @@ u8 process_test_result(struct http_request *req, struct http_response *rep){
     ftr=find_or_create_ftr(test->id,f->data->id);
     ftr->count++;
     ftr->dirty=1;
-    if(is_success(test,code)) ftr->success++;
-  }
-  t->last_code=code;
-  return 0;
-}
-
-int is_404(struct http_response *rep, struct target *t){
-  unsigned char *loc;
-  if(rep->code==404 || rep->code==0){
-    return 1;
-  }
-  if(check_404_size && t->fourohfour_content_length>0
-  && GET_HDR((unsigned char *) "content-length", &rep->hdr) 
-  && atoi(GET_HDR((unsigned char *) "content-length", &rep->hdr))==t->fourohfour_content_length) return 1;
-  if(t->fourohfour_detect_mode==DETECT_404_LOCATION){
-    loc=GET_HDR((unsigned char *) "location", &rep->hdr);
-    if(loc && !strcasecmp((char *) t->fourohfour_location,(char *) loc)){
-      return 1;
-    }
+    if(success) ftr->success++;
   }
   return 0;
 }
@@ -170,6 +137,7 @@ void add_target(u8 *host){
   t->prototype_request=req_copy(first,0);
   t->prototype_request->method=ck_alloc(5);
   memcpy(t->prototype_request->method,"HEAD",5);
+  t->detect_404=calloc(sizeof(struct detect_404_info));
   first->callback=process_first_page;
   first->t=t;
   async_request(first);
@@ -194,6 +162,25 @@ inline struct http_request *new_request(struct target *t){
   return r;
 }
 
+
+
+inline struct http_request *new_request_with_method(struct target *t, unsigned char *method){
+  struct http_request *r=req_copy(t->prototype_request,0);
+  r->t=t;
+  r->method=ck_strdup(method);
+  return r;
+}
+
+
+inline struct http_request *new_request_with_method_and_path(struct target *t, unsigned char *method,unsigned char *path){
+  struct http_request *r=req_copy(t->prototype_request,0);
+  r->t=t;
+  r->method=ck_strdup(method);
+  tokenize_path(path,r,0);
+  return r;
+}
+
+
 unsigned char process_first_page(struct http_request *req, struct http_response *rep){
   int i;
   if(rep->state==STATE_DNSERR || rep->code==0){
@@ -204,9 +191,7 @@ unsigned char process_first_page(struct http_request *req, struct http_response 
   }
   process_features(rep,req->t);
   add_features_from_triggers(rep,req->t);
-  for(i=0;i<MAX_404_QUERIES;i++){
-    enqueue_random_request(req->t,(i==0),(i==1),0,(i==2));
-  }
+  launch_404_probes(req->t);
   return 0;
 }
 
@@ -261,6 +246,14 @@ int score_sort(struct test_score *lhs, struct test_score *rhs){
   return 0;
 }
 
+char * get_request_method(struct target *t, struct http_request *req){
+  struct match_rule *r;
+  for(r=t->detect_404->request_method_recommendations;r!=NULL;r->next){
+    if(rule_match(r,req,NULL)) return (char *) r->data;
+  }
+  return "HEAD";
+}
+
 void enqueue_tests(struct target *t){
   struct url_test *test;
   struct test_score *score;
@@ -269,26 +262,14 @@ void enqueue_tests(struct target *t){
   struct feature_test_result *ftr;
   unsigned char *url_cpy;
   unsigned int queued=0;
+  unsigned char *method;
   for(test=get_tests();test!=NULL;test=test->hh.next){
     
     if(train && max_train_count && test->count>max_train_count){
       continue;
     }
     
-    if(t->skip_dir && (test->flags && F_DIRECTORY)){
-      continue;
-    }
-
-    if(t->skip_cgi_bin && (test->flags && F_CGI)){
-      test->count++;
-      test->dirty=1;
-      DL_FOREACH(t->features,fn){
-        ftr=find_or_create_ftr(test->id,fn->data->id);
-        ftr->count++;
-        ftr->dirty=1;
-      }  
-      continue;
-    }
+    
     score=ck_alloc(sizeof(struct test_score));
     score->test=test;
   
@@ -301,9 +282,19 @@ void enqueue_tests(struct target *t){
      request=new_request(t);
      url_cpy=ck_alloc(strlen(score->test->url)+1);
      memcpy(url_cpy,score->test->url,strlen(score->test->url)+1);
+     
      tokenize_path(url_cpy, request, 0);
-     request->user_val=score->test->id;
+     method=get_request_method(t,request);
+     if(method!=NULL){ /* skip it */
+        destroy_request(request);
+        continue;
+     }
+     request->test=score->test;
      request->callback=process_test_result;
+     request->method=ck_strdup(method);
+
+     
+
      async_request(request);
      queued++;
      if(max_requests && queued>=max_requests) break;

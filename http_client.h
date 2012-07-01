@@ -101,7 +101,8 @@ struct http_request {
   struct target *t; 
 
   u32 user_val;                 /* Can be used freely           */
-
+  void *data;                   /* Can also be used freely ;-)  */
+  struct url_test *test;
   u8 (*callback)(struct http_request*, struct http_response*);
                                 /* Callback to invoke when done */
 
@@ -162,7 +163,7 @@ struct http_response {
   u8* header_charset;           /* Content-Type charset value   */
   u8* header_mime;              /* Content-Type MIME type       */
   u8* sniffed_mime;             /* Detected MIME type (ref)     */
-
+  u8* md5_digest;               /* md5 digest */
   /* Everything below is of interest to scrape_response() only: */
 
   u8  doc_type;                 /* 0 - tbd, 1 - bin, 2 - ascii  */

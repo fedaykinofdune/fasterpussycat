@@ -36,6 +36,7 @@
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <openssl/md5.h>
 #include <idna.h>
 #include <zlib.h>
 
@@ -1671,7 +1672,7 @@ u8 parse_response(struct http_request* req, struct http_response* res,
 #undef NEXT_LINE
 
   fprint_response(res);
-
+  res->md5_digest=MD5(res->payload, res->pay_len, NULL);
   return must_close ? 3 : 0;
 }
 
@@ -1718,6 +1719,7 @@ void destroy_response(struct http_response* res) {
 
   ck_free(res->msg);
   ck_free(res->payload);
+  free(res->md5_digest);
   ck_free(res);
 
 }

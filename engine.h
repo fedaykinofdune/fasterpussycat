@@ -20,7 +20,22 @@ struct feature_node {
   struct feature_node *next;
 };
 
+struct annotation;
 
+struct annotation {
+  char *key;
+  char *value;
+  struct annotation *next;
+}
+
+struct request_response; 
+
+struct request_response {
+  struct http_request  *req;
+  struct http_response *res;
+  struct request_response *next;
+  struct annotation *annotations;
+}
 
 struct test_score {
   struct url_test *test;
@@ -30,19 +45,12 @@ struct test_score {
 
 struct target {
   unsigned char *host;
-  unsigned char fourohfour_response_count;
-  unsigned char fourohfour_detect_mode;
-  unsigned int  fourohfour_content_length;
-  unsigned int  twohundred_size;
-  unsigned int  twohundred_size_count;
-  unsigned char *fourohfour_location;
-  unsigned int  last_code;
-  int checks;
   unsigned char skip_dir;
   unsigned char skip_cgi_bin;
   struct http_request *prototype_request;
   struct feature_node *features;
   struct test_score  *test_scores;
+  struct detect_404_info *detect_404;
   UT_hash_handle hh;
 };
 
@@ -63,3 +71,4 @@ void enqueue_tests(struct target *t);
 unsigned char process_random_request(struct http_request *req, struct http_response *rep);
 unsigned char process_dir_request(struct http_request *req, struct http_response *rep);
 void enqueue_random_request(struct target *t, int slash, int php, int dir, int pl);
+inline struct http_request *new_request_with_method(struct target *t, unsigned char *method);
