@@ -227,6 +227,7 @@ u8 process_probe(struct http_request *req,struct http_response *res){
   int flags=0;
   int detect_method;
   char *request_method="HEAD";
+  info("process probe");
   response->req=req;
   response->res=res;
   response->next=probe->responses;
@@ -301,6 +302,7 @@ void launch_404_probes(struct target *t){
   struct http_request *req;
   char *path=malloc(9);
   struct probe *probe=malloc(sizeof(struct probe));
+  info("launching probes for %s",t->host);
   probe->count=3;
   probe->type=PROBE_GENERAL;
   probe->data=NULL;

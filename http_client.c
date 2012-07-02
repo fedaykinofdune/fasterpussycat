@@ -1672,7 +1672,8 @@ u8 parse_response(struct http_request* req, struct http_response* res,
 #undef NEXT_LINE
 
   fprint_response(res);
-  res->md5_digest=MD5(res->payload, res->pay_len, NULL);
+  res->md5_digest=ck_alloc(MD5_DIGEST_LENGTH);
+  MD5(res->payload, res->pay_len, res->md5_digest);
   return must_close ? 3 : 0;
 }
 
@@ -1719,7 +1720,7 @@ void destroy_response(struct http_response* res) {
 
   ck_free(res->msg);
   ck_free(res->payload);
-  free(res->md5_digest);
+  ck_free(res->md5_digest);
   ck_free(res);
 
 }
@@ -2513,6 +2514,11 @@ struct http_response* res_copy(struct http_response* res) {
   ret->json_safe     = res->json_safe;
   ret->stuff_checked = res->stuff_checked;
   ret->scraped       = res->scraped;
+
+  if (res->md5_digest){
+    ret->md5_digest=ck_alloc(MD5_DIGEST_LENGTH);
+    memcpy(ret->md5_digest,res->md5_digest,MD5_DIGEST_LENGTH);
+  }
 
   if (res->meta_charset)
     ret->meta_charset = ck_strdup(res->meta_charset);
