@@ -138,6 +138,7 @@ void add_target(u8 *host){
   t->prototype_request->method=ck_alloc(5);
   memcpy(t->prototype_request->method,"HEAD",5);
   t->detect_404=calloc(sizeof(struct detect_404_info),1);
+  add_default_rules(t->detect_404);
   first->callback=process_first_page;
   first->t=t;
   async_request(first);

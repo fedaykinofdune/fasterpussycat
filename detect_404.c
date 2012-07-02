@@ -70,7 +70,7 @@ unsigned char detect_error(struct http_request *req, struct http_response *res, 
 char * recommend_method(struct detect_404_info *info, struct url_test *test){
   struct recommended_method *r;
   for(r=info->recommended_request_methods; r!=NULL; r=r->next){
-    if((r->pattern && regexec(r->pattern, test->url, 0, NULL, 0))
+    if((r->pattern && !regexec(r->pattern, test->url, 0, NULL, 0))
     || (r->flags && (r->flags & test->flags))) return (char *) r->method; 
   }
   return "HEAD";
@@ -115,6 +115,9 @@ int determine_404_method(struct detect_404_info *info, struct request_response *
   int use_404=1, use_hash=1, use_sig=1;
   unsigned char *last_hash;
   struct http_sig *last_sig;
+  
+  debug("in determine 404 method");
+  
   /* caught by current rules */
 
   if(!list) return USE_UNKNOWN;
@@ -158,6 +161,10 @@ void blacklist_hash(struct detect_404_info *info, unsigned char *hash){
   struct match_rule *rule=new_404_rule(info,&info->rules_general);
   rule->code=200;
   rule->hash=detect_404_alloc(info,MD5_DIGEST_LENGTH);
+  rule->evaluate=detected_fail;
+  debug("hash...");
+  print_mem(hash,MD5_DIGEST_LENGTH);
+  printf("\n");
   memcpy(rule->hash,hash,MD5_DIGEST_LENGTH);
 }
 
@@ -167,6 +174,7 @@ void blacklist_sig(struct detect_404_info *info, struct http_sig *sig){
   struct match_rule *rule=new_404_rule(info,&info->rules_general);
   rule->code=200;
   rule->sig=detect_404_alloc(info,sizeof(struct http_sig));
+  rule->evaluate=detected_fail;
   memcpy(rule->sig,sig,sizeof(struct http_sig));
 }
 
@@ -226,8 +234,8 @@ u8 process_probe(struct http_request *req,struct http_response *res){
   regex_t *regex=NULL;
   int flags=0;
   int detect_method;
-  char *request_method="HEAD";
-  info("process probe");
+  char *http_method="HEAD";
+  debug("process probe");
   response->req=req;
   response->res=res;
   response->next=probe->responses;
@@ -238,12 +246,8 @@ u8 process_probe(struct http_request *req,struct http_response *res){
     return 1;
   }
   req->t->detect_404->probes--;
+  debug("determining method");
   detect_method=determine_404_method(req->t->detect_404,probe->responses);
-
-  if(detect_method==USE_404){ /* all g in the h */
-    if(probe->type==PROBE_GENERAL) enqueue_other_probes(req->t);
-    return 1;
-  }
 
   switch(detect_method){
     case USE_404: 
@@ -251,17 +255,19 @@ u8 process_probe(struct http_request *req,struct http_response *res){
       break;
     case USE_HASH:
       blacklist_hash(req->t->detect_404,res->md5_digest);
+      debug("blacklisting hash");
       break;
     case USE_SIG:
       blacklist_sig(req->t->detect_404,&res->sig);
+      debug("blacklisting sig");
       break;
   }
   if(detect_method!=USE_404){
-    request_method="GET";
+    http_method="GET";
     switch(probe->type){
       case PROBE_GENERAL:
+        pattern=".*";
         if(detect_method==USE_UNKNOWN){
-          pattern=".*";
           warn("404 detect failed on %s",req->t->host);
           return 1;
         }
@@ -277,20 +283,22 @@ u8 process_probe(struct http_request *req,struct http_response *res){
         flags=F_DIRECTORY;
         break;
     }
-  }
-  if(pattern){
-    regex=malloc(sizeof(regex_t));
-    if(regcomp(regex, pattern, 0) ) fatal("Could not compile regex %s",pattern);
-  }
-  if(detect_method==USE_UNKNOWN){ 
-    request_method=RECOMMEND_SKIP;
-  }
-  rec_method=detect_404_alloc(req->t->detect_404,sizeof(struct recommended_method));
-  rec_method->pattern=regex;
-  rec_method->method=(unsigned char *) request_method;
-  rec_method->flags=flags;
-  rec_method->next=req->t->detect_404->recommended_request_methods;
-  req->t->detect_404->recommended_request_methods=rec_method;
+
+    if(pattern){
+      regex=malloc(sizeof(regex_t));
+      if(regcomp(regex, pattern, REG_EXTENDED | REG_NOSUB) ) fatal("Could not compile regex %s",pattern);
+    }
+    if(detect_method==USE_UNKNOWN){ 
+      http_method=RECOMMEND_SKIP;
+    }
+    rec_method=detect_404_alloc(req->t->detect_404,sizeof(struct recommended_method));
+    rec_method->pattern=regex;
+    rec_method->method=(unsigned char *) http_method;
+    rec_method->flags=flags;
+    rec_method->next=req->t->detect_404->recommended_request_methods;
+    req->t->detect_404->recommended_request_methods=rec_method;
+    debug("added request recommendations pattern: %s flags: %d method %s", pattern, flags, http_method); 
+  } /* if(detect_method!=USE_404) */
   
   if(probe->type==PROBE_GENERAL) enqueue_other_probes(req->t);
   else if(!req->t->detect_404->probes) enqueue_tests(req->t);

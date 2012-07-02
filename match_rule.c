@@ -83,7 +83,7 @@ int run_rules(struct match_rule *list, struct http_request *req, struct http_res
 
 
 int not_head_method(struct http_request *req){
-  return !strcmp((char *) req->method, "HEAD");
+  return strcmp((char *) req->method, "HEAD");
 }
 
 int rule_matches(struct match_rule *rule, struct http_request *req, struct http_response *res){
@@ -94,11 +94,25 @@ int rule_matches(struct match_rule *rule, struct http_request *req, struct http_
     && GET_HDR((unsigned char *) "content-length", &res->hdr) 
     && atoi((char *) GET_HDR((unsigned char *) "content-length", &res->hdr))!=rule->size) return 0;
   if(rule->test_flags!=DETECT_ANY && req->test && !(req->test->flags && rule->test_flags)) return 0;
-  if(rule->hash!=DETECT_ANY 
+   if(rule->hash!=DETECT_ANY 
+    && res
+    && not_head_method(req) 
+    && res->md5_digest){
+    debug("matching hashes");
+    print_mem(res->md5_digest,MD5_DIGEST_LENGTH);
+    printf("\n");
+
+    print_mem(rule->hash,MD5_DIGEST_LENGTH);
+    printf("\n");
+    if (memcmp(res->md5_digest,rule->hash,MD5_DIGEST_LENGTH)) return 0; 
+
+  }
+/*  if(rule->hash!=DETECT_ANY 
     && res
     && not_head_method(req) 
     && res->md5_digest
-    && memcmp(res->md5_digest,rule->hash,MD5_DIGEST_LENGTH)) return 0;
+    && memcmp(res->md5_digest,rule->hash,MD5_DIGEST_LENGTH)) return 0; */
+
   if(rule->pattern!=DETECT_ANY && regexec(rule->pattern, (char *) serialize_path(req,0,0), 0, NULL, 0)) return 0;
   if(rule->sig!=DETECT_ANY && res && not_head_method(req) && !same_page(rule->sig,&res->sig)) return 0;
   return 1;

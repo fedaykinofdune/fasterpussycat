@@ -46,6 +46,8 @@
 
 #include "http_client.h"
 
+#include "util.h"
+
 /* Assorted exported settings: */
 
 
@@ -1804,6 +1806,8 @@ void async_request(struct http_request* req) {
   struct http_response *res;
   struct host_entry *h;
   struct host_entry *new;
+
+  debug("enqueing request %s %s",req->method,serialize_path(req,1,0));
 
   if (req->proto == PROTO_NONE || !req->callback)
     FATAL("uninitialized http_request");

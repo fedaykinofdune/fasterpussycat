@@ -2,6 +2,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "util.h"
+
+int show_debug=0;
 
 inline void maybe_newline(FILE *f, char *format){
   if(format[strlen(format)-1]!='\n'){
@@ -13,6 +16,19 @@ void info(char *format, ...){
   va_list ap;
   va_start(ap, format);
   fprintf(stdout, " :: ");
+  vfprintf(stdout, format, ap);
+  va_end(ap);
+  maybe_newline(stdout,format);
+  fflush(stdout);
+}
+
+
+
+void debug(char *format, ...){
+  if(!show_debug) return;
+  va_list ap;
+  va_start(ap, format);
+  fprintf(stdout, " :? ");
   vfprintf(stdout, format, ap);
   va_end(ap);
   maybe_newline(stdout,format);
@@ -40,4 +56,12 @@ void warn(char *format, ...){
   va_end(ap);
   maybe_newline(stdout,format);
   fflush(stdout);
+}
+
+
+void print_mem(void *mem, int len){
+  int i;
+  for(i=0;i<len;i++){
+    printf("%2.2x",((unsigned char*) mem)[i]);
+  }
 }
