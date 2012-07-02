@@ -1,5 +1,7 @@
 #include <gmp.h>
 #include <string.h>
+#include <sys/types.h>
+#include <regex.h>
 #include "uthash.h"
 #include "utlist.h"
 #include "http_client.h"
@@ -7,6 +9,8 @@
 #include "engine.h"
 #include "bayes.h"
 #include "util.h"
+#include "match_rule.h"
+#include "detect_404.h"
 
 static struct target *targets=NULL;
 int check_dir=1;
@@ -91,9 +95,7 @@ u8 process_test_result(struct http_request *req, struct http_response *rep){
   int code=rep->code;
   struct url_test *test;
   struct feature_node *f;
-  struct target *t=req->t;
   struct feature_test_result *ftr;
-  int size=0;
   int success=0;
   int rc=0;
   rc=is_404(req->t->detect_404,req,rep);
@@ -124,8 +126,6 @@ void add_target(u8 *host){
   struct target *t=(struct target *) ck_alloc(sizeof(struct target));
   struct http_request *first=(struct http_request *) ck_alloc(sizeof(struct http_request));
   t->host=host;
-  t->fourohfour_response_count=0;
-  t->fourohfour_detect_mode=DETECT_404_NONE;
   t->features=NULL;
   t->test_scores=NULL;
   HASH_ADD_KEYPTR( hh, targets, t->host, strlen((char *) t->host), t );
@@ -137,25 +137,13 @@ void add_target(u8 *host){
   t->prototype_request=req_copy(first,0);
   t->prototype_request->method=ck_alloc(5);
   memcpy(t->prototype_request->method,"HEAD",5);
-  t->detect_404=calloc(sizeof(struct detect_404_info));
+  t->detect_404=calloc(sizeof(struct detect_404_info),1);
   first->callback=process_first_page;
   first->t=t;
   async_request(first);
 }
 
-void gen_random(unsigned char *s, const int len) {
-  int i;
-  static const char alphanum[] =
-    "abcdefghijklmnopqrstuvwxyz";
-
-  for (i = 0; i < len; ++i) {
-    s[i] = alphanum[rand() % (sizeof(alphanum) - 1)];
-  }
-
-  s[len] = 0;
-}
-
-inline struct http_request *new_request(struct target *t){
+struct http_request *new_request(struct target *t){
   struct http_request *r=req_copy(t->prototype_request,0);
   r->t=t;
   r->method=ck_strdup(t->prototype_request->method);
@@ -164,7 +152,7 @@ inline struct http_request *new_request(struct target *t){
 
 
 
-inline struct http_request *new_request_with_method(struct target *t, unsigned char *method){
+struct http_request *new_request_with_method(struct target *t, unsigned char *method){
   struct http_request *r=req_copy(t->prototype_request,0);
   r->t=t;
   r->method=ck_strdup(method);
@@ -172,7 +160,7 @@ inline struct http_request *new_request_with_method(struct target *t, unsigned c
 }
 
 
-inline struct http_request *new_request_with_method_and_path(struct target *t, unsigned char *method,unsigned char *path){
+struct http_request *new_request_with_method_and_path(struct target *t, unsigned char *method,unsigned char *path){
   struct http_request *r=req_copy(t->prototype_request,0);
   r->t=t;
   r->method=ck_strdup(method);
@@ -182,7 +170,6 @@ inline struct http_request *new_request_with_method_and_path(struct target *t, u
 
 
 unsigned char process_first_page(struct http_request *req, struct http_response *rep){
-  int i;
   if(rep->state==STATE_DNSERR || rep->code==0){
 
     /* hambone detected fail immediately */
@@ -195,71 +182,16 @@ unsigned char process_first_page(struct http_request *req, struct http_response 
   return 0;
 }
 
-int process_404(struct http_response *rep, struct target *t){
-  unsigned char *loc;
-  unsigned char *len;
-  if(t->fourohfour_response_count==1){
-    if(rep->code==404){
-      t->fourohfour_detect_mode=DETECT_404_CODE;
-      len=GET_HDR((unsigned char *) "content-length",&rep->hdr);
-      if(len){
-        t->fourohfour_content_length=atoi(len);
-      }
-      printf("detect 404 %d\n",t->fourohfour_content_length);
-      return 1;
-    }
-    else {
-      loc=(unsigned char *) GET_HDR((unsigned char *) "location",&rep->hdr);
-      if(loc){
-        printf("detect loc\n");
-        t->fourohfour_location=(unsigned char *) strdup((char *) loc);
-        t->fourohfour_detect_mode=DETECT_404_LOCATION;
-      }
-      return 1;
-    }
-    return 0;
-  }
-  switch(t->fourohfour_detect_mode){
-      case DETECT_404_NONE:
-        return 0;
-        break;
-      case DETECT_404_CODE:
-        if(rep->code!=404){
-          return 0;
-        }
-        break;
-      case DETECT_404_LOCATION:
-        if(GET_HDR((unsigned char *) "location", &rep->hdr)==NULL){
-          return 0;
-        }
-        if(strcasecmp((char *) t->fourohfour_location,(char *) GET_HDR((unsigned char *) "location", &rep->hdr))){
-          return 0;
-        }
-        break;
-  }
-  return 1;
-}
-
 int score_sort(struct test_score *lhs, struct test_score *rhs){
   if (lhs->score > rhs->score) return -1;
   else if (lhs->score < rhs->score) return 1;
   return 0;
 }
 
-char * get_request_method(struct target *t, struct http_request *req){
-  struct match_rule *r;
-  for(r=t->detect_404->request_method_recommendations;r!=NULL;r->next){
-    if(rule_match(r,req,NULL)) return (char *) r->data;
-  }
-  return "HEAD";
-}
-
 void enqueue_tests(struct target *t){
   struct url_test *test;
   struct test_score *score;
   struct http_request *request;
-  struct feature_node *fn;
-  struct feature_test_result *ftr;
   unsigned char *url_cpy;
   unsigned int queued=0;
   unsigned char *method;
@@ -279,21 +211,17 @@ void enqueue_tests(struct target *t){
   }
   LL_SORT(t->test_scores,score_sort);
   LL_FOREACH(t->test_scores,score) {
+     
+     method=(unsigned char*) recommend_method(t->detect_404, score->test);
+     if(method==RECOMMEND_SKIP) continue;
      request=new_request(t);
      url_cpy=ck_alloc(strlen(score->test->url)+1);
      memcpy(url_cpy,score->test->url,strlen(score->test->url)+1);
      
      tokenize_path(url_cpy, request, 0);
-     method=get_request_method(t,request);
-     if(method!=NULL){ /* skip it */
-        destroy_request(request);
-        continue;
-     }
      request->test=score->test;
      request->callback=process_test_result;
      request->method=ck_strdup(method);
-
-     
 
      async_request(request);
      queued++;
@@ -303,95 +231,3 @@ void enqueue_tests(struct target *t){
 
 
 
-u8 process_dir_request(struct http_request *req, struct http_response *rep){
-  struct target *t=req->t;
-  t->checks--;
-  if(!process_404(rep,t)){
-    printf("FAILED DIR DETECT %s\n",t->host);
-    t->skip_dir=1;
-  }
-  maybe_enqueue_tests(t);
-  
-  return 0;
-}
-
-u8 process_cgi_check_request(struct http_request *req, struct http_response *rep){
-  if(!(rep->code==200 || rep->code==403)){
-    printf("FAILED CGI DETECT %s\n",req->t->host);
-    req->t->skip_cgi_bin=1;
-  }
-  req->t->checks--;
-  maybe_enqueue_tests(req->t);
-  return 0;
-}
-
-
-void enqueue_cgi_bin_check(struct target *t){
-  struct http_request *req=new_request(t);
-  unsigned char *url_cpy=ck_strdup((unsigned char *) "/cgi-bin/");
-  tokenize_path(url_cpy, req, 0);
-  req->callback=process_cgi_check_request;
-  async_request(req);
-}
-
-
-inline void maybe_enqueue_tests(struct target *t){
-  if(!t->checks){
-    enqueue_tests(t);
-  }
-}
-
-
-void enqueue_checks(struct target *t){
-  if(check_dir){
-    t->checks++;
-    enqueue_random_request(t,0,0,1,0);
-  }
-  if(check_cgi_bin){
-    t->checks++;
-    enqueue_cgi_bin_check(t);
-  }
-  maybe_enqueue_tests(t);
-}
-
-
-
-u8 process_random_request(struct http_request *req, struct http_response *rep){
-  struct target *t=req->t;
-  t->fourohfour_response_count++;
-  if(!process_404(rep,t)){
-    printf("FAILED 404 DETECT %s\n",t->host);
-    t->fourohfour_detect_mode=DETECT_404_NONE;
-    return 0;
-  }
-  if(t->fourohfour_response_count>=MAX_404_QUERIES && t->fourohfour_detect_mode!=DETECT_404_NONE){
-    enqueue_checks(t);
-  }
-  return 0;
-}
-
-void enqueue_random_request(struct target *t, int slash,int php, int dir, int pl){
-  struct http_request *random_req=new_request(t);
-  u8 *random=ck_alloc(18);
-  if(dir){
-    random_req->callback=process_dir_request;
-  }
-  else{
-    random_req->callback=process_random_request;
-  }
-  random[0]='/';
-  gen_random(&random[1],16);
-  if(slash || dir){
-    random[8]='/';
-    if(dir) random[9]=0;
-  }
-  if(php){
-    memcpy(&random[7],".php",5);
-  }
-
-  if(pl){
-    memcpy(&random[7],".pl",5);
-  }
-  tokenize_path(random,random_req,0);
-  async_request(random_req);
-}

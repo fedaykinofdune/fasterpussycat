@@ -26,7 +26,7 @@ struct annotation {
   char *key;
   char *value;
   struct annotation *next;
-}
+};
 
 struct request_response; 
 
@@ -35,7 +35,7 @@ struct request_response {
   struct http_response *res;
   struct request_response *next;
   struct annotation *annotations;
-}
+};
 
 struct test_score {
   struct url_test *test;
@@ -61,14 +61,12 @@ void maybe_enqueue_tests(struct target *t);
 void add_feature_to_target(struct feature *f, struct target *t);
 void process_features(struct http_response *rep, struct target *t);
 unsigned char process_test_result(struct http_request *req, struct http_response *rep);
-int is_404(struct http_response *rep, struct target *t);
 void add_target(unsigned char *host);
 void gen_random(unsigned char *s, const int len);
 unsigned char process_first_page(struct http_request *req, struct http_response *rep);
-int process_404_responses(struct target *t);
 int score_sort(struct test_score *lhs, struct test_score *rhs);
 void enqueue_tests(struct target *t);
-unsigned char process_random_request(struct http_request *req, struct http_response *rep);
-unsigned char process_dir_request(struct http_request *req, struct http_response *rep);
 void enqueue_random_request(struct target *t, int slash, int php, int dir, int pl);
-inline struct http_request *new_request_with_method(struct target *t, unsigned char *method);
+struct http_request *new_request(struct target *t);
+struct http_request *new_request_with_method(struct target *t, unsigned char *method);
+struct http_request *new_request_with_method_and_path(struct target *t, unsigned char *method, unsigned char *path);

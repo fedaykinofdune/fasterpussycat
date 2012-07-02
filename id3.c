@@ -26,7 +26,6 @@ int depth(struct id3_node *root){
 
 void do_feature_selection(){
   struct url_test *t;
-  struct id3_node *tree;
   struct feature *f;
 
   struct feature *top=NULL;

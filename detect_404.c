@@ -1,5 +1,13 @@
 #include <sys/types.h>
 #include <regex.h>
+#include <openssl/md5.h>
+#include "uthash.h"
+#include "utlist.h"
+#include "http_client.h"
+#include "db.h"
+#include "engine.h"
+#include "bayes.h"
+#include "util.h"
 #include "match_rule.h"
 #include "detect_404.h"
 
@@ -19,34 +27,34 @@ void gen_random(unsigned char *s, const int len) {
 }
 
 void add_default_rules(struct detect_404_info *info){
-  struct *match_rule *rule;
+  struct match_rule *rule;
 
   /* base rule is to return 404 for everything */
 
-  rule=new_404_rule(info,&info->final);
-  rule->evaluate=detected_404;
+  rule=new_404_rule(info,&info->rules_final);
+  rule->evaluate=detected_fail;
 
   /* and success for 200 OK */
 
-  rule=new_404_rule(info,&info->final);
+  rule=new_404_rule(info,&info->rules_final);
   rule->code=200;
   rule->evaluate=detected_success;
 
   /* and for 401 and 403 for directories */
 
-  rule=new_404_rule(info,&info->final);
+  rule=new_404_rule(info,&info->rules_final);
   rule->code=401;
   rule->test_flags=F_DIRECTORY;
   rule->evaluate=detected_success;
 
-  rule=new_404_rule(info,&info->final);
+  rule=new_404_rule(info,&info->rules_final);
   rule->code=403;
   rule->test_flags=F_DIRECTORY;
   rule->evaluate=detected_success;
 
   /* response code of 0 means something went wrong */
 
-  rule=new_404_rule(info,&info->final);
+  rule=new_404_rule(info,&info->rules_final);
   rule->evaluate=detect_error;
 
 }
@@ -59,28 +67,36 @@ unsigned char detect_error(struct http_request *req, struct http_response *res, 
 }
 
 
-
+char * recommend_method(struct detect_404_info *info, struct url_test *test){
+  struct recommended_method *r;
+  for(r=info->recommended_request_methods; r!=NULL; r=r->next){
+    if((r->pattern && regexec(r->pattern, test->url, 0, NULL, 0))
+    || (r->flags && (r->flags & test->flags))) return (char *) r->method; 
+  }
+  return "HEAD";
+}
 
 
 struct match_rule *new_404_rule(struct detect_404_info *info, struct match_rule **list){
   struct match_rule *rule;
-  struct detect_404_cleanup *new_cleanup=malloc(sizeof(struct detect_404_cleanup));
-  rule=new_match_rule(list);
-  new->data=rule;
-  new->cleanup_func=free;
-  new->next=info->cleanup;
+  struct detect_404_cleanup_info *new_cleanup=malloc(sizeof(struct detect_404_cleanup_info));
+  rule=new_rule(list);
+  new_cleanup->data=rule;
+  new_cleanup->cleanup_func=free;
+  new_cleanup->next=info->cleanup;
+  info->cleanup=new_cleanup;
   return rule;
 }
 
 
 void *detect_404_alloc(struct detect_404_info *info, size_t size){
   void *mem=calloc(size,1);
-  struct detect_404_cleanup *new=malloc(sizeof(struct detect_404_cleanup));
+  struct detect_404_cleanup_info *new=malloc(sizeof(struct detect_404_cleanup_info));
   new->data=mem;
   new->cleanup_func=free;
   new->next=info->cleanup;
   info->cleanup=new;
-
+  return mem;
 }
 void detect_404_cleanup(struct detect_404_info *info){
    struct detect_404_cleanup_info *c=info->cleanup;
@@ -94,16 +110,16 @@ void detect_404_cleanup(struct detect_404_info *info){
 }
 
 
-void determine_404_method(struct detect_404_info *info, struct request_response *list){
+int determine_404_method(struct detect_404_info *info, struct request_response *list){
   struct request_response *r;
   int use_404=1, use_hash=1, use_sig=1;
   unsigned char *last_hash;
-  http_sig *sig;
+  struct http_sig *last_sig;
   /* caught by current rules */
 
   if(!list) return USE_UNKNOWN;
 
-  while(r=list;r!=NULL;r=r->next){
+  for(r=list;r!=NULL;r=r->next){
     if(is_404(info,list->req,list->res)!=DETECT_FAIL){
       use_404=0;
       break;
@@ -114,9 +130,9 @@ void determine_404_method(struct detect_404_info *info, struct request_response 
   
   /* otherwise resort to more primitive methods */
   
-  last_hash=list->rep->md5hash;
-  while(r=list;r!=NULL;r=r->next){
-    if(memcmp(r->rep->md5_hash,last_hash,MD5_DIGEST_LENGTH)){
+  last_hash=list->res->md5_digest;
+  for(r=list;r!=NULL;r=r->next){
+    if(memcmp(r->res->md5_digest,last_hash,MD5_DIGEST_LENGTH)){
       use_hash=0;
       break;
     }
@@ -124,9 +140,9 @@ void determine_404_method(struct detect_404_info *info, struct request_response 
 
   if(use_hash) return USE_HASH;
 
-  last_sig=list->rep->sig;
-  while(r=list;r!=NULL;r=r->next){
-    if(!same_page(last_sig,r->rep->sig)){
+  last_sig=&list->res->sig;
+  for(r=list;r!=NULL;r=r->next){
+    if(!same_page(last_sig,&r->res->sig)){
       use_sig=0;
       break;
     }
@@ -154,7 +170,7 @@ void blacklist_sig(struct detect_404_info *info, struct http_sig *sig){
   memcpy(rule->sig,sig,sizeof(struct http_sig));
 }
 
-void enqueue_other_probes(struct *target *t){
+void enqueue_other_probes(struct target *t){
   char *check_ext[] = CHECK_EXT;
   struct probe *probe;
   struct http_request *req;
@@ -171,11 +187,11 @@ void enqueue_other_probes(struct *target *t){
     probe->count=3;
     t->detect_404->probes++;
     for(j=0;j<3;j++){
-      gen_random(path,8);
+      gen_random((unsigned char *) path,8);
       path[0]='/';
       strcat(path,".");
-      strcat(check_ext[i]);
-      req=new_request_with_method_and_path(t,"GET", path);
+      strcat(path, check_ext[i]);
+      req=new_request_with_method_and_path(t,(unsigned char *) "GET", (unsigned char *) path);
       req->data=probe;
       req->callback=process_probe;
       async_request(req);
@@ -191,10 +207,10 @@ void enqueue_other_probes(struct *target *t){
   probe->count=3;
   t->detect_404->probes++;
   for(j=0;j<3;j++){
-    gen_random(path,8);
+    gen_random((unsigned char *) path,8);
     path[0]='/';
     strcat(path,"/");
-    req=new_request_with_method_and_path(t,"GET", path);
+    req=new_request_with_method_and_path(t,(unsigned char *) "GET", (unsigned char *) path);
     req->data=probe;
     req->callback=process_probe;
     async_request(req);
@@ -203,16 +219,14 @@ void enqueue_other_probes(struct *target *t){
 }
 
 u8 process_probe(struct http_request *req,struct http_response *res){
-  struct probe *probe=(struct *probe) req->data;
+  struct probe *probe=(struct probe *) req->data;
   struct request_response *response=calloc(sizeof(struct request_response),1);
   char *pattern=NULL;
-  unsigned char *hash=NULL;
-  struct http_sig=NULL;
-  struct match_rule *rule;
-  regex_t *regex;
+  struct recommended_method *rec_method;
+  regex_t *regex=NULL;
   int flags=0;
   int detect_method;
-  char *recommended_request_method="GET";
+  char *request_method="HEAD";
   response->req=req;
   response->res=res;
   response->next=probe->responses;
@@ -223,7 +237,7 @@ u8 process_probe(struct http_request *req,struct http_response *res){
     return 1;
   }
   req->t->detect_404->probes--;
-  detect_method=determine_404_method(req->t->detect_404,probe->response);
+  detect_method=determine_404_method(req->t->detect_404,probe->responses);
 
   if(detect_method==USE_404){ /* all g in the h */
     if(probe->type==PROBE_GENERAL) enqueue_other_probes(req->t);
@@ -237,24 +251,26 @@ u8 process_probe(struct http_request *req,struct http_response *res){
     case USE_HASH:
       blacklist_hash(req->t->detect_404,res->md5_digest);
       break;
-    case USE_SIG;
-      blacklist_sig(req->t->detect_404,res->sig);
+    case USE_SIG:
+      blacklist_sig(req->t->detect_404,&res->sig);
       break;
   }
   if(detect_method!=USE_404){
-    switch(probe->type);
+    request_method="GET";
+    switch(probe->type){
       case PROBE_GENERAL:
         if(detect_method==USE_UNKNOWN){
+          pattern=".*";
           warn("404 detect failed on %s",req->t->host);
           return 1;
         }
         break;
       case PROBE_EXT:
         pattern=malloc(strlen(probe->data)+11);
-        pattern[0]=0'
-        strcat(reg,".*\\.");
-        strcat(reg,data);
-        strcat(reg,"(\\?|$)");
+        pattern[0]=0;
+        strcat(pattern,".*\\.");
+        strcat(pattern,probe->data);
+        strcat(pattern,"(\\?|$)");
         break;
     case PROBE_DIR:
         flags=F_DIRECTORY;
@@ -263,18 +279,21 @@ u8 process_probe(struct http_request *req,struct http_response *res){
   }
   if(pattern){
     regex=malloc(sizeof(regex_t));
-    if(regcomp(&regex, pattern, 0) ) fatal("Could not compile regex %s",pattern);
+    if(regcomp(regex, pattern, 0) ) fatal("Could not compile regex %s",pattern);
   }
   if(detect_method==USE_UNKNOWN){ 
-    recommended_request_method=NULL;
+    request_method=RECOMMEND_SKIP;
   }
-  rule=new_rule(req->t->detect_404->recommended_request_methods);
-  rule->pattern=regex;
-  rule->flags=flags;
+  rec_method=detect_404_alloc(req->t->detect_404,sizeof(struct recommended_method));
+  rec_method->pattern=regex;
+  rec_method->method=(unsigned char *) request_method;
+  rec_method->flags=flags;
+  rec_method->next=req->t->detect_404->recommended_request_methods;
+  req->t->detect_404->recommended_request_methods=rec_method;
   
   if(probe->type==PROBE_GENERAL) enqueue_other_probes(req->t);
-  else if(!req->t->detect_404->probes) enqueue_tests(req->t)
-    
+  else if(!req->t->detect_404->probes) enqueue_tests(req->t);
+  return 1; 
 }
 
 void launch_404_probes(struct target *t){
@@ -285,13 +304,13 @@ void launch_404_probes(struct target *t){
   probe->count=3;
   probe->type=PROBE_GENERAL;
   probe->data=NULL;
-  probe->response=NULL;
+  probe->responses=NULL;
   t->detect_404->probes++;
   /* first launch 3 general probes */
   for(i=0;i<3;i++){
-    gen_random(path,8);
+    gen_random((unsigned char *) path,8);
     path[0]='/';
-    req=new_request_with_method_and_path(t,"GET",path);
+    req=new_request_with_method_and_path(t,(unsigned char*) "GET",(unsigned char*) path);
     req->callback=process_probe;
     req->data=probe;
     async_request(req);
@@ -303,11 +322,11 @@ void destroy_detect_404_info(struct detect_404_info *info){
   free(info);
 }
 
-void is_404(struct detect_404_info *info, struct http_request *req, struct http_response *rep){
+int is_404(struct detect_404_info *info, struct http_request *req, struct http_response *res){
   int rc=DETECT_NEXT_RULE;
-  if((rc=run_rules(info->rules_preprocess,req,rep))!=DETECT_NEXT_RULE) return rc;
-  if((rc=run_rules(info->rules_general   ,req,rep))!=DETECT_NEXT_RULE) return rc;
-  if((rc=run_rules(info->rules_final     ,req,rep))!=DETECT_NEXT_RULE) return rc;
+  if((rc=run_rules(info->rules_preprocess,req,res))!=DETECT_NEXT_RULE) return rc;
+  if((rc=run_rules(info->rules_general   ,req,res))!=DETECT_NEXT_RULE) return rc;
+  if((rc=run_rules(info->rules_final     ,req,res))!=DETECT_NEXT_RULE) return rc;
   return DETECT_UNKNOWN;
 }
 

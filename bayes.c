@@ -45,8 +45,6 @@ double negative_predictive_value(struct url_test *test, struct feature *f){
 
 
 double information(double prob){
-  double p1;
-  double p2;
   if(prob==0.0 || prob==1.0){
     return 0;
   } 

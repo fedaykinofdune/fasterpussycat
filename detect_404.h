@@ -1,19 +1,34 @@
 #define CHECK_EXT {"php", "html", "asp", "idq"}
 #define CHECK_EXT_LEN 4
 
-#define USE_404 = 1
-#define USE_HASH = 2
-#define USE_SIG = 3
+#define USE_404  1
+#define USE_HASH  2
+#define USE_SIG  3
+#define USE_UNKNOWN 4
 
-#define PROBE_GENERAL;
+#define PROBE_GENERAL 1
+#define PROBE_EXT 2
+#define PROBE_DIR 3
+
+
+#define RECOMMEND_SKIP 0
 
 struct detect_404_cleanup_info;
 
-struct detect_404_cleanup_info{
+struct detect_404_cleanup_info {
   void (*cleanup_func) (void *data);
   void *data;
-  struct detect_404_cleanup *next;
-}
+  struct detect_404_cleanup_info *next;
+};
+
+struct recommended_method;
+
+struct recommended_method {
+  unsigned char *method;
+  int flags;
+  regex_t *pattern;
+  struct recommended_method *next;
+};
 
 struct detect_404_info {
   int probes;
@@ -22,8 +37,11 @@ struct detect_404_info {
   struct match_rule *rules_final;
   struct detect_404_cleanup_info *cleanup;
   struct request_response *general_probes;  
-  struct match_rule *recommended_request_methods;  
+  struct recommended_method *recommended_request_methods;  
+
 };
+
+
 
 struct probe {
   int type;
@@ -32,8 +50,19 @@ struct probe {
   struct request_response *responses;  
 };
 
-unsigned char detected_success(struct http_request *req, struct http_response *res, void *data);
-unsigned char detected_404(struct http_request *req, struct http_response *res, void *data);
+/* detect_404.c */
+void gen_random(unsigned char *s, const int len);
+void add_default_rules(struct detect_404_info *info);
+unsigned char detect_error(struct http_request *req, struct http_response *res, void *data);
+char *recommend_method(struct detect_404_info *info, struct url_test *test);
+struct match_rule *new_404_rule(struct detect_404_info *info, struct match_rule **list);
 void *detect_404_alloc(struct detect_404_info *info, size_t size);
-void detect_404_cleanup(struct detect_404_info);
-
+void detect_404_cleanup(struct detect_404_info *info);
+int determine_404_method(struct detect_404_info *info, struct request_response *list);
+void blacklist_hash(struct detect_404_info *info, unsigned char *hash);
+void blacklist_sig(struct detect_404_info *info, struct http_sig *sig);
+void enqueue_other_probes(struct target *t);
+u8 process_probe(struct http_request *req, struct http_response *res);
+void launch_404_probes(struct target *t);
+void destroy_detect_404_info(struct detect_404_info *info);
+int is_404(struct detect_404_info *info, struct http_request *req, struct http_response *res);
