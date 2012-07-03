@@ -56,6 +56,7 @@ int same_page(struct http_sig* sig1, struct http_sig* sig2) {
   if (abs(total_diff) > 1 + (total_scale * FP_T_REL / 100))
     return 0;
 
+  debug("same page");
   return 1;
 
 }
@@ -93,20 +94,14 @@ int rule_matches(struct match_rule *rule, struct http_request *req, struct http_
     && res
     && GET_HDR((unsigned char *) "content-length", &res->hdr) 
     && atoi((char *) GET_HDR((unsigned char *) "content-length", &res->hdr))!=rule->size) return 0;
-  if(rule->test_flags!=DETECT_ANY && req->test && !(req->test->flags && rule->test_flags)) return 0;
-   if(rule->hash!=DETECT_ANY 
+  if(rule->test_flags!=DETECT_ANY && req->test && !(req->test->flags & rule->test_flags)) return 0;
+  if(rule->hash!=DETECT_ANY 
     && res
     && not_head_method(req) 
-    && res->md5_digest){
-    debug("matching hashes");
-    print_mem(res->md5_digest,MD5_DIGEST_LENGTH);
-    printf("\n");
+    && res->md5_digest
+    && memcmp(res->md5_digest,rule->hash,MD5_DIGEST_LENGTH)) return 0; 
 
-    print_mem(rule->hash,MD5_DIGEST_LENGTH);
-    printf("\n");
-    if (memcmp(res->md5_digest,rule->hash,MD5_DIGEST_LENGTH)) return 0; 
-
-  }
+  
 /*  if(rule->hash!=DETECT_ANY 
     && res
     && not_head_method(req) 

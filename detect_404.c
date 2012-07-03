@@ -12,6 +12,35 @@
 #include "detect_404.h"
 
 
+
+
+unsigned char keep_hash_count(struct http_request *req, struct http_response *res, void *data){
+  struct detect_404_info *info=(struct detect_404_info *) data;
+  struct hash_count *h_count;
+
+  if(!res->md5_digest) return DETECT_NEXT_RULE;
+
+  if(!GET_HDR((unsigned char *) "content-length", &res->hdr) 
+    || atoi((char *) GET_HDR((unsigned char *) "content-length", &res->hdr))<20) return DETECT_NEXT_RULE;
+
+  HASH_FIND(hh, info->hash_counts, res->md5_digest, MD5_DIGEST_LENGTH, h_count);
+  if(!h_count){
+    h_count=detect_404_alloc(info,sizeof(struct hash_count));
+    memcpy(&h_count->hash, res->md5_digest, MD5_DIGEST_LENGTH);
+    HASH_ADD(hh, info->hash_counts, hash, MD5_DIGEST_LENGTH, h_count);
+  }
+  h_count->count++;
+  if(h_count->count>10){
+    warn("Over 10 responses with same hash for %s, blacklisting hash", req->host);
+    blacklist_hash(info, res->md5_digest);
+    return DETECT_FAIL;
+  }
+
+  return DETECT_NEXT_RULE;
+
+}
+
+
 /* generate a random lower case string */
 
 void gen_random(unsigned char *s, const int len) {
@@ -57,8 +86,14 @@ void add_default_rules(struct detect_404_info *info){
   rule=new_404_rule(info,&info->rules_final);
   rule->evaluate=detect_error;
 
-}
+  /* prevent too many of the same hash */
 
+  rule=new_404_rule(info,&info->rules_final);
+  rule->code=200;
+  rule->evaluate=keep_hash_count;
+  rule->data=info;
+
+}
 
 
 unsigned char detect_error(struct http_request *req, struct http_response *res, void *data){
@@ -112,8 +147,11 @@ void detect_404_cleanup(struct detect_404_info *info){
 
 int determine_404_method(struct detect_404_info *info, struct request_response *list){
   struct request_response *r;
-  int use_404=1, use_hash=1, use_sig=1;
+  int use_404=1, use_sig=1;
+  #ifdef USE_HASH_404
+  int use_hash=1;
   unsigned char *last_hash;
+  #endif
   struct http_sig *last_sig;
   
   debug("in determine 404 method");
@@ -122,8 +160,18 @@ int determine_404_method(struct detect_404_info *info, struct request_response *
 
   if(!list) return USE_UNKNOWN;
 
+
+
   for(r=list;r!=NULL;r=r->next){
-    if(is_404(info,list->req,list->res)!=DETECT_FAIL){
+    if(r->res->code==0){
+      return USE_UNKNOWN;
+      break;
+    }
+  }
+
+
+  for(r=list;r!=NULL;r=r->next){
+    if(is_404(info,r->req,r->res)!=DETECT_FAIL){
       use_404=0;
       break;
     }
@@ -132,17 +180,19 @@ int determine_404_method(struct detect_404_info *info, struct request_response *
   
   
   /* otherwise resort to more primitive methods */
-  
+  #ifdef USE_HASH_404
   last_hash=list->res->md5_digest;
-  for(r=list;r!=NULL;r=r->next){
-    if(memcmp(r->res->md5_digest,last_hash,MD5_DIGEST_LENGTH)){
-      use_hash=0;
-      break;
+  if(last_hash){
+    for(r=list;r!=NULL;r=r->next){
+      if(memcmp(r->res->md5_digest,last_hash,MD5_DIGEST_LENGTH)){
+        use_hash=0;
+        break;
+      }
     }
+
+    if(use_hash) return USE_HASH;
   }
-
-  if(use_hash) return USE_HASH;
-
+  #endif
   last_sig=&list->res->sig;
   for(r=list;r!=NULL;r=r->next){
     if(!same_page(last_sig,&r->res->sig)){
@@ -162,9 +212,6 @@ void blacklist_hash(struct detect_404_info *info, unsigned char *hash){
   rule->code=200;
   rule->hash=detect_404_alloc(info,MD5_DIGEST_LENGTH);
   rule->evaluate=detected_fail;
-  debug("hash...");
-  print_mem(hash,MD5_DIGEST_LENGTH);
-  printf("\n");
   memcpy(rule->hash,hash,MD5_DIGEST_LENGTH);
 }
 
@@ -183,7 +230,7 @@ void enqueue_other_probes(struct target *t){
   struct probe *probe;
   struct http_request *req;
   int i,j;
-  char *path=malloc(15);
+  char *path=malloc(20);
 
   /* enqueue extention checks */
 
@@ -224,6 +271,25 @@ void enqueue_other_probes(struct target *t){
     async_request(req);
   }
 
+  /* enqueue cgi checks */
+
+  probe=malloc(sizeof(struct probe));
+  probe->type=PROBE_CGI;
+  probe->responses=NULL;
+  probe->data=NULL;
+  probe->count=3;
+  t->detect_404->probes++;
+  for(j=0;j<3;j++){
+    strcpy(path,"/cgi-bin/");
+    gen_random((unsigned char *) &path[9],7);
+    req=new_request_with_method_and_path(t,(unsigned char *) "GET", (unsigned char *) path);
+    req->data=probe;
+    req->callback=process_probe;
+    async_request(req);
+  }
+
+  free(path);
+
 }
 
 u8 process_probe(struct http_request *req,struct http_response *res){
@@ -235,6 +301,7 @@ u8 process_probe(struct http_request *req,struct http_response *res){
   int flags=0;
   int detect_method;
   char *http_method="HEAD";
+  char *type_str=NULL;
   debug("process probe");
   response->req=req;
   response->res=res;
@@ -252,21 +319,29 @@ u8 process_probe(struct http_request *req,struct http_response *res){
   switch(detect_method){
     case USE_404: 
       /* all g in the h */
+      
+      if(probe->type==PROBE_CGI) debug("404 cgi");
+      type_str="404";
       break;
     case USE_HASH:
       blacklist_hash(req->t->detect_404,res->md5_digest);
       debug("blacklisting hash");
+      type_str="hash";
       break;
     case USE_SIG:
       blacklist_sig(req->t->detect_404,&res->sig);
       debug("blacklisting sig");
+      if(probe->type==PROBE_CGI) debug("blacklist cgi sig");
+      type_str="sig";
       break;
+    case USE_UNKNOWN:
+      debug("use unknown");
   }
   if(detect_method!=USE_404){
     http_method="GET";
     switch(probe->type){
       case PROBE_GENERAL:
-        pattern=".*";
+        pattern=strdup(".*");
         if(detect_method==USE_UNKNOWN){
           warn("404 detect failed on %s",req->t->host);
           return 1;
@@ -279,7 +354,11 @@ u8 process_probe(struct http_request *req,struct http_response *res){
         strcat(pattern,probe->data);
         strcat(pattern,"(\\?|$)");
         break;
-    case PROBE_DIR:
+
+      case PROBE_CGI:
+        pattern=strdup("^/cgi-bin/.*");
+        break;
+      case PROBE_DIR:
         flags=F_DIRECTORY;
         break;
     }
@@ -298,8 +377,10 @@ u8 process_probe(struct http_request *req,struct http_response *res){
     rec_method->next=req->t->detect_404->recommended_request_methods;
     req->t->detect_404->recommended_request_methods=rec_method;
     debug("added request recommendations pattern: %s flags: %d method %s", pattern, flags, http_method); 
+    free(pattern);
   } /* if(detect_method!=USE_404) */
-  
+  if(probe->type==PROBE_GENERAL) info("404 detection method for %s: %s", req->t->host, type_str);
+
   if(probe->type==PROBE_GENERAL) enqueue_other_probes(req->t);
   else if(!req->t->detect_404->probes) enqueue_tests(req->t);
   return 1; 

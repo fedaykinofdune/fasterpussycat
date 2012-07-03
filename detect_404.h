@@ -1,5 +1,6 @@
-#define CHECK_EXT {"php", "html", "asp", "idq"}
-#define CHECK_EXT_LEN 4
+#include <openssl/md5.h>
+#define CHECK_EXT {"php", "html", "asp", "idq","jsp"}
+#define CHECK_EXT_LEN 5
 
 #define USE_404  1
 #define USE_HASH  2
@@ -9,7 +10,7 @@
 #define PROBE_GENERAL 1
 #define PROBE_EXT 2
 #define PROBE_DIR 3
-
+#define PROBE_CGI 4
 
 #define RECOMMEND_SKIP 0
 
@@ -30,6 +31,12 @@ struct recommended_method {
   struct recommended_method *next;
 };
 
+struct hash_count {
+  unsigned char hash[MD5_DIGEST_LENGTH];
+  unsigned int count;
+  UT_hash_handle hh; 
+};
+
 struct detect_404_info {
   int probes;
   struct match_rule *rules_preprocess;
@@ -38,7 +45,7 @@ struct detect_404_info {
   struct detect_404_cleanup_info *cleanup;
   struct request_response *general_probes;  
   struct recommended_method *recommended_request_methods;  
-
+  struct hash_count *hash_counts;
 };
 
 
