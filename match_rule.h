@@ -23,6 +23,8 @@ struct match_rule {
 };
 /* match_rule.c */
 unsigned char detected_success(struct http_request *req, struct http_response *res, void *data);
+
+unsigned char detected_unknown(struct http_request *req, struct http_response *res, void *data);
 unsigned char next_rule(struct http_request *req, struct http_response *res, void *data);
 unsigned char detected_fail(struct http_request *req, struct http_response *res, void *data);
 int same_page(struct http_sig *sig1, struct http_sig *sig2);

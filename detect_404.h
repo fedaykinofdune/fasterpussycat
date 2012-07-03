@@ -46,6 +46,9 @@ struct detect_404_info {
   struct request_response *general_probes;  
   struct recommended_method *recommended_request_methods;  
   struct hash_count *hash_counts;
+  unsigned int in_a_row_dir;
+  unsigned int last_dir_code;
+  unsigned int dir_blacklist;
 };
 
 

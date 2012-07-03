@@ -14,6 +14,33 @@
 
 
 
+
+unsigned char keep_dir_count(struct http_request *req, struct http_response *res, void *data){
+  struct detect_404_info *info=(struct detect_404_info *) data;
+  if(info->dir_blacklist || !req->test || !(req->test->flags & F_DIRECTORY)) return DETECT_NEXT_RULE;
+  if(info->last_dir_code==res->code && res->code==403){
+    info->in_a_row_dir++;
+    if(info->in_a_row_dir>10){
+      struct match_rule *r;
+      warn("Over 10 dir %ds in a row, marking directories with this code as unknown for %s",res->code,req->t->host);
+      r=new_404_rule(info,&info->rules_general);
+      r->test_flags=F_DIRECTORY,
+      r->code=res->code;
+      r->evaluate=detected_unknown;
+      info->dir_blacklist=1;
+      return DETECT_UNKNOWN;
+    }
+  }
+  else{
+    info->in_a_row_dir=0;
+    info->last_dir_code=res->code;
+  }
+  return DETECT_NEXT_RULE;
+
+}
+
+
+
 unsigned char keep_hash_count(struct http_request *req, struct http_response *res, void *data){
   struct detect_404_info *info=(struct detect_404_info *) data;
   struct hash_count *h_count;
@@ -91,6 +118,13 @@ void add_default_rules(struct detect_404_info *info){
   rule=new_404_rule(info,&info->rules_final);
   rule->code=200;
   rule->evaluate=keep_hash_count;
+  rule->data=info;
+
+  /* prevent too many dir successs */
+
+  rule=new_404_rule(info,&info->rules_final);
+  rule->test_flags=F_DIRECTORY;
+  rule->evaluate=keep_dir_count;
   rule->data=info;
 
 }

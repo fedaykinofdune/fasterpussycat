@@ -18,6 +18,11 @@ unsigned char detected_success(struct http_request *req, struct http_response *r
 }
 
 
+
+unsigned char detected_unknown(struct http_request *req, struct http_response *res, void *data){
+  return DETECT_UNKNOWN;
+}
+
 unsigned char next_rule(struct http_request *req, struct http_response *res, void *data){
   return DETECT_NEXT_RULE;
 }
