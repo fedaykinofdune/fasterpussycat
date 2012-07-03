@@ -43,6 +43,7 @@
 #include "engine.h"
 #include "bayes.h"
 #include "id3.h"
+#include "utlist.h"
 
 
 #ifdef DEBUG_ALLOCATOR
@@ -60,6 +61,17 @@ u32 __AD_trk_cnt[ALLOC_BUCKETS];
 #define FLAGS 8
 #define STATISTICS 9
 #define MODE_ANALYZE 10
+
+struct t_list;
+
+struct t_list {
+  unsigned char *host;
+  struct t_list *next;
+};
+
+struct t_list *target_list=NULL;
+
+
 
 void usage(){
 printf(
@@ -125,12 +137,16 @@ void do_scan(){
   load_aho_corasick_triggers();
   load_feature_selections();
   struct timeval tv;
+  struct t_list *t;
   gettimeofday(&tv, NULL);
   u64 st_time;
   u32 last_req=0;
   u64 last_time;
   st_time = tv.tv_sec * 1000LL + tv.tv_usec / 1000;
   last_time=st_time;
+  for(t=target_list;t!=NULL;t=t->next){
+    add_target(t->host);
+  }
   while ((next_from_queue() && !stop_soon)) {
 
 
@@ -189,10 +205,13 @@ void parse_opts(int argc, char** argv){
     { 0,    0,    0,    0   }       /* terminating -0 item */
   };
   int opt;
+  struct t_list *target;
   while((opt=getopt_long( argc, argv, "-n:P:c:B:h:r:T::", long_options, &longIndex ))!=-1){
     switch(opt){
       case 1:
-        add_target((unsigned char *) optarg);
+        target=calloc(sizeof(struct t_list),1);
+        target->host=(unsigned char *) optarg;
+        LL_APPEND(target_list,target);
         t++;
         break;
       case 'B':

@@ -333,6 +333,7 @@ void fake_host(u8* name, u32 addr);
 
 void async_request(struct http_request* req);
 
+void real_async_request(struct http_request* req);
 /* Prepares a serialized HTTP buffer to be sent over the network. */
 
 u8* build_request_data(struct http_request* req);

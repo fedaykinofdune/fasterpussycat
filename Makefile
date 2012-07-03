@@ -22,10 +22,10 @@
 PROGNAME   = fasterpussycat
 VERSION    = 2.05b
 
-OBJFILES   = http_client.c db.c bayes.c engine.c ac.c util.c id3.c detect_404.c match_rule.c
+OBJFILES   = http_client.c db.c bayes.c engine.c ac.c util.c id3.c detect_404.c match_rule.c tadns.c
 INCFILES   = alloc-inl.h string-inl.h debug.h types.h http_client.h \
             config.h db.h bayes.h engine.h ac.h util.h id3.h detect_404.h \
-            match_rule.h
+            match_rule.h tadns.h
 
 CFLAGS_GEN = -Wall -funsigned-char -g -ggdb -I/usr/local/include/ \
              -I/opt/local/include/ $(CFLAGS) -DVERSION=\"$(VERSION)\"
@@ -33,7 +33,7 @@ CFLAGS_DBG = -pg -DLOG_STDERR=1 -DDEBUG_ALLOCATOR=1 $(CFLAGS_GEN)
 CFLAGS_OPT = -O3 -Wno-format $(CFLAGS_GEN)
 
 LDFLAGS   += -L/usr/local/lib/ -L/opt/local/lib
-LIBS      += -lcrypto -lssl -lidn -lz -lsqlite3 -lgmp -lm
+LIBS      += -lcrypto -lssl -lidn -lz -lsqlite3 -lm
 
 all: $(PROGNAME)
 

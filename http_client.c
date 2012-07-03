@@ -39,6 +39,7 @@
 #include <openssl/md5.h>
 #include <idna.h>
 #include <zlib.h>
+#include "tadns.h"
 
 #include "types.h"
 #include "alloc-inl.h"
@@ -76,7 +77,7 @@ u32 req_errors_net,
     req_errors_cur,
     req_count,
     req_dropped,
-    queue_cur,
+    queue_cur=0,
     conn_cur,
     conn_count,
     conn_idle_tmout,
@@ -112,6 +113,7 @@ static struct dns_entry*   dns;
 
 static u8 tear_down_idle;
 
+static struct dns *adns=NULL;
 
 /* Extracts parameter value from param_array. Name is matched if
    non-NULL. Returns pointer to value data, not a duplicate string;
@@ -1796,12 +1798,37 @@ void remove_host_from_queue(u8 *host) {
   }
 }
 
+
+void async_dns_callback(struct dns_cb_data *d){
+  struct http_request *req=(struct http_request *) d->context;
+  if(d->error==DNS_OK){
+    req->addr=*((unsigned int *) d->addr);
+  }
+  info("dns callback");
+  real_async_request(req);
+}
+
+void async_request(struct http_request* req) {
+  if(adns==NULL) adns=dns_init();
+  queue_cur++;
+  info("async request");
+  #ifdef PROXY_SUPPORT
+  if(use_proxy){ /* don't do adns if using proxy */
+    req->addr=maybe_lookup_host(req->host);
+    real_async_request(struct http_request* req);
+    return;
+  }
+  #endif
+
+  dns_queue(adns, req, (char *) req->host, DNS_A_RECORD, async_dns_callback);
+}
+
 /* Schedules a new asynchronous request (does not make a copy of the
    original http_request struct, may deallocate it immediately or
    later on); req->callback() will be invoked when the request is
    completed (or fails - maybe right away). */
 
-void async_request(struct http_request* req) {
+void real_async_request(struct http_request* req) {
   struct queue_entry *qe;
   struct http_response *res;
   struct host_entry *h;
@@ -1814,7 +1841,6 @@ void async_request(struct http_request* req) {
 
   res = ck_alloc(sizeof(struct http_response));
 
-  req->addr = maybe_lookup_host(req->host);
 
   /* Don't try to issue extra requests if max_fail
      consecutive failures exceeded; but still try to
@@ -1840,6 +1866,8 @@ void async_request(struct http_request* req) {
       destroy_request(req);
       destroy_response(res);
     }
+
+    queue_cur--;
     req_errors_net++;
     conn_count++;
     conn_failed++;
@@ -1879,7 +1907,6 @@ void async_request(struct http_request* req) {
   h->q_tail->h=h;
   if (h->q_tail->prev) h->q_tail->prev->next = h->q_tail;
   if (!h->q_head) h->q_head = h->q_tail;
-  queue_cur++;
   req_count++;
 
 }
@@ -2069,9 +2096,11 @@ u32 next_from_queue(void) {
     static struct host_entry *h;
     static struct conn_entry **ca;
     struct conn_entry* c;
+    
+    if(adns==NULL) adns=dns_init();
+    dns_poll(adns); 
     u32 i = 0;
     h=host_queue;
-    
     if (!p)
       p = __DFL_ck_alloc(sizeof(struct pollfd) * max_connections);
 
