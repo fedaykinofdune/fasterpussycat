@@ -43,7 +43,7 @@
 #include "engine.h"
 #include "bayes.h"
 #include "id3.h"
-
+#include "detect_404.h"
 
 #ifdef DEBUG_ALLOCATOR
 struct __AD_trk_obj* __AD_trk[ALLOC_BUCKETS];
@@ -86,8 +86,9 @@ printf(
 "                                   upload bandwith is constrained\n"
 "  -T  --train[=M]               enable training of all tests, or only tests with\n"
 "                                   a sample size of at most M\n"
-"      --skip-dir-check          skips check to see if we can identify dirs\n"
-"      --skip-cgi-bin-check      skips check for cgi-bin dir\n"
+"      --skip-other-probes       skips probes for specific extentions\n"
+"      --skip-blacklist-success  don't blacklist pages on success to prevent\n" 
+"                                   duplicates\n"
 "      --force-save              save results even though training mode is off\n"
 "\n"
 "Database:\n"
@@ -182,8 +183,8 @@ void parse_opts(int argc, char** argv){
     { "url", required_argument, NULL, URL },
     { "flags", required_argument, NULL, FLAGS },
     { "help", required_argument, NULL, 'h' },
-    { "skip-dir-check", no_argument, &check_dir, 0},
-    { "skip-cgi-bin-check", no_argument, &check_cgi_bin, 0},
+    { "skip-other-probes", no_argument, &skip_other_probes, 1},
+    { "blacklist-success", no_argument, &blacklist_success, 0},
     { "force-save", no_argument, &force_save, 1},
     { "analyze", no_argument, &mode, MODE_ANALYZE},
     { 0,    0,    0,    0   }       /* terminating -0 item */
@@ -265,9 +266,12 @@ void parse_opts(int argc, char** argv){
   }
 
   if(train){
+
+    /* force aggressive 404 pruning */
+
     max_requests=0;
-    check_dir=1;
-    check_cgi_bin=1;
+    blacklist_success=1;
+    skip_other_probes=0;
   }
 
   switch(mode){

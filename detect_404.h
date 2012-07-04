@@ -1,4 +1,6 @@
 #include <openssl/md5.h>
+#include <sys/types.h>
+#include <regex.h>
 #define CHECK_EXT {"php", "html", "asp", "idq","jsp"}
 #define CHECK_EXT_LEN 5
 
@@ -13,6 +15,9 @@
 #define PROBE_CGI 4
 
 #define RECOMMEND_SKIP 0
+
+extern int blacklist_success;
+extern int skip_other_probes;
 
 struct detect_404_cleanup_info;
 
@@ -76,3 +81,6 @@ u8 process_probe(struct http_request *req, struct http_response *res);
 void launch_404_probes(struct target *t);
 void destroy_detect_404_info(struct detect_404_info *info);
 int is_404(struct detect_404_info *info, struct http_request *req, struct http_response *res);
+unsigned char enforce_magic_rule(struct http_request *req, struct http_response *res, void *data);
+void create_magic_rules(struct detect_404_info *info);
+void create_magic_rule(struct detect_404_info *info, char *ext, char *mime_type);

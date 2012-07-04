@@ -28,6 +28,7 @@ unsigned char detected_unknown(struct http_request *req, struct http_response *r
 unsigned char next_rule(struct http_request *req, struct http_response *res, void *data);
 unsigned char detected_fail(struct http_request *req, struct http_response *res, void *data);
 int same_page(struct http_sig *sig1, struct http_sig *sig2);
+int not_head_method(struct http_request *req);
 struct match_rule *new_rule(struct match_rule **list);
 int run_rules(struct match_rule *list, struct http_request *req, struct http_response *res);
 int rule_matches(struct match_rule *rule, struct http_request *req, struct http_response *res);

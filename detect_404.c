@@ -1,6 +1,7 @@
 #include <sys/types.h>
 #include <regex.h>
 #include <openssl/md5.h>
+#include <magic.h>
 #include "uthash.h"
 #include "utlist.h"
 #include "http_client.h"
@@ -13,12 +14,15 @@
 
 
 
+int blacklist_success=1;
+int skip_other_probes=0;
+magic_t magic=NULL;
 
 
 unsigned char keep_dir_count(struct http_request *req, struct http_response *res, void *data){
   struct detect_404_info *info=(struct detect_404_info *) data;
   if(info->dir_blacklist || !req->test || !(req->test->flags & F_DIRECTORY)) return DETECT_NEXT_RULE;
-  if(info->last_dir_code==res->code && res->code==403){
+  if(info->last_dir_code==res->code && (res->code==403 || res->code==401)){
     info->in_a_row_dir++;
     if(info->in_a_row_dir>10){
       struct match_rule *r;
@@ -127,6 +131,49 @@ void add_default_rules(struct detect_404_info *info){
   rule->evaluate=keep_dir_count;
   rule->data=info;
 
+  create_magic_rules(info);
+
+}
+
+
+unsigned char enforce_magic_rule(struct http_request *req, struct http_response *res, void *data){
+  const char *mime=magic_buffer(magic, res->payload,res->pay_len);
+  if(!mime || strcmp(mime,(char *) data)){
+    return DETECT_FAIL;
+  }
+  return DETECT_SUCCESS;
+}
+
+void create_magic_rules(struct detect_404_info *info){
+  if(magic==NULL){
+    magic=magic_open(MAGIC_MIME_TYPE);
+    if(magic==NULL){
+      fatal("couldn't open magic database");
+    }
+    magic_load(magic,NULL);
+  }
+  create_magic_rule(info, "mdb",  "application/x-msaccess");
+  create_magic_rule(info, "gz",   "application/x-gzip");
+  create_magic_rule(info, "tgz",  "application/x-gzip");
+  create_magic_rule(info, "zip",  "application/zip");
+}
+
+void create_magic_rule(struct detect_404_info *info, char *ext, char *mime_type){
+  struct match_rule *rule=new_404_rule(info,&info->rules_preprocess);
+  char *pattern=malloc(strlen(ext)+6);
+  regex_t *regex=detect_404_alloc(info,sizeof(regex_t));
+  pattern[0]=0;
+  strcat(pattern,"\\.");
+  strcat(pattern,ext);
+  strcat(pattern,"$");
+  
+  if(regcomp(regex, pattern, REG_EXTENDED | REG_NOSUB) ) fatal("Could not compile regex %s",pattern);
+  rule->code=200;
+  rule->method=(unsigned char *) "GET";
+  rule->pattern=regex;
+  rule->data=mime_type;
+  rule->evaluate=enforce_magic_rule;
+  free(pattern);
 }
 
 
@@ -415,7 +462,7 @@ u8 process_probe(struct http_request *req,struct http_response *res){
   } /* if(detect_method!=USE_404) */
   if(probe->type==PROBE_GENERAL) info("404 detection method for %s: %s", req->t->host, type_str);
 
-  if(probe->type==PROBE_GENERAL) enqueue_other_probes(req->t);
+  if(probe->type==PROBE_GENERAL && !skip_other_probes) enqueue_other_probes(req->t);
   else if(!req->t->detect_404->probes) enqueue_tests(req->t);
   return 1; 
 }
@@ -449,10 +496,23 @@ void destroy_detect_404_info(struct detect_404_info *info){
 
 int is_404(struct detect_404_info *info, struct http_request *req, struct http_response *res){
   int rc=DETECT_NEXT_RULE;
-  if((rc=run_rules(info->rules_preprocess,req,res))!=DETECT_NEXT_RULE) return rc;
-  if((rc=run_rules(info->rules_general   ,req,res))!=DETECT_NEXT_RULE) return rc;
-  if((rc=run_rules(info->rules_final     ,req,res))!=DETECT_NEXT_RULE) return rc;
-  return DETECT_UNKNOWN;
+  if(rc==DETECT_NEXT_RULE) rc=run_rules(info->rules_preprocess,req,res);
+  if(rc==DETECT_NEXT_RULE) rc=run_rules(info->rules_general,req,res);
+  if(rc==DETECT_NEXT_RULE) rc=run_rules(info->rules_final,req,res);
+  if(rc==DETECT_SUCCESS && blacklist_success && res->pay_len>50 && not_head_method(req)) blacklist_sig(info,&res->sig);
+  if(rc==DETECT_SUCCESS && !not_head_method(req) && res->code==200 && req->test && req->t){
+    /* reschedule with get */
+    
+    struct http_request *req2=req_copy(req,1);
+    req2->callback=process_test_result;
+    req2->test=req->test;
+    req2->t=req->t;
+    ck_free(req2->method);
+    req2->method=ck_strdup((unsigned char *) "GET");
+    async_request(req2);
+    rc=DETECT_UNKNOWN;
+  }
+  return rc;
 }
 
 
