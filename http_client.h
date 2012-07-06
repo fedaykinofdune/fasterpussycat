@@ -103,6 +103,9 @@ struct http_request {
   u32 user_val;                 /* Can be used freely           */
   void *data;                   /* Can also be used freely ;-)  */
   struct url_test *test;
+  struct req_pointer *pointer;
+  struct dir_link *link;
+  double score;
   u8 (*callback)(struct http_request*, struct http_response*);
                                 /* Callback to invoke when done */
 
@@ -453,7 +456,8 @@ extern struct param_array global_http_par;
 void destroy_http();
 
 /* Shows some pretty statistics. */
-
+void sort_host_queue(u8 *host);
+struct host_entry  *find_host_queue(u8 *host);
 void http_stats(u64 st_time);
 void http_req_list(void);
 

@@ -3,6 +3,7 @@
 #include <sqlite3.h>
 #include "debug.h"
 #include "uthash.h"
+#include "utlist.h"
 #include "types.h"
 #include "alloc-inl.h"
 #include "string-inl.h"
@@ -12,44 +13,33 @@
 #include "engine.h"
 #include "util.h"
 
+
+#define INSERT_DIR_LINK_SQL "INSERT INTO dir_links (parent_id, child_id, count, parent_success, child_success, parent_child_success) VALUES (?,?,?,?,?,?)"
+
+#define UPDATE_DIR_LINK_SQL "UPDATE dir_links SET parent_id=?, child_id=?, count=?, parent_success=?, child_success=?, parent_child_success=? WHERE id=?"
+#define GET_DIR_LINKS_SQL "SELECT id, parent_id, child_id, count, parent_success, child_success, parent_child_success FROM dir_links"
 #define GET_TESTS_SQL "SELECT id, url, success, count, flags FROM url_tests"
-
 #define GET_FEATURE_SELECTIONS_SQL "SELECT url_test_id, feature_id FROM feature_selections"
-
 #define GET_TRIGGERS_SQL "SELECT id, trigger, feature_id FROM aho_corasick_feature_triggers"
-
 #define GET_TEST_BY_URL_SQL "SELECT id, url, success, count, flags FROM url_tests WHERE url=? LIMIT 1"
 #define GET_FEATURES_SQL "SELECT id, label, count FROM features"
 #define GET_FTR_BY_TEST_AND_FEATURE_SQL "SELECT id, url_test_id, feature_id, success, count FROM feature_test_results WHERE url_test_id=? AND feature_id=?"
-
 #define GET_FTR_BY_FEATURE_SQL "SELECT id, url_test_id, feature_id, success, count FROM feature_test_results WHERE feature_id=?"  
-
 #define INSERT_FEATURE_SQL "INSERT INTO features (label) VALUES (?)" 
-
 #define UPDATE_FEATURE_SQL "UPDATE features SET count=? WHERE id=?" 
-
 #define INSERT_FEATURE_TEST_RESULT_SQL "INSERT INTO feature_test_results (url_test_id,feature_id,success,count) VALUES (?,?,?,?)" 
-
-
 #define INSERT_TRIGGER_SQL "INSERT OR REPLACE INTO aho_corasick_feature_triggers (feature_id,trigger) VALUES (?,?)" 
-
-
-
 #define UPDATE_FEATURE_TEST_RESULT_SQL "UPDATE feature_test_results SET success=?,count=? WHERE id =?" 
-
 #define INSERT_URL_TEST_SQL "INSERT INTO url_tests (url,flags) VALUES (?,?)" 
-
-
 #define UPDATE_URL_TEST_SQL "UPDATE url_tests SET success=?, count=?, flags=? WHERE id=?" 
-
 #define INSERT_FEATURE_SELECTION_SQL "INSERT INTO feature_selections (url_test_id,feature_test_id) VALUES (?,?)"
-
 #define DELETE_FEATURE_SELECTION_SQL "DELETE FROM feature_selections WHERE url_test_id=?"
 
 static AC_STRUCT *aho_corasick;
 static struct url_test *test_map=NULL;
 static struct feature_test_result *result_map=NULL;
 static struct feature *feature_map=NULL;
+static struct dir_link *dir_link_map=NULL;
 static struct feature *feature_map_by_id=NULL;
 static struct trigger *trigger_map=NULL;
 static sqlite3 *db;
@@ -61,6 +51,11 @@ static sqlite3_stmt *get_features_stmt;
 static sqlite3_stmt *get_triggers_stmt;
 
 static sqlite3_stmt *insert_feature_stmt;
+
+
+static sqlite3_stmt *get_dir_links_stmt;
+static sqlite3_stmt *insert_dir_link_stmt;
+static sqlite3_stmt *update_dir_link_stmt;
 
 static sqlite3_stmt *insert_trigger_stmt;
 static sqlite3_stmt *update_feature_stmt;
@@ -82,6 +77,11 @@ int open_database(){
     FATAL("bad db :(");
   }
 
+
+
+  sqlite3_prepare_v2(db, INSERT_DIR_LINK_SQL, -1, &insert_dir_link_stmt,NULL);
+  sqlite3_prepare_v2(db, UPDATE_DIR_LINK_SQL, -1, &update_dir_link_stmt,NULL);
+  sqlite3_prepare_v2(db, GET_DIR_LINKS_SQL, -1, &get_dir_links_stmt,NULL);
   sqlite3_prepare_v2(db, INSERT_FEATURE_SELECTION_SQL, -1, &insert_feature_selection_stmt,NULL);
   sqlite3_prepare_v2(db, DELETE_FEATURE_SELECTION_SQL, -1, &delete_feature_selection_stmt,NULL);
   sqlite3_prepare_v2(db, GET_FEATURE_SELECTIONS_SQL, -1, &get_feature_selections_stmt,NULL);
@@ -118,6 +118,36 @@ void load_feature_selections(){
     fs->next=t->feature_selections;
     t->feature_selections=fs;
   }
+}
+
+int test_size_sort(struct url_test *a, struct url_test *b){
+  if(strlen(a->url)>strlen(b->url)){
+    return -1;
+  }
+  if(strlen(a->url)==strlen(b->url)){
+    return 0;
+  }
+  return 1;
+}
+
+void create_dir_links(){
+  load_tests();
+  HASH_SORT(test_map,test_size_sort);
+  struct url_test *parent;
+  struct url_test *child;
+  struct dir_link *link=calloc(sizeof(struct dir_link),1);
+  for(parent=test_map;parent!=NULL;parent=parent->hh.next){
+    if(!(parent->flags & F_DIRECTORY)) continue;
+    for(child=parent->hh.prev;child!=NULL;child=child->hh.prev){
+        if(child->parent || strstr(child->url,parent->url)!=child->url) continue;
+        link->id=-1;
+        link->parent_id=parent->id;
+        link->child_id=child->id;
+        child->parent=link;
+        save_dir_link(link);
+      }
+  }
+
 }
 
 void update_feature_selection(struct url_test *test){
@@ -255,6 +285,7 @@ void save_all(){
   struct feature *feature_iter; 
   struct url_test *url_test_iter;
   struct feature_test_result *ftr_iter;
+  struct dir_link *link_iter;
   info("saving results\n");
   sqlite3_exec(db, "BEGIN", 0, 0, 0);
 
@@ -273,6 +304,12 @@ void save_all(){
   for(ftr_iter=result_map; ftr_iter!=NULL; ftr_iter=ftr_iter->hh.next){
     if(ftr_iter->dirty){
       save_ftr(ftr_iter);
+    }
+  }
+
+  for(link_iter=dir_link_map; link_iter!=NULL; link_iter=link_iter->hh.next){
+    if(link_iter->dirty){
+      save_dir_link(link_iter);
     }
   }
  sqlite3_exec(db, "COMMIT", 0, 0, 0);
@@ -307,6 +344,40 @@ void save_ftr(struct feature_test_result *f){
   
 }
 
+
+
+void save_dir_link(struct dir_link *link){
+  if(link->id==-1){
+    sqlite3_reset(insert_dir_link_stmt);
+    sqlite3_bind_int(insert_dir_link_stmt,1,link->parent_id);
+    sqlite3_bind_int(insert_dir_link_stmt,2,link->child_id);
+    sqlite3_bind_int(insert_dir_link_stmt,3,link->count);
+    sqlite3_bind_int(insert_dir_link_stmt,4,link->parent_success);
+    sqlite3_bind_int(insert_dir_link_stmt,5,link->child_success);
+    sqlite3_bind_int(insert_dir_link_stmt,6,link->parent_child_success);
+    if(sqlite3_step(insert_dir_link_stmt)!=SQLITE_DONE){
+       fatal("SOME KIND OF FAIL IN DIR LINK INSERT %s\n",sqlite3_errmsg(db));
+    }
+    link->id=sqlite3_last_insert_rowid(db);
+    link->dirty=0;
+  }
+  else{
+
+    sqlite3_reset(update_dir_link_stmt);
+    sqlite3_bind_int(update_dir_link_stmt,1,link->parent_id);
+    sqlite3_bind_int(update_dir_link_stmt,2,link->child_id);
+    sqlite3_bind_int(update_dir_link_stmt,3,link->count);
+    sqlite3_bind_int(update_dir_link_stmt,4,link->parent_success);
+    sqlite3_bind_int(update_dir_link_stmt,5,link->child_success);
+    sqlite3_bind_int(update_dir_link_stmt,6,link->parent_child_success);
+    sqlite3_bind_int(update_dir_link_stmt,7,link->id);
+    if(sqlite3_step(update_dir_link_stmt)!=SQLITE_DONE){
+       fatal("SOME KIND OF FAIL IN DIR LINK UPDATE %s\n",sqlite3_errmsg(db));
+    }
+    link->id=sqlite3_last_insert_rowid(db);
+    link->dirty=0;
+  }
+}
 
 
 void save_url_test(struct url_test *f){
@@ -414,6 +485,8 @@ struct url_test *load_test(sqlite3_stmt *stmt){
     test->url=(char *) strdup((const char *) sqlite3_column_text(stmt,1));
     test->success=sqlite3_column_int(stmt,2);
     test->count=sqlite3_column_int(stmt,3);
+    test->parent=NULL;
+    test->children=NULL;
     test->flags=(unsigned int) sqlite3_column_int(stmt,4);
     HASH_ADD_INT( test_map, id, test );
     return test;
@@ -450,6 +523,24 @@ int load_tests(){
   info("loading tests...");
   while (sqlite3_step(get_tests_stmt) == SQLITE_ROW){
     load_test(get_tests_stmt);
+  }
+  info("loading dir links...");
+  while (sqlite3_step(get_dir_links_stmt) == SQLITE_ROW){
+     struct dir_link *link=calloc(sizeof(struct dir_link),1);
+     link->id=sqlite3_column_int(get_dir_links_stmt,0);
+     link->parent_id=sqlite3_column_int(get_dir_links_stmt,1);
+     link->child_id=sqlite3_column_int(get_dir_links_stmt,2);
+     link->count=sqlite3_column_int(get_dir_links_stmt,3);
+     link->parent_success=sqlite3_column_int(get_dir_links_stmt,4);
+     link->child_success=sqlite3_column_int(get_dir_links_stmt,5);
+     link->parent_child_success=sqlite3_column_int(get_dir_links_stmt,6);
+     
+     HASH_ADD_INT( dir_link_map, id, link );
+     
+     HASH_FIND_INT( test_map, &link->parent_id, link->parent );
+     HASH_FIND_INT( test_map, &link->child_id, link->child );
+     link->child->parent=link;
+     LL_APPEND( link->parent->children, link );
   }
   return 0;
 }

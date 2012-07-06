@@ -108,11 +108,12 @@ printf(
 }
 
 /* Ctrl-C handler... */
-
+static u8 enable_trap=0;
 static u8 stop_soon;
 static u32 progress=10;
 static void ctrlc_handler(int sig) {
-  stop_soon = 1;
+  if(enable_trap) stop_soon = 1;
+  else exit(0);
 }
 
 u8 print_body(struct http_request *req, struct http_response *rep){
@@ -132,6 +133,7 @@ void do_scan(){
   u64 last_time;
   st_time = tv.tv_sec * 1000LL + tv.tv_usec / 1000;
   last_time=st_time;
+  enable_trap=1;
   while ((next_from_queue() && !stop_soon)) {
 
 

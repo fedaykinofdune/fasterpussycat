@@ -302,6 +302,7 @@ void blacklist_sig(struct detect_404_info *info, struct http_sig *sig){
   struct match_rule *rule=new_404_rule(info,&info->rules_general);
   rule->code=200;
   rule->sig=detect_404_alloc(info,sizeof(struct http_sig));
+  rule->mime_type="text/html";
   rule->evaluate=detected_fail;
   memcpy(rule->sig,sig,sizeof(struct http_sig));
 }
@@ -509,6 +510,10 @@ int is_404(struct detect_404_info *info, struct http_request *req, struct http_r
     req2->t=req->t;
     ck_free(req2->method);
     req2->method=ck_strdup((unsigned char *) "GET");
+    if(req->pointer){
+      req2->pointer=req->pointer;
+      req2->pointer->req=req2;
+    }
     async_request(req2);
     rc=DETECT_UNKNOWN;
   }

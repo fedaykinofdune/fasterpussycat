@@ -7,23 +7,7 @@
 #include "engine.h"
 #include "bayes.h"
 
-static mpq_t feat_given_succ_ratio;
-static mpq_t feat_given_fail_ratio; 
-static mpq_t neg_posterior; 
-static mpq_t evidence;
-static mpq_t one;
-static mpq_t zero;
-static mpq_t posterior;
-
 void setup_bayes(){
-  mpq_init(evidence);
-  mpq_init(neg_posterior);
-  mpq_init(one);
-  mpq_init(zero);
-  mpq_init(posterior);
-  mpq_init(feat_given_fail_ratio);
-  mpq_init(feat_given_succ_ratio);
-  mpq_set_ui(one,1,1);
 
 }
 

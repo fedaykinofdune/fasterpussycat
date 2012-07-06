@@ -52,6 +52,7 @@ struct target {
   struct test_score  *test_scores;
   struct detect_404_info *detect_404;
   UT_hash_handle hh;
+  struct dir_link_res *link_map;
 };
 
 /* engine.c */
@@ -67,6 +68,7 @@ unsigned char process_first_page(struct http_request *req, struct http_response 
 int score_sort(struct test_score *lhs, struct test_score *rhs);
 void enqueue_tests(struct target *t);
 void enqueue_random_request(struct target *t, int slash, int php, int dir, int pl);
+void maybe_update_dir_link(struct req_pointer *pointer);
 struct http_request *new_request(struct target *t);
 struct http_request *new_request_with_method(struct target *t, unsigned char *method);
 struct http_request *new_request_with_method_and_path(struct target *t, unsigned char *method, unsigned char *path);

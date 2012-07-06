@@ -17,6 +17,7 @@ struct match_rule {
   unsigned int size;
   unsigned int test_flags;
   char *hash;
+  char *mime_type;
   void *data;
   unsigned char (*evaluate) (struct http_request *req, struct http_response *rep, void *data);
   struct match_rule *next;

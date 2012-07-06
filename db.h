@@ -45,6 +45,8 @@ struct ftr_lookup_key {
   int feature_id;
 };
 
+struct dir_link;
+
 struct url_test {
   int id;
   char *url;
@@ -52,8 +54,32 @@ struct url_test {
   int success;
   int count;
   int dirty;
+  struct dir_link *parent;
+  struct dir_link *children;
   struct feature_selection *feature_selections;
   unsigned int flags;
+  UT_hash_handle hh;
+};
+
+
+struct req_pointer;
+struct http_request;
+
+struct req_pointer {
+  struct http_request *req;
+  struct dir_link *link;
+  struct dir_link_res *parent;
+  int success;
+  int tested;
+  int done;
+  struct req_pointer *next;
+};
+
+struct dir_link_res {
+  int parent_id;
+  int success;
+  int tested;
+  struct req_pointer *children;
   UT_hash_handle hh;
 };
 
@@ -61,11 +87,15 @@ struct dir_link {
   int id;
   struct url_test *parent;
   struct url_test *child;
+  int parent_id;
+  int child_id;
   int count;
-  int success;
-  int parent_seen_success;
-  int parent_seen;
-  int dirty;  
+  int child_success;
+  int parent_success;
+  int parent_child_success;
+  int dirty;
+  struct dir_link *next;
+  UT_hash_handle hh;
 };
 
 void update_feature_selection(struct url_test *test);
@@ -80,6 +110,9 @@ struct feature *find_or_create_feature_by_label(const char *label);
 void save_feature(struct feature *f);
 void save_all(void);
 void save_ftr(struct feature_test_result *f);
+
+void create_dir_links();
+void save_dir_link(struct dir_link *link);
 void save_url_test(struct url_test *f);
 struct feature_test_result *find_or_create_ftr(int url_test_id, int feature_id);
 int load_ftr_by_feature_id(int feature_id);

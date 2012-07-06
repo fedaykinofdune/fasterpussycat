@@ -57,7 +57,7 @@ int same_page(struct http_sig* sig1, struct http_sig* sig2) {
     total_scale += scale;
 
   }
-
+  info("r same");
   if (abs(total_diff) > 1 + (total_scale * FP_T_REL / 100))
     return 0;
 
@@ -99,6 +99,7 @@ int rule_matches(struct match_rule *rule, struct http_request *req, struct http_
     && res
     && GET_HDR((unsigned char *) "content-length", &res->hdr) 
     && atoi((char *) GET_HDR((unsigned char *) "content-length", &res->hdr))!=rule->size) return 0;
+  if(rule->mime_type!=DETECT_ANY && res->header_mime && strcmp(rule->mime_type, (char *) res->header_mime)) return 0;
   if(rule->test_flags!=DETECT_ANY && req->test && !(req->test->flags & rule->test_flags)) return 0;
   if(rule->hash!=DETECT_ANY 
     && res

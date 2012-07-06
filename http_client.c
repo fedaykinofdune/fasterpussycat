@@ -45,7 +45,7 @@
 #include "string-inl.h"
 
 #include "http_client.h"
-
+#include "utlist.h"
 #include "util.h"
 
 /* Assorted exported settings: */
@@ -1775,24 +1775,42 @@ static void reuse_conn(struct conn_entry* c, u8 keep) {
   c->SSL_rd_w_wr = c->SSL_wr_w_rd = 0;
 }
 
+int sort_func(struct queue_entry *a, struct queue_entry *b){
+  if(a->req->score>b->req->score) return 1;
+  if(a->req->score==b->req->score) return 0;
+  return -1;
+}
+
+void sort_host_queue(u8 *host){
+  struct host_entry *e=find_host_queue(host);
+  e->q_head->prev=e->q_tail;
+  DL_SORT(e->q_head,sort_func);
+  e->q_tail=e->q_head->prev;
+  e->q_head->prev=NULL;
+}
+
+struct host_entry  *find_host_queue(u8 *host){
+  struct host_entry *e;
+  u32 addr=maybe_lookup_host(host);
+  for(e=host_queue;e!=NULL;e=e->next){
+    if(addr==e->addr){
+      return e;
+    }
+  }
+  return NULL;
+}
 
 void remove_host_from_queue(u8 *host) {
   struct host_entry *e;
   struct queue_entry *q;
   struct queue_entry *n;
-  u32 addr;
-  addr=maybe_lookup_host(host);
-  if (!addr) return;
-  for(e=host_queue;e!=NULL;e=e->next){
-    if(addr==e->addr){
-      q=e->q_head;
-      while(q){
-        n=q->next;
-        if(!strcmp((char *) q->req->host,(char *) host) && !q->c) destroy_unlink_queue(q,0);
-        q=n;
-      }
-      break;
-    }
+  e=find_host_queue(host);
+  if (!e) return;
+  q=e->q_head;
+  while(q){
+    n=q->next;
+    if(!strcmp((char *) q->req->host,(char *) host) && !q->c) destroy_unlink_queue(q,0);
+    q=n;
   }
 }
 
