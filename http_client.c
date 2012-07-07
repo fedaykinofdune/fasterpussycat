@@ -1901,6 +1901,7 @@ void async_request(struct http_request* req) {
   else{
     qe=h->q_head;
     h->q_head= ck_alloc(sizeof(struct queue_entry));
+    h->q_head->h=h;
     h->q_head->req = req;
     h->q_head->res = res;
     h->q_head->next = qe;
