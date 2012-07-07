@@ -1888,15 +1888,25 @@ void async_request(struct http_request* req) {
     h=host_tail;
   }
  
-
-  qe = h->q_tail;
-  h->q_tail = ck_alloc(sizeof(struct queue_entry));
-  h->q_tail->req  = req;
-  h->q_tail->res  = res;
-  h->q_tail->prev = qe;
-  h->q_tail->h=h;
-  if (h->q_tail->prev) h->q_tail->prev->next = h->q_tail;
-  if (!h->q_head) h->q_head = h->q_tail;
+  if(!req->soon){
+    qe = h->q_tail;
+    h->q_tail = ck_alloc(sizeof(struct queue_entry));
+    h->q_tail->req  = req;
+    h->q_tail->res  = res;
+    h->q_tail->prev = qe;
+    h->q_tail->h=h;
+    if (h->q_tail->prev) h->q_tail->prev->next = h->q_tail;
+    if (!h->q_head) h->q_head = h->q_tail;
+  }
+  else{
+    qe=h->q_head;
+    h->q_head= ck_alloc(sizeof(struct queue_entry));
+    h->q_head->req = req;
+    h->q_head->res = res;
+    h->q_head->next = qe;
+    if(qe) qe->prev=h->q_head;
+    if(!h->q_tail) h->q_tail=h->q_head;
+  }
   queue_cur++;
   req_count++;
 

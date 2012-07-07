@@ -57,7 +57,6 @@ int same_page(struct http_sig* sig1, struct http_sig* sig2) {
     total_scale += scale;
 
   }
-  info("r same");
   if (abs(total_diff) > 1 + (total_scale * FP_T_REL / 100))
     return 0;
 

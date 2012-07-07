@@ -95,7 +95,7 @@ struct http_request {
   u8* host;                     /* Host name                    */
   u32 addr;                     /* Resolved IP address          */
   u16 port;                     /* Port number to connect to    */
-
+  u8  soon;                     /* run this request sooner rather than later */
   u8* orig_url;                 /* Copy of the original URL     */
   struct param_array par;       /* Parameters, headers, cookies */
   struct target *t; 

@@ -22,11 +22,11 @@ magic_t magic=NULL;
 unsigned char keep_dir_count(struct http_request *req, struct http_response *res, void *data){
   struct detect_404_info *info=(struct detect_404_info *) data;
   if(info->dir_blacklist || !req->test || !(req->test->flags & F_DIRECTORY)) return DETECT_NEXT_RULE;
-  if(info->last_dir_code==res->code && (res->code==403 || res->code==401)){
+  if(info->last_dir_code==res->code && (res->code==403 || res->code==401 || res->code==200)){
     info->in_a_row_dir++;
-    if(info->in_a_row_dir>10){
+    if(info->in_a_row_dir>15){
       struct match_rule *r;
-      warn("Over 10 dir %ds in a row, marking directories with this code as unknown for %s",res->code,req->t->host);
+      warn("Over 15 dir %ds in a row, marking directories with this code as unknown for %s",res->code,req->t->host);
       r=new_404_rule(info,&info->rules_general);
       r->test_flags=F_DIRECTORY,
       r->code=res->code;
@@ -500,6 +500,11 @@ int is_404(struct detect_404_info *info, struct http_request *req, struct http_r
   if(rc==DETECT_NEXT_RULE) rc=run_rules(info->rules_preprocess,req,res);
   if(rc==DETECT_NEXT_RULE) rc=run_rules(info->rules_general,req,res);
   if(rc==DETECT_NEXT_RULE) rc=run_rules(info->rules_final,req,res);
+  if((rc==DETECT_FAIL || rc==DETECT_UNKNOWN) && req->test && (req->test->flags & F_DIRECTORY)){
+    info->in_a_row_dir=0;
+    info->last_dir_code=404;
+  }
+  
   if(rc==DETECT_SUCCESS && blacklist_success && res->pay_len>50 && not_head_method(req)) blacklist_sig(info,&res->sig);
   if(rc==DETECT_SUCCESS && !not_head_method(req) && res->code==200 && req->test && req->t){
     /* reschedule with get */
@@ -508,6 +513,8 @@ int is_404(struct detect_404_info *info, struct http_request *req, struct http_r
     req2->callback=process_test_result;
     req2->test=req->test;
     req2->t=req->t;
+    req2->soon=1;
+    req2->score=999;
     ck_free(req2->method);
     req2->method=ck_strdup((unsigned char *) "GET");
     if(req->pointer){
