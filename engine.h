@@ -14,18 +14,13 @@ extern unsigned int max_requests;
 extern int train;
 extern unsigned int max_train_count;
 extern int force_save;
+
+
+
 struct feature_node {
   struct feature *data;
   struct feature_node *prev;
   struct feature_node *next;
-};
-
-struct annotation;
-
-struct annotation {
-  char *key;
-  char *value;
-  struct annotation *next;
 };
 
 struct request_response; 
@@ -34,7 +29,6 @@ struct request_response {
   struct http_request  *req;
   struct http_response *res;
   struct request_response *next;
-  struct annotation *annotations;
 };
 
 struct test_score {
@@ -52,10 +46,12 @@ struct target {
   struct test_score  *test_scores;
   struct detect_404_info *detect_404;
   UT_hash_handle hh;
+  struct request_responses *results;
   struct dir_link_res *link_map;
 };
 
 /* engine.c */
+void output_result(struct http_request *req, struct http_response *res);
 struct target *target_by_host(unsigned char *host);
 void add_feature_label_to_target(const char *label, struct target *t);
 void maybe_enqueue_tests(struct target *t);

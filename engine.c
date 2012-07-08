@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <gmp.h>
 #include <string.h>
 #include <sys/types.h>
@@ -11,6 +12,7 @@
 #include "util.h"
 #include "match_rule.h"
 #include "detect_404.h"
+#include "post.h"
 
 static struct target *targets=NULL;
 int check_dir=1;
@@ -25,6 +27,21 @@ struct target *target_by_host(u8 *host){
   struct target *t;
   HASH_FIND_STR(targets, (char *) host, t);
   return t;
+}
+
+void output_result(struct http_request *req, struct http_response *res){
+  struct annotation *a;
+  char line[80];
+  snprintf(line, 80, "[%d] http://%s%s",res->code,req->t->host,req->test->url);
+  printf("%-75s %6d %-16s",line, res->pay_len, res->header_mime);
+  for(a=res->annotations;a;a=a->next){
+    printf(" [%s",a->key);
+    if(a->value) printf("=%s", a->value);
+    printf("]");
+  }
+  printf("\n");
+  fflush(stdout);
+
 }
 
 void add_feature_label_to_target(const char *label, struct target *t){
@@ -58,9 +75,9 @@ void add_feature_to_target(struct feature *f, struct target *t){
   DL_APPEND(t->features,fn);
 }
 
-void process_features(struct http_response *rep, struct target *t){
-  unsigned char *server=GET_HDR((unsigned char *) "server",&rep->hdr);
-  unsigned char *powered=GET_HDR((unsigned char *) "x-powered-by",&rep->hdr);
+void process_features(struct http_response *res, struct target *t){
+  unsigned char *server=GET_HDR((unsigned char *) "server",&res->hdr);
+  unsigned char *powered=GET_HDR((unsigned char *) "x-powered-by",&res->hdr);
   char *label;
   char *f_str;
   int i, size, server_l;
@@ -113,8 +130,7 @@ void dir_update_score(struct req_pointer *pointer, double f){
   }
 }
 
-u8 process_test_result(struct http_request *req, struct http_response *rep){
-  int code=rep->code;
+u8 process_test_result(struct http_request *req, struct http_response *res){
   struct url_test *test=req->test;;
   struct feature_node *f;
   struct feature_test_result *ftr;
@@ -122,7 +138,7 @@ u8 process_test_result(struct http_request *req, struct http_response *rep){
   struct req_pointer *pointer=NULL;
   int success=0;
   int rc=0;
-  rc=is_404(req->t->detect_404,req,rep);
+  rc=is_404(req->t->detect_404,req,res);
   if(rc==DETECT_UNKNOWN){
     if(req->pointer) req->pointer->done=1;
     return 0;
@@ -163,7 +179,8 @@ u8 process_test_result(struct http_request *req, struct http_response *rep){
   
   if(success){
       test->success++;
-      printf("CODE: %d http://%s%s\n",code,req->t->host,test->url);
+      run_post_rules(req,res);
+      output_result(req, res);
   }
   DL_FOREACH(req->t->features,f) {
     ftr=find_or_create_ftr(test->id,f->data->id);
@@ -224,15 +241,15 @@ struct http_request *new_request_with_method_and_path(struct target *t, unsigned
 }
 
 
-unsigned char process_first_page(struct http_request *req, struct http_response *rep){
-  if(rep->state==STATE_DNSERR || rep->code==0){
+unsigned char process_first_page(struct http_request *req, struct http_response *res){
+  if(res->state==STATE_DNSERR || res->code==0){
 
     /* hambone detected fail immediately */
 
     return 0;
   }
-  process_features(rep,req->t);
-  add_features_from_triggers(rep,req->t);
+  process_features(res,req->t);
+  add_features_from_triggers(res,req->t);
   launch_404_probes(req->t);
   return 0;
 }

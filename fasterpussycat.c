@@ -44,7 +44,7 @@
 #include "bayes.h"
 #include "id3.h"
 #include "detect_404.h"
-
+#include "post.h"
 #ifdef DEBUG_ALLOCATOR
 struct __AD_trk_obj* __AD_trk[ALLOC_BUCKETS];
 u32 __AD_trk_cnt[ALLOC_BUCKETS];
@@ -126,6 +126,7 @@ void do_scan(){
   load_tests();
   load_aho_corasick_triggers();
   load_feature_selections();
+  add_post_rules();
   struct timeval tv;
   gettimeofday(&tv, NULL);
   u64 st_time;

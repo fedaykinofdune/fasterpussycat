@@ -86,6 +86,16 @@ struct http_sig {
   u32 data[FP_SIZE];            /* Response fingerprint data    */
 };
 
+
+
+struct annotation {
+  char *key;
+  char *value;
+  struct annotation *next;
+};
+
+
+
 /* HTTP request descriptor: */
 
 struct http_request {
@@ -175,7 +185,7 @@ struct http_response {
   u8  json_safe;                /* 0 - no, 1 - yes              */
   u8  stuff_checked;            /* check_stuff() called?        */
   u8  scraped;                  /* scrape_response() called?    */
-
+  struct annotation *annotations;
 };
 
 /* Open keep-alive connection descriptor: */
