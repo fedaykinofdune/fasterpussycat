@@ -32,8 +32,13 @@ struct target *target_by_host(u8 *host){
 void output_result(struct http_request *req, struct http_response *res){
   struct annotation *a;
   char line[80];
+  int size=0; 
+  if(GET_HDR((unsigned char *) "content-length", &res->hdr)) size=atoi((char *) GET_HDR((unsigned char *) "content-length", &res->hdr));
+  else size=res->pay_len;
+
+
   snprintf(line, 80, "[%d] http://%s%s",res->code,req->t->host,req->test->url);
-  printf("%-75s %6d %-16s",line, res->pay_len, res->header_mime);
+  printf("%-75s %6d %-16s",line, size, res->header_mime);
   for(a=res->annotations;a;a=a->next){
     printf(" [%s",a->key);
     if(a->value) printf("=%s", a->value);

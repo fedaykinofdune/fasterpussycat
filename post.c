@@ -46,21 +46,22 @@ unsigned char server_path_disclosure(struct http_request *req, struct http_respo
   s=m[1].rm_eo-m[1].rm_so;
   new_path=calloc(s,1);
   memcpy(new_path,path+m[1].rm_so,s);
-  unix_p=calloc(strlen(new_path)+20,1);
-  strcat(unix_p,"/[a-z0-9_/.-]+");
-  strcat(unix_p, new_path);
+  unix_p=calloc(strlen(new_path)+100,1);
+  strcat(unix_p,"/(var/|www/|usr/|tmp/|etc/|home/|mnt/|mount/|root/|proc/)[a-z0-9_/.-]+");
+  strcat(unix_p, new_path+1);
   unix_r=calloc(sizeof(regex_t),1);
   if(regcomp(unix_r, unix_p, REG_EXTENDED | REG_ICASE)) fatal("Could not compile regex");
 
   free(unix_p);
 
-  if(!regexec(unix_r, res->payload, 1, m, 0)){
+  if(!regexec(unix_r, (char *) res->payload, 1, m, 0)){
     s=m[0].rm_eo-m[0].rm_so;
     ret=calloc(s+1,1);
     memcpy(ret,res->payload+m[0].rm_so,s);
-    *strstr(ret,new_path)='/';
-    
-    *strstr(ret,new_path+1)=0;
+    if(strstr(ret,new_path)){
+      *strstr(ret,new_path)='/';
+      *strstr(ret,new_path+1)=0;
+    }
     free(new_path);
     regfree(unix_r);
     annotate(res,"server-path", ret);
@@ -73,7 +74,7 @@ unsigned char server_path_disclosure(struct http_request *req, struct http_respo
   int c=0;
   for(i=0;i<strlen(new_path);i++){
 
-    if(new_path[i]=='/'){
+    if(new_path[i]=='/' || new_path[i]=='\\'){
       new_newpath[c]='\\';
       new_newpath[c+1]='\\';
       c=c+2;
@@ -84,25 +85,26 @@ unsigned char server_path_disclosure(struct http_request *req, struct http_respo
     }
   }
   new_newpath[c]=0;
-  win_p=calloc(strlen(new_newpath)+20,1);
+  win_p=calloc(strlen(new_newpath)+200,1);
 
-  strcat(win_p, "[a-z]:\\\\");
+  strcat(win_p, "[a-z]:\\\\(program files|windows|inetpub|php|document and settings|www|winnt|xampp|wamp|temp|websites|apache|apache2|site|sites|htdocs|web|http)\\[\\\\a-z 0-9_-.]+");
+
   strcat(win_p, new_newpath);
-
   if(regcomp(win_r, win_p, REG_EXTENDED | REG_ICASE)) fatal("Could not compile regex");
 
   free(win_p);
 
-  if(!regexec(win_r, res->payload, 1, m, 0)){
+  if(!regexec(win_r, (char *) res->payload, 1, m, 0)){
     regfree(win_r);
     s=m[0].rm_eo-m[0].rm_so;
     ret=calloc(s+1,1);
     
     memcpy(ret,res->payload+m[0].rm_so,s);
-    *strstr(ret,new_newpath)='\\';
     
-    *strstr(ret,new_newpath)=0;
-    free(new_path);
+    if(strstr(ret,new_newpath)){
+      *strstr(ret,new_newpath)='/';
+      *strstr(ret,new_newpath+1)=0;
+    }
     free(new_newpath);
     annotate(res,"server-path", ret);
     return DETECT_NEXT_RULE;
@@ -119,7 +121,8 @@ unsigned char index_of(struct http_request *req, struct http_response *res, void
                             0
                             };
 
-	static char * patterns[]={"<A\\sHREF=\"[^\"]*\">\\[To\\sParent\\sDirectory]</A>",
+	static char * patterns[]={
+                                "<A\\sHREF=\"[^\"]*\">\\[To\\sParent\\sDirectory]</A>",
 								                "<body><h1>Directory\\sListing\\sFor\\s.*</h1>",
 								                "<HTML><HEAD><TITLE>Directory:.*?</TITLE></HEAD><BODY>",
 								                "<a href=\"\\?C=[NMSD];O=[AD]\">Name</a>",
@@ -139,10 +142,17 @@ unsigned char index_of(struct http_request *req, struct http_response *res, void
     }
   }
   for(i=0;text[i];i++){
-    if(strstr((char *) res->payload, (char *) text[i])) goto success;
+    if(strstr((char *) res->payload, (char *) text[i])){
+    info("match %s", text[i]);
+    goto success;
+    }
   }
   for(i=0;regex[i];i++){
-    if(regexec(regex[i],(char *) res->payload,0,NULL,0)) goto success;
+    if(!regexec(regex[i],(char *) res->payload,0,NULL,0)){
+      
+    info("match %s", patterns[i]);
+      goto success;
+    }
   }
   return DETECT_NEXT_RULE;
 
