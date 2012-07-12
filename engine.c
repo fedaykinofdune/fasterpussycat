@@ -330,7 +330,6 @@ void enqueue_tests(struct target *t){
     }
     async_request(request);
     queued++;
-    if(max_requests && queued>=max_requests) break;
   }
 }
 

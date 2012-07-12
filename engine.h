@@ -48,6 +48,7 @@ struct target {
   UT_hash_handle hh;
   struct request_responses *results;
   struct dir_link_res *link_map;
+  int requests;
 };
 
 /* engine.c */

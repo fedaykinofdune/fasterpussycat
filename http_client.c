@@ -44,8 +44,10 @@
 #include "alloc-inl.h"
 #include "string-inl.h"
 
-#include "http_client.h"
 #include "utlist.h"
+#include "uthash.h"
+#include "http_client.h"
+#include "engine.h"
 #include "util.h"
 
 /* Assorted exported settings: */
@@ -1741,6 +1743,7 @@ static void destroy_unlink_queue(struct queue_entry* q, u8 keep) {
   if (q->next) q->next->prev = q->prev;
   ck_free(q);
   queue_cur--;
+
 }
 
 
@@ -2071,16 +2074,16 @@ connect_error:
     if (c->next)   c->next->prev = c; else c->h->c_tail=c;
     c->h->connections++;
     conn_cur++;
-
   }
 
   c->q = q;
   q->c = c;
-
   q->res->state = STATE_CONNECT;
   c->req_start  = c->last_rw = time(0);
   c->write_buf  = build_request_data(q->req);
   c->write_len  = strlen((char*)c->write_buf);
+  q->req->t->requests++;
+  if(q->req->t->requests>=max_requests) remove_host_from_queue(q->req->t->host);
 }
 
 

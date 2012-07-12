@@ -47,7 +47,7 @@ unsigned char server_path_disclosure(struct http_request *req, struct http_respo
   new_path=calloc(s,1);
   memcpy(new_path,path+m[1].rm_so,s);
   unix_p=calloc(strlen(new_path)+100,1);
-  strcat(unix_p,"/(var/|www/|usr/|tmp/|etc/|home/|mnt/|mount/|root/|proc/)[a-z0-9_/.-]+");
+  strcat(unix_p,"/(var|www|usr|tmp|virtual|etc|home|mnt|mount|root|proc)/[a-z0-9_/.-]+");
   strcat(unix_p, new_path+1);
   unix_r=calloc(sizeof(regex_t),1);
   if(regcomp(unix_r, unix_p, REG_EXTENDED | REG_ICASE)) fatal("Could not compile regex");
