@@ -175,6 +175,16 @@ struct http_response {
 
 };
 
+/* dns to queue */
+
+struct dns_q;
+
+struct dns_q {
+  char *host;
+  struct dns_q *next;
+  struct http_request *req;
+};
+
 /* Open keep-alive connection descriptor: */
 
 struct conn_entry {

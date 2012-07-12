@@ -66,6 +66,8 @@ u8 auth_type         = AUTH_NONE;
 
 float max_requests_sec = MAX_REQUESTS_SEC;
 
+struct dns_q *to_dns=NULL;
+
 struct param_array global_http_par;
 
 /* Counters: */
@@ -1802,16 +1804,18 @@ void remove_host_from_queue(u8 *host) {
 void async_dns_callback(struct dns_cb_data *d){
   struct http_request *req=(struct http_request *) d->context;
   if(d->error==DNS_OK){
-    req->addr=*((unsigned int *) d->addr);
+    printf("%u.%u.%u.%u\n", d->addr[0], d->addr[1], d->addr[2], d->addr[3]);
+    req->addr=(d->addr[0] << 24) + (d->addr[1] << 16) + (d->addr[2] << 8) + d->addr[3];;
   }
-  info("dns callback");
+  info("dns callback %d",req->addr);
   real_async_request(req);
 }
 
 void async_request(struct http_request* req) {
+  struct dns_q *t;
   if(adns==NULL) adns=dns_init();
   queue_cur++;
-  info("async request");
+  info("async request %d",queue_cur);
   #ifdef PROXY_SUPPORT
   if(use_proxy){ /* don't do adns if using proxy */
     req->addr=maybe_lookup_host(req->host);
@@ -1819,8 +1823,11 @@ void async_request(struct http_request* req) {
     return;
   }
   #endif
-
-  dns_queue(adns, req, (char *) req->host, DNS_A_RECORD, async_dns_callback);
+  t=calloc(sizeof(struct dns_q),1);
+  t->host=(char *) req->host;
+  t->next=to_dns;
+  t->req=req;
+  to_dns=t;
 }
 
 /* Schedules a new asynchronous request (does not make a copy of the
@@ -2091,14 +2098,25 @@ u32 next_from_queue(void) {
 
   u32 cur_time = time(0);
   u32 hi=0;
+  struct dns_q *d;
+  
+  
+  if(adns==NULL) adns=dns_init();
+  while(to_dns){
+    info("processes dns queue");
+    dns_queue(adns, to_dns->req, (char *) to_dns->host, DNS_A_RECORD, async_dns_callback);
+    d=to_dns->next;
+    free(to_dns);
+    to_dns=d;
+  }
+
+  dns_poll(adns); 
   if (conn_cur) {
     static struct pollfd* p;
     static struct host_entry *h;
     static struct conn_entry **ca;
     struct conn_entry* c;
     
-    if(adns==NULL) adns=dns_init();
-    dns_poll(adns); 
     u32 i = 0;
     h=host_queue;
     if (!p)
