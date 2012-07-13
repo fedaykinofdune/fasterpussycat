@@ -92,7 +92,7 @@ void process_features(struct http_response *res, struct target *t){
   server_l=strlen((char *) server);
   size=server_l+1;
   if(powered) size+=strlen((char *) powered)+1;
-  f_str=malloc(size);
+  f_str=ck_alloc(size);
   strcpy(f_str,(char *) server);
   if(powered){
      f_str[server_l]=' ';
@@ -110,7 +110,7 @@ void process_features(struct http_response *res, struct target *t){
     }
     label=strtok(NULL," ");
   }
-  free(f_str);
+  ck_free(f_str);
 }
 
 
@@ -213,7 +213,7 @@ void add_target(u8 *host){
   t->prototype_request=req_copy(first,0);
   t->prototype_request->method=ck_alloc(5);
   memcpy(t->prototype_request->method,"HEAD",5);
-  t->detect_404=calloc(sizeof(struct detect_404_info),1);
+  t->detect_404=ck_alloc(sizeof(struct detect_404_info));
   add_default_rules(t->detect_404);
   first->callback=process_first_page;
   first->t=t;
@@ -247,6 +247,7 @@ struct http_request *new_request_with_method_and_path(struct target *t, unsigned
 
 
 unsigned char process_first_page(struct http_request *req, struct http_response *res){
+  info("process first");
   if(res->state==STATE_DNSERR || res->code==0){
 
     /* hambone detected fail immediately */
@@ -291,7 +292,7 @@ void enqueue_tests(struct target *t){
       continue;
     }
     if(test->children){
-      dir_res=calloc(sizeof(struct dir_link_res),1);
+      dir_res=ck_alloc(sizeof(struct dir_link_res));
       dir_res->parent_id=test->id;
       HASH_ADD_INT(t->link_map, parent_id, dir_res );    
     }
@@ -319,7 +320,7 @@ void enqueue_tests(struct target *t){
     request->score=score->score;
     parent_res=NULL;
     if(score->test->parent){
-      struct req_pointer *pointer=calloc(sizeof(struct req_pointer),1);
+      struct req_pointer *pointer=ck_alloc(sizeof(struct req_pointer));
       pointer->req=request;
       request->pointer=pointer;
       pointer->link=score->test->parent;

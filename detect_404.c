@@ -160,7 +160,7 @@ void create_magic_rules(struct detect_404_info *info){
 
 void create_magic_rule(struct detect_404_info *info, char *ext, char *mime_type){
   struct match_rule *rule=new_404_rule(info,&info->rules_preprocess);
-  char *pattern=malloc(strlen(ext)+6);
+  char *pattern=ck_alloc(strlen(ext)+6);
   regex_t *regex=detect_404_alloc(info,sizeof(regex_t));
   pattern[0]=0;
   strcat(pattern,"\\.");
@@ -173,7 +173,7 @@ void create_magic_rule(struct detect_404_info *info, char *ext, char *mime_type)
   rule->pattern=regex;
   rule->data=mime_type;
   rule->evaluate=enforce_magic_rule;
-  free(pattern);
+  ck_free(pattern);
 }
 
 
@@ -195,7 +195,7 @@ char * recommend_method(struct detect_404_info *info, struct url_test *test){
 
 struct match_rule *new_404_rule(struct detect_404_info *info, struct match_rule **list){
   struct match_rule *rule;
-  struct detect_404_cleanup_info *new_cleanup=malloc(sizeof(struct detect_404_cleanup_info));
+  struct detect_404_cleanup_info *new_cleanup=ck_alloc(sizeof(struct detect_404_cleanup_info));
   rule=new_rule(list);
   new_cleanup->data=rule;
   new_cleanup->cleanup_func=free;
@@ -206,8 +206,8 @@ struct match_rule *new_404_rule(struct detect_404_info *info, struct match_rule 
 
 
 void *detect_404_alloc(struct detect_404_info *info, size_t size){
-  void *mem=calloc(size,1);
-  struct detect_404_cleanup_info *new=malloc(sizeof(struct detect_404_cleanup_info));
+  void *mem=ck_alloc(size);
+  struct detect_404_cleanup_info *new=ck_alloc(sizeof(struct detect_404_cleanup_info));
   new->data=mem;
   new->cleanup_func=free;
   new->next=info->cleanup;
@@ -220,7 +220,7 @@ void detect_404_cleanup(struct detect_404_info *info){
    while(c){
       next=c->next;
       c->cleanup_func(c->data);
-      free(c);
+      ck_free(c);
       c=next;
    }
 }
@@ -312,12 +312,12 @@ void enqueue_other_probes(struct target *t){
   struct probe *probe;
   struct http_request *req;
   int i,j;
-  char *path=malloc(20);
+  char *path=ck_alloc(50);
 
   /* enqueue extention checks */
 
   for(i=0;i<CHECK_EXT_LEN;i++){
-    probe=malloc(sizeof(struct probe));
+    probe=ck_alloc(sizeof(struct probe));
     probe->type=PROBE_EXT;
     probe->responses=NULL;
     probe->data=check_ext[i];
@@ -337,7 +337,7 @@ void enqueue_other_probes(struct target *t){
 
   /* enqueue directory checks */
 
-  probe=malloc(sizeof(struct probe));
+  probe=ck_alloc(sizeof(struct probe));
   probe->type=PROBE_DIR;
   probe->responses=NULL;
   probe->data=NULL;
@@ -370,13 +370,13 @@ void enqueue_other_probes(struct target *t){
     async_request(req);
   }
 
-  free(path);
+  ck_free(path);
 
 }
 
 u8 process_probe(struct http_request *req,struct http_response *res){
   struct probe *probe=(struct probe *) req->data;
-  struct request_response *response=calloc(sizeof(struct request_response),1);
+  struct request_response *response=ck_alloc(sizeof(struct request_response));
   char *pattern=NULL;
   struct recommended_method *rec_method;
   regex_t *regex=NULL;
@@ -446,7 +446,7 @@ u8 process_probe(struct http_request *req,struct http_response *res){
     }
 
     if(pattern){
-      regex=malloc(sizeof(regex_t));
+      regex=ck_alloc(sizeof(regex_t));
       if(regcomp(regex, pattern, REG_EXTENDED | REG_NOSUB) ) fatal("Could not compile regex %s",pattern);
     }
     if(detect_method==USE_UNKNOWN){ 
@@ -459,7 +459,7 @@ u8 process_probe(struct http_request *req,struct http_response *res){
     rec_method->next=req->t->detect_404->recommended_request_methods;
     req->t->detect_404->recommended_request_methods=rec_method;
     debug("added request recommendations pattern: %s flags: %d method %s", pattern, flags, http_method); 
-    free(pattern);
+    ck_free(pattern);
   } /* if(detect_method!=USE_404) */
   if(probe->type==PROBE_GENERAL) info("404 detection method for %s: %s", req->t->host, type_str);
 
@@ -492,7 +492,7 @@ void launch_404_probes(struct target *t){
 
 void destroy_detect_404_info(struct detect_404_info *info){
   detect_404_cleanup(info);
-  free(info);
+  ck_free(info);
 }
 
 int is_404(struct detect_404_info *info, struct http_request *req, struct http_response *res){

@@ -1,4 +1,4 @@
-/*
+  /*
    skipfish - high-performance, single-process asynchronous HTTP client
    --------------------------------------------------------------------
 
@@ -39,6 +39,7 @@
 #include <openssl/md5.h>
 #include <idna.h>
 #include <zlib.h>
+#include "tadns.h"
 
 #include "types.h"
 #include "alloc-inl.h"
@@ -67,6 +68,8 @@ u8 auth_type         = AUTH_NONE;
 
 float max_requests_sec = MAX_REQUESTS_SEC;
 
+struct dns_q *to_dns=NULL;
+
 struct param_array global_http_par;
 
 /* Counters: */
@@ -78,13 +81,14 @@ u32 req_errors_net,
     req_errors_cur,
     req_count,
     req_dropped,
-    queue_cur,
+    queue_cur=0,
     conn_cur,
     conn_count,
     conn_idle_tmout,
     conn_busy_tmout,
     conn_failed,
     req_retried,
+    dns_requests=0,
     url_scope;
 
 u64 bytes_sent,
@@ -114,6 +118,7 @@ static struct dns_entry*   dns;
 
 static u8 tear_down_idle;
 
+static struct dns *adns=NULL;
 
 /* Extracts parameter value from param_array. Name is matched if
    non-NULL. Returns pointer to value data, not a duplicate string;
@@ -1686,7 +1691,6 @@ u8 parse_response(struct http_request* req, struct http_response* res,
 
 void destroy_request(struct http_request* req) {
   u32 i;
-
   for (i=0;i<req->par.c;i++) {
     ck_free(req->par.n[i]);
     ck_free(req->par.v[i]);
@@ -1817,12 +1821,43 @@ void remove_host_from_queue(u8 *host) {
   }
 }
 
+
+void async_dns_callback(struct dns_cb_data *d){
+  struct http_request *req=(struct http_request *) d->context;
+  if(d->error==DNS_OK){
+    printf("%u.%u.%u.%u\n", d->addr[0], d->addr[1], d->addr[2], d->addr[3]);
+    req->addr=*((u32*) d->addr);
+  }
+  info("dns callback %d %s",req->addr, serialize_path(req,1,0));
+  dns_requests--;
+  real_async_request(req);
+}
+
+void async_request(struct http_request* req) {
+  struct dns_q *t;
+  if(adns==NULL) adns=dns_init();
+  info("async request %d",queue_cur);
+  #ifdef PROXY_SUPPORT
+  if(use_proxy){ /* don't do adns if using proxy */
+    req->addr=maybe_lookup_host(req->host);
+    real_async_request(struct http_request* req);
+    return;
+  }
+  #endif
+  t=ck_alloc(sizeof(struct dns_q));
+  t->host=(char *) strdup(req->host);
+  t->next=to_dns;
+  t->req=req;
+  to_dns=t;
+  dns_requests++;
+}
+
 /* Schedules a new asynchronous request (does not make a copy of the
    original http_request struct, may deallocate it immediately or
    later on); req->callback() will be invoked when the request is
    completed (or fails - maybe right away). */
 
-void async_request(struct http_request* req) {
+void real_async_request(struct http_request* req) {
   struct queue_entry *qe;
   struct http_response *res;
   struct host_entry *h;
@@ -1835,7 +1870,6 @@ void async_request(struct http_request* req) {
 
   res = ck_alloc(sizeof(struct http_response));
 
-  req->addr = maybe_lookup_host(req->host);
 
   /* Don't try to issue extra requests if max_fail
      consecutive failures exceeded; but still try to
@@ -1855,12 +1889,15 @@ void async_request(struct http_request* req) {
   /* DNS errors mean instant fail. */
 
   if (!req->addr) {
+    info("DNS ERROR");
     DEBUG("!!! DNS error!\n");
     res->state = STATE_DNSERR;
     if (!req->callback(req, res)) {
       destroy_request(req);
       destroy_response(res);
     }
+
+    queue_cur--;
     req_errors_net++;
     conn_count++;
     conn_failed++;
@@ -2080,6 +2117,9 @@ connect_error:
   q->c = c;
   q->res->state = STATE_CONNECT;
   c->req_start  = c->last_rw = time(0);
+  info("host %s",q->req->host);
+  info("t %p", q->req->t);
+  info("test url %s", q->req->t->host);
   c->write_buf  = build_request_data(q->req);
   c->write_len  = strlen((char*)c->write_buf);
   q->req->t->requests++;
@@ -2096,14 +2136,27 @@ u32 next_from_queue(void) {
 
   u32 cur_time = time(0);
   u32 hi=0;
+  struct dns_q *d;
+  
+  
+  if(adns==NULL) adns=dns_init();
+  while(to_dns){
+    info("processes dns queue");
+    dns_queue(adns, to_dns->req, (char *) to_dns->host, DNS_A_RECORD, async_dns_callback);
+    d=to_dns->next;
+    ck_free(to_dns); 
+    to_dns=d;
+  }
+
+  dns_poll(adns); 
   if (conn_cur) {
     static struct pollfd* p;
     static struct host_entry *h;
     static struct conn_entry **ca;
     struct conn_entry* c;
+    
     u32 i = 0;
     h=host_queue;
-    
     if (!p)
       p = __DFL_ck_alloc(sizeof(struct pollfd) * max_connections);
 
@@ -2371,8 +2424,10 @@ SSL_read_more:
 
     while(h && hi<max_hosts){
       nh=h->next;
+      
       q=h->q_head;
       if(!q){
+        info("destroying host %s",h->addr);
         struct conn_entry* c = h->c_head;
         struct conn_entry* nc;
         while(c){
@@ -2394,8 +2449,9 @@ SSL_read_more:
         }
         ck_free(h);
         hosts--;
+        goto next_host;
       }
-      
+       
       while (q) {
 
         struct queue_entry* next = q->next;
@@ -2434,12 +2490,13 @@ next_q_entry:
         q = next;
 
       }
+next_host:      
       hi++;
       h=nh;
     }
   }
 
-  return queue_cur;
+  return queue_cur+dns_requests;
 }
 
 

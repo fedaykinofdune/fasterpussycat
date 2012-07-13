@@ -6,7 +6,6 @@
 #include "db.h"
 #include "engine.h"
 #include "bayes.h"
-
 void setup_bayes(){
 
 }

@@ -188,6 +188,16 @@ struct http_response {
   struct annotation *annotations;
 };
 
+/* dns to queue */
+
+struct dns_q;
+
+struct dns_q {
+  char *host;
+  struct dns_q *next;
+  struct http_request *req;
+};
+
 /* Open keep-alive connection descriptor: */
 
 struct conn_entry {
@@ -346,6 +356,7 @@ void fake_host(u8* name, u32 addr);
 
 void async_request(struct http_request* req);
 
+void real_async_request(struct http_request* req);
 /* Prepares a serialized HTTP buffer to be sent over the network. */
 
 u8* build_request_data(struct http_request* req);
