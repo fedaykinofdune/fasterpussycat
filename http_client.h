@@ -428,6 +428,7 @@ extern u32 max_connections,
            conn_idle_tmout,
            conn_busy_tmout,
            conn_failed,
+           hosts,
            queue_cur;
 
 extern float req_sec,
@@ -483,3 +484,6 @@ void http_stats(u64 st_time);
 void http_req_list(void);
 
 #endif /* !_HAVE_HTTP_CLIENT_H */
+
+
+void print_queue(struct queue_entry *q);

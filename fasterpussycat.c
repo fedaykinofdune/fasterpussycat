@@ -135,6 +135,23 @@ u8 print_body(struct http_request *req, struct http_response *rep){
   return 0;
 }
 
+void maybe_queue_more_hosts(){
+  struct t_list *n=NULL;
+  int c=0;
+  if(hosts<max_hosts){
+   
+   while(target_list && c<10){
+     n=target_list->next;
+     add_target(target_list->host);
+     free(target_list);
+     c++;
+     target_list=n;
+    }
+     
+  }
+
+}
+
 void do_scan(){
   load_features();
   load_tests();
@@ -146,14 +163,14 @@ void do_scan(){
   gettimeofday(&tv, NULL);
   u64 st_time;
   u32 last_req=0;
-  u64 last_time;
+  u64 last_time, last_h_time;
   st_time = tv.tv_sec * 1000LL + tv.tv_usec / 1000;
   last_time=st_time;
+  last_h_time=st_time;
+  
   enable_trap=1;
-  for(t=target_list;t!=NULL;t=t->next){
-    add_target(t->host);
-  }
-  while ((next_from_queue() && !stop_soon)) {
+  maybe_queue_more_hosts();
+ while ((next_from_queue() && !stop_soon)) {
 
 
     u64 end_time;
@@ -169,6 +186,10 @@ void do_scan(){
       last_time=end_time;
       last_req=(req_count - queue_cur);
       http_stats(st_time);
+    }
+    if((end_time-last_h_time)>10000){
+      last_h_time=end_time;
+      maybe_queue_more_hosts();
     }
   }
   if(train || force_save) save_all();

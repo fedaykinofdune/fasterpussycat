@@ -331,6 +331,7 @@ do {                                                                            
       _tmp->next = ((del)->next);                                                              \
     }                                                                                          \
   }                                                                                            \
+  (del)->next=NULL;                                                                            \
 } while (0)
 
 /* Here are VS2008 replacements for LL_APPEND and LL_DELETE */
@@ -454,6 +455,8 @@ do {                                                                            
           (head)->prev = (del)->prev;                                                          \
       }                                                                                        \
   }                                                                                            \
+  (del)->next = NULL;                                                                          \
+  (del)->prev = NULL;                                                                          \
 } while (0) 
 
 

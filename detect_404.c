@@ -423,22 +423,21 @@ u8 process_probe(struct http_request *req,struct http_response *res){
     http_method="GET";
     switch(probe->type){
       case PROBE_GENERAL:
-        pattern=strdup(".*");
+        pattern=(char *) ck_strdup((u8 *) ".*");
         if(detect_method==USE_UNKNOWN){
           warn("404 detect failed on %s",req->t->host);
           return 1;
         }
         break;
       case PROBE_EXT:
-        pattern=malloc(strlen(probe->data)+11);
-        pattern[0]=0;
+        pattern=(char *) ck_alloc(strlen(probe->data)+11);
         strcat(pattern,".*\\.");
         strcat(pattern,probe->data);
         strcat(pattern,"(\\?|$)");
         break;
 
       case PROBE_CGI:
-        pattern=strdup("^/cgi-bin/.*");
+        pattern=(char *) ck_strdup((u8*) "^/cgi-bin/.*");
         break;
       case PROBE_DIR:
         flags=F_DIRECTORY;
@@ -448,6 +447,8 @@ u8 process_probe(struct http_request *req,struct http_response *res){
     if(pattern){
       regex=ck_alloc(sizeof(regex_t));
       if(regcomp(regex, pattern, REG_EXTENDED | REG_NOSUB) ) fatal("Could not compile regex %s",pattern);
+      
+      ck_free(pattern);
     }
     if(detect_method==USE_UNKNOWN){ 
       http_method=RECOMMEND_SKIP;
@@ -459,7 +460,6 @@ u8 process_probe(struct http_request *req,struct http_response *res){
     rec_method->next=req->t->detect_404->recommended_request_methods;
     req->t->detect_404->recommended_request_methods=rec_method;
     debug("added request recommendations pattern: %s flags: %d method %s", pattern, flags, http_method); 
-    ck_free(pattern);
   } /* if(detect_method!=USE_404) */
   if(probe->type==PROBE_GENERAL) info("404 detection method for %s: %s", req->t->host, type_str);
 

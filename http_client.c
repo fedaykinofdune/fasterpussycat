@@ -1790,6 +1790,7 @@ int sort_func(struct queue_entry *a, struct queue_entry *b){
 
 void sort_host_queue(u8 *host){
   struct host_entry *e=find_host_queue(host);
+  if(!e || !e->q_head) return;
   e->q_head->prev=e->q_tail;
   DL_SORT(e->q_head,sort_func);
   e->q_tail=e->q_head->prev;
@@ -1825,18 +1826,23 @@ void remove_host_from_queue(u8 *host) {
 void async_dns_callback(struct dns_cb_data *d){
   struct http_request *req=(struct http_request *) d->context;
   if(d->error==DNS_OK){
-    printf("%u.%u.%u.%u\n", d->addr[0], d->addr[1], d->addr[2], d->addr[3]);
     req->addr=*((u32*) d->addr);
   }
-  info("dns callback %d %s",req->addr, serialize_path(req,1,0));
+
+  if(d->error==DNS_TIMEOUT){
+    info("dns timeout for %s",req->host);
+  }
   dns_requests--;
   real_async_request(req);
 }
 
 void async_request(struct http_request* req) {
   struct dns_q *t;
+  if(req->addr){
+    real_async_request(req);
+    return;
+  }
   if(adns==NULL) adns=dns_init();
-  info("async request %d",queue_cur);
   #ifdef PROXY_SUPPORT
   if(use_proxy){ /* don't do adns if using proxy */
     req->addr=maybe_lookup_host(req->host);
@@ -1845,7 +1851,7 @@ void async_request(struct http_request* req) {
   }
   #endif
   t=ck_alloc(sizeof(struct dns_q));
-  t->host=(char *) strdup(req->host);
+  t->host=(char *) req->host;
   t->next=to_dns;
   t->req=req;
   to_dns=t;
@@ -1889,7 +1895,6 @@ void real_async_request(struct http_request* req) {
   /* DNS errors mean instant fail. */
 
   if (!req->addr) {
-    info("DNS ERROR");
     DEBUG("!!! DNS error!\n");
     res->state = STATE_DNSERR;
     if (!req->callback(req, res)) {
@@ -2028,7 +2033,6 @@ static void check_ssl(struct conn_entry* c) {
 
 static void conn_associate(struct conn_entry* use_c, struct queue_entry* q) {
   struct conn_entry* c;
-
   if (use_c) {
 
     c = use_c;
@@ -2117,13 +2121,13 @@ connect_error:
   q->c = c;
   q->res->state = STATE_CONNECT;
   c->req_start  = c->last_rw = time(0);
-  info("host %s",q->req->host);
-  info("t %p", q->req->t);
-  info("test url %s", q->req->t->host);
   c->write_buf  = build_request_data(q->req);
   c->write_len  = strlen((char*)c->write_buf);
   q->req->t->requests++;
-  if(q->req->t->requests>=max_requests) remove_host_from_queue(q->req->t->host);
+  if(q->req->t->requests>=max_requests && max_requests>0){
+     info("max requests reached for %s", q->req->host);
+     remove_host_from_queue(q->req->t->host);
+  }
 }
 
 
@@ -2141,7 +2145,6 @@ u32 next_from_queue(void) {
   
   if(adns==NULL) adns=dns_init();
   while(to_dns){
-    info("processes dns queue");
     dns_queue(adns, to_dns->req, (char *) to_dns->host, DNS_A_RECORD, async_dns_callback);
     d=to_dns->next;
     ck_free(to_dns); 
@@ -2427,7 +2430,6 @@ SSL_read_more:
       
       q=h->q_head;
       if(!q){
-        info("destroying host %s",h->addr);
         struct conn_entry* c = h->c_head;
         struct conn_entry* nc;
         while(c){
@@ -2451,13 +2453,11 @@ SSL_read_more:
         hosts--;
         goto next_host;
       }
-       
-      while (q) {
+    
+      for(;q;q=q->next) {
 
-        struct queue_entry* next = q->next;
 
         if (!q->c) {
-
           struct conn_entry* c = h->c_head;
 
           /* Let's try to find a matching, idle connection first. */
@@ -2484,11 +2484,9 @@ SSL_read_more:
           } else break; /* no idle connections and everything is full */
 
         }
-
+      
 next_q_entry:
-
-        q = next;
-
+      ;
       }
 next_host:      
       hi++;
@@ -2545,7 +2543,6 @@ struct http_request* req_copy(struct http_request* req,
   if (!req) return NULL;
 
   ret = ck_alloc(sizeof(struct http_request));
-
   ret->proto  = req->proto;
 
   if (all)
@@ -2793,6 +2790,16 @@ void http_req_list(void) {
     if (c) c = c->next;
 
   }
+
+}
+
+void print_queue(struct queue_entry *q){
+  struct queue_entry *q2;
+  for(q2=q;q2;q2=q2->next){
+    info("queue %p",q2);
+  }
+
+
 
 }
 
