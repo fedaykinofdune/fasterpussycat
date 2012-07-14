@@ -63,7 +63,35 @@ void add_feature_label_to_target(const char *label, struct target *t){
   DL_APPEND(t->features,fn);
 }
 
+/* regular expression replace */
 
+int rreplace (char *buf, int size, regex_t *re, char *rp)
+{
+  char *pos;
+  int sub, so, n;
+  regmatch_t pmatch [10]; /* regoff_t is int so size is int */
+  if (regexec (re, buf, 10, pmatch, 0)) return 0;
+  for (pos = rp; *pos; pos++)
+    if (*pos == '\\' && *(pos + 1) > '0' && *(pos + 1) <= '9') {
+      so = pmatch [*(pos + 1) - 48].rm_so;
+      n = pmatch [*(pos + 1) - 48].rm_eo - so;
+      if (so < 0 || strlen (rp) + n - 1 > size) return 1;
+      memmove (pos + n, pos + 2, strlen (pos) - 1);
+      memmove (pos, buf + so, n);
+      pos = pos + n - 2;
+    }
+  sub = pmatch [1].rm_so; /* no repeated replace when sub >= 0 */
+  for (pos = buf; !regexec (re, pos, 1, pmatch, 0); ) {
+    n = pmatch [0].rm_eo - pmatch [0].rm_so;
+    pos += pmatch [0].rm_so;
+    if (strlen (buf) - n + strlen (rp) + 1 > size) return 1;
+    memmove (pos + strlen (rp), pos + n, strlen (pos) - n + 1);
+    memmove (pos, rp, strlen (rp));
+    pos += strlen (rp);
+    if (sub >= 0) break;
+  }
+  return 0;
+}
 
 
 void add_feature_to_target(struct feature *f, struct target *t){
@@ -245,6 +273,38 @@ struct http_request *new_request_with_method_and_path(struct target *t, unsigned
   return r;
 }
 
+unsigned char *macro_expansion(struct target *t, struct url_test *test){
+    static regex_t full_domain_regex=NULL;
+    static regex_t longest_domain_part_regex=NULL;
+    int longest_c=0;
+    char *longest, *temp;
+    char *host_copy;
+    if(!full_domain_regex){
+      full_domain_regex=malloc(sizeof(regex_t));
+      regcomp(full_domain_regex, "%HOSTNAME%", NULL);
+    }
+
+    if(!full_domain_regex){
+      longest_domain_part=malloc(sizeof(regex_t));
+      regcomp(longest_domain_part_regex, "%BIGDOMAIN%", NULL);
+    }
+    int size=strlen(test->url)+100;
+    char *c=ck_alloc(size); /* plenty of space */
+    rreplace (url_copy, size, full_domain_regex, t->host);
+    host_copy=ck_strdup(t->host);
+    temp=strtok(host_copy,".");
+    while(temp){
+      if(strlen(temp)>longest_c){
+        longest=temp;
+        longest_c=strlen(temp);
+      }
+      temp=strtok(NULL,".");
+    }
+    rreplace (url_copy, size, longest_domain_part_regex, t->host);
+    ck_free(host_copy);
+    return (unsigned char *) url_copy;
+}
+
 
 unsigned char process_first_page(struct http_request *req, struct http_response *res){
   info("process first");
@@ -310,10 +370,10 @@ void enqueue_tests(struct target *t){
     method=(unsigned char*) recommend_method(t->detect_404, score->test);
     if(method==RECOMMEND_SKIP) continue;
     request=new_request(t);
-    url_cpy=ck_alloc(strlen(score->test->url)+1);
-    memcpy(url_cpy,score->test->url,strlen(score->test->url)+1);
+    url_cpy=macro_expansion(t,test->url);
 
     tokenize_path(url_cpy, request, 0);
+    ck_free(url_copy);
     request->test=score->test;
     request->callback=process_test_result;
     request->method=ck_strdup(method);  
