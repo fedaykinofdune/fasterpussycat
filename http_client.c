@@ -58,6 +58,7 @@ u32 max_conn_host    = 10,
     max_hosts        = 20,
     max_connections  = 200,
     hosts            = 0,
+    unqueued_hosts   = 0,
     max_fail         = MAX_FAIL,
     idle_tmout       = IDLE_TMOUT,
     resp_tmout       = RESP_TMOUT,
@@ -1817,7 +1818,9 @@ void remove_host_from_queue(u8 *host) {
   q=e->q_head;
   while(q){
     n=q->next;
-    if(!strcmp((char *) q->req->host,(char *) host) && !q->c) destroy_unlink_queue(q,0);
+    if(!strcmp((char *) q->req->host,(char *) host) && !q->c){
+      destroy_unlink_queue(q,0);
+    }
     q=n;
   }
 }
@@ -1827,10 +1830,11 @@ void async_dns_callback(struct dns_cb_data *d){
   struct http_request *req=(struct http_request *) d->context;
   if(d->error==DNS_OK){
     req->addr=*((u32*) d->addr);
+    fake_host(req->host, req->addr);
   }
 
   if(d->error==DNS_TIMEOUT){
-    info("dns timeout for %s",req->host);
+    info("dns timeout for %s",serialize_path(req,1,0));
   }
   dns_requests--;
   real_async_request(req);
@@ -1842,6 +1846,7 @@ void async_request(struct http_request* req) {
     real_async_request(req);
     return;
   }
+  if(!req->host) fatal("req host is null");
   if(adns==NULL) adns=dns_init();
   #ifdef PROXY_SUPPORT
   if(use_proxy){ /* don't do adns if using proxy */
@@ -2125,8 +2130,7 @@ connect_error:
   c->write_len  = strlen((char*)c->write_buf);
   q->req->t->requests++;
   if(q->req->t->requests>=max_requests && max_requests>0){
-     info("max requests reached for %s", q->req->host);
-     remove_host_from_queue(q->req->t->host);
+     remove_host_from_queue(q->req->host);
   }
 }
 
@@ -2754,7 +2758,7 @@ void http_stats(u64 st_time) {
 
       conn_count, (float) req_count / conn_count,
       conn_failed, conn_busy_tmout, conn_idle_tmout,
-      url_scope, queue_cur, hosts);
+      url_scope, queue_cur, hosts+unqueued_hosts);
 }
 
 

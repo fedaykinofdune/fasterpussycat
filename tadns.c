@@ -439,7 +439,6 @@ dns_poll(struct dns *dns)
 	}
 
 	/* Cleanup cached queries */
-  int c=0;
 	DL_FOREACH_SAFE(dns->cached, query, tmp) {
     if (query->expire < now) {
 			DESTROY_QUERY(dns->cached, query);

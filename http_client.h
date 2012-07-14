@@ -109,7 +109,7 @@ struct http_request {
   u8* orig_url;                 /* Copy of the original URL     */
   struct param_array par;       /* Parameters, headers, cookies */
   struct target *t; 
-
+  int no_url_save;              /* don't save url statistics    */
   u32 user_val;                 /* Can be used freely           */
   void *data;                   /* Can also be used freely ;-)  */
   struct url_test *test;
@@ -413,6 +413,7 @@ extern u32 max_connections,
            max_hosts,
            max_requests,
            max_fail,
+           unqueued_hosts, 
            idle_tmout,
            resp_tmout,
            rw_tmout,

@@ -493,7 +493,8 @@ struct url_test *load_test(sqlite3_stmt *stmt){
 }
 
 void add_or_update_url(char *url, char *description, unsigned int flags){
-  struct url_test *test;
+  struct url_test *test,*tmp,*lng=NULL;
+  int new=0;
   if(url[strlen(url)-1]=='/') flags|=F_DIRECTORY;
   if(strstr(url, "/cgi-bin/")) flags|=F_CGI;
   if(url[0]!='/'){
@@ -511,12 +512,34 @@ void add_or_update_url(char *url, char *description, unsigned int flags){
     test=ck_alloc(sizeof(struct url_test));
     test->dirty=1;
     test->id=-1;
+    new=1;
   }
   test->url=url;
   test->description=description;
   test->flags=flags;
   save_url_test(test);
   info("saved url!\n");
+  if(new){
+    load_tests();
+    if(!(flags & F_DIRECTORY)){
+      int longest=0;
+      for(tmp=get_tests();tmp;tmp=tmp->hh.next){
+        if((test->flags & F_DIRECTORY) && strstr(test->url,tmp->url)==test->url && strlen(tmp->url)>longest){
+          lng=tmp;
+          longest=strlen(tmp->url);
+        }
+      }
+      if(longest>0){
+        struct dir_link *link=calloc(sizeof(struct dir_link),1);
+        link->child_id=test->id;
+        link->parent_id=lng->id;
+        link->id=-1;
+        link->dirty=-1;
+        save_dir_link(link);
+      }
+
+    }
+  }
 }
 
 int load_tests(){

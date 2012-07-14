@@ -37,7 +37,7 @@ void output_result(struct http_request *req, struct http_response *res){
   else size=res->pay_len;
 
 
-  snprintf(line, 80, "[%d] http://%s%s",res->code,req->t->host,req->test->url);
+  snprintf(line, 80, "[%d] %s",res->code,serialize_path(req,1,0));
   printf("%-75s %6d %-16s",line, size, res->header_mime);
   for(a=res->annotations;a;a=a->next){
     printf(" [%s",a->key);
@@ -206,6 +206,7 @@ u8 process_test_result(struct http_request *req, struct http_response *res){
     pointer->done=1;
   }
 
+  if(req->no_url_save) return 0;
 
   test->count++;
   test->dirty=1;
@@ -229,14 +230,16 @@ void add_target(u8 *host){
   u8 *url;
   struct target *t=(struct target *) ck_alloc(sizeof(struct target));
   struct http_request *first=(struct http_request *) ck_alloc(sizeof(struct http_request));
+  if(!host) fatal("host is null");
+  if(strlen((char *) host)==0) fatal("host is empty");
   t->host=host;
   t->features=NULL;
   t->test_scores=NULL;
   HASH_ADD_KEYPTR( hh, targets, t->host, strlen((char *) t->host), t );
-  NEW_STR(url,cur_pos);
-  ADD_STR_DATA(url,cur_pos,(unsigned char *) "http://");
-  ADD_STR_DATA(url,cur_pos,host);
-  ADD_STR_DATA(url,cur_pos,"/");
+  url=calloc(strlen((char *) host)+10,1);
+  strcat((char *) url,"http://");
+  strcat((char *) url,(char *) host);
+  strcat((char *) url,"/");
   parse_url(url,first,NULL);
   t->prototype_request=req_copy(first,0);
   t->prototype_request->method=ck_alloc(5);
@@ -245,6 +248,10 @@ void add_target(u8 *host){
   add_default_rules(t->detect_404);
   first->callback=process_first_page;
   first->t=t;
+  if(first->host==NULL){
+    info("couldn't parse host for '%s', skipping", host);
+    return;
+  }
   async_request(first);
 }
 
@@ -274,23 +281,24 @@ struct http_request *new_request_with_method_and_path(struct target *t, unsigned
 }
 
 unsigned char *macro_expansion(struct target *t, struct url_test *test){
-    static regex_t full_domain_regex=NULL;
-    static regex_t longest_domain_part_regex=NULL;
+    static regex_t *full_domain_regex=NULL;
+    static regex_t *longest_domain_part_regex=NULL;
     int longest_c=0;
-    char *longest, *temp;
+    char *longest=NULL, *temp=NULL;
     char *host_copy;
     if(!full_domain_regex){
       full_domain_regex=malloc(sizeof(regex_t));
-      regcomp(full_domain_regex, "%HOSTNAME%", NULL);
+      regcomp(full_domain_regex, "%HOSTNAME%", 0);
     }
 
-    if(!full_domain_regex){
-      longest_domain_part=malloc(sizeof(regex_t));
-      regcomp(longest_domain_part_regex, "%BIGDOMAIN%", NULL);
+    if(!longest_domain_part_regex){
+      longest_domain_part_regex=malloc(sizeof(regex_t));
+      regcomp(longest_domain_part_regex, "%BIGDOMAIN%", 0);
     }
     int size=strlen(test->url)+100;
-    char *c=ck_alloc(size); /* plenty of space */
-    rreplace (url_copy, size, full_domain_regex, t->host);
+    char *url_copy=ck_alloc(size); /* plenty of space */
+    memcpy(url_copy,test->url,strlen(test->url));
+    rreplace (url_copy, size, full_domain_regex, (char *) t->host);
     host_copy=ck_strdup(t->host);
     temp=strtok(host_copy,".");
     while(temp){
@@ -300,18 +308,17 @@ unsigned char *macro_expansion(struct target *t, struct url_test *test){
       }
       temp=strtok(NULL,".");
     }
-    rreplace (url_copy, size, longest_domain_part_regex, t->host);
+    if(longest_c>0) rreplace (url_copy, size, longest_domain_part_regex, longest);
     ck_free(host_copy);
     return (unsigned char *) url_copy;
 }
 
 
 unsigned char process_first_page(struct http_request *req, struct http_response *res){
-  info("process first");
   if(res->state==STATE_DNSERR || res->code==0){
 
     /* hambone detected fail immediately */
-
+    info("dns error or coudn't reach url for host %s", req->host);
     return 0;
   }
   process_features(res,req->t);
@@ -337,7 +344,7 @@ void maybe_update_dir_link(struct req_pointer *pointer){
 }
 
 void enqueue_tests(struct target *t){
-  struct url_test *test;
+  struct url_test *test,*parent_test;
   struct test_score *score;
   struct http_request *request;
   struct dir_link_res *dir_res;
@@ -364,20 +371,45 @@ void enqueue_tests(struct target *t){
     else score->score=get_test_probability(test,t);
     LL_PREPEND(t->test_scores,score); 
   }
+
+  /* for only partial training, add parent dirs as well */
+
+  if(train && max_train_count) {
+     LL_FOREACH(t->test_scores,score) {
+      if(score->test->parent){
+        parent_res=NULL;
+        HASH_FIND_INT(t->link_map,&score->test->parent->parent_id,parent_res);
+        if(!parent_res){
+          HASH_FIND_INT(get_tests(),&score->test->parent->parent_id,parent_test);
+          dir_res=ck_alloc(sizeof(struct dir_link_res));
+          dir_res->parent_id=parent_test->id;
+          HASH_ADD_INT(t->link_map, parent_id, dir_res );    
+          
+          score=ck_alloc(sizeof(struct test_score));
+          score->test=parent_test;
+          score->no_url_save=1;
+          score->score=rand();
+          LL_PREPEND(t->test_scores,score);
+        }
+      }
+    }
+  }
+
   LL_SORT(t->test_scores,score_sort);
   LL_FOREACH(t->test_scores,score) {
 
     method=(unsigned char*) recommend_method(t->detect_404, score->test);
     if(method==RECOMMEND_SKIP) continue;
     request=new_request(t);
-    url_cpy=macro_expansion(t,test->url);
+    url_cpy=macro_expansion(t,score->test);
 
     tokenize_path(url_cpy, request, 0);
-    ck_free(url_copy);
+    ck_free(url_cpy);
     request->test=score->test;
     request->callback=process_test_result;
     request->method=ck_strdup(method);  
     request->score=score->score;
+    request->no_url_save=score->no_url_save;
     parent_res=NULL;
     if(score->test->parent){
       struct req_pointer *pointer=ck_alloc(sizeof(struct req_pointer));

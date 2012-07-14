@@ -73,11 +73,12 @@ struct t_list {
 
 struct t_list *target_list=NULL;
 
-
+FILE *file=NULL;
 
 void usage(){
 printf(
 "Usage:  fasterpussycat [OPTIONS] HOST1 HOST2 HOST3 ...\n"
+"        fasterpussycat -f FILENAME\n"
 "        fasterpussycat --add-url --url URL [--flags flags]\n"
 "        fasterpussycat --add-trigger --trigger TRIGGER --feature FEATURE\n"
 "\n"
@@ -86,6 +87,7 @@ printf(
 "Attack mode:\n"
 "\n"
 "\n"
+"  -f, --file=FILE               read hosts from FILE or - for stdin\n"
 "  -n, --max-hosts=N             maximum simultaneous hosts to scan\n"
 "  -c, --max-conn=N              maximum connections per a host\n"
 "  -r, --max-requests=N          check only the top N requests per a host (0 to\n"
@@ -138,18 +140,46 @@ u8 print_body(struct http_request *req, struct http_response *rep){
 void maybe_queue_more_hosts(){
   struct t_list *n=NULL;
   int c=0;
-  if(hosts<max_hosts){
-   
-   while(target_list && c<10){
-     n=target_list->next;
-     add_target(target_list->host);
-     free(target_list);
-     c++;
-     target_list=n;
+
+  if(file){
+    c=0;
+    struct t_list *tl;
+    char buffer[255];
+    info("queing hosts");
+    while(fgets(buffer,255,file) && c<100){
+      
+      tl=calloc(sizeof(target_list),1);
+      tl->host=(unsigned char *) strdup(buffer);
+      if(tl->host[strlen((char *) tl->host)-1]=='\n') tl->host[strlen((char *) tl->host)-1]=0; /* chomp */
+      if(!strlen((char *) tl->host)){
+        free(tl->host);
+        free(tl);
+        
+        continue;
+      }
+      if(!tl->host) fatal("null host");
+      tl->next=target_list;
+      info("queued %s",tl->host);
+      target_list=tl;
+      c++;
+      unqueued_hosts++;
     }
-     
   }
 
+  c=0;
+  if(hosts<max_hosts){
+
+    while(target_list && c<10){
+      n=target_list->next;
+      if(!target_list->host) fatal("null host");
+      add_target(target_list->host);
+      free(target_list);
+      c++;
+      target_list=n;
+      unqueued_hosts--;
+    }
+
+  }
 }
 
 void do_scan(){
@@ -159,7 +189,6 @@ void do_scan(){
   load_feature_selections();
   add_post_rules();
   struct timeval tv;
-  struct t_list *t;
   gettimeofday(&tv, NULL);
   u64 st_time;
   u32 last_req=0;
@@ -218,6 +247,7 @@ void parse_opts(int argc, char** argv){
     { "max-connections", required_argument,NULL, 'c'},
     { "max-requests", required_argument,NULL, 'r'},
     { "progress", required_argument, NULL, 'P' },
+    { "file", required_argument, NULL, 'f' },
     { "statistics", no_argument, NULL, STATISTICS },
     { "browser", required_argument, NULL, 'B' },
     { "train",  optional_argument, NULL, 'T' },
@@ -233,11 +263,12 @@ void parse_opts(int argc, char** argv){
   };
   int opt;
   struct t_list *target;
-  while((opt=getopt_long( argc, argv, "-n:P:c:B:h:r:T::", long_options, &longIndex ))!=-1){
+  while((opt=getopt_long( argc, argv, "-n:f:P:c:B:h:r:T::", long_options, &longIndex ))!=-1){
     switch(opt){
       case 1:
         target=calloc(sizeof(struct t_list),1);
         target->host=(unsigned char *) optarg;
+        unqueued_hosts++;
         LL_APPEND(target_list,target);
         t++;
         break;
@@ -261,6 +292,19 @@ void parse_opts(int argc, char** argv){
       case 'c':
         max_conn_host=atoi(optarg);
         break;
+      case 'f':
+        if(!strcmp("-",optarg)) file=stdin;
+        else{
+          if(!(file=fopen(optarg,"r"))){
+            printf("Can't open '%s' for reading!",optarg);
+            exit(1);
+          }
+        }
+        int fd = fileno(file);
+        int flags = fcntl(fd, F_GETFL, 0);
+        flags |= O_NONBLOCK;
+        fcntl(fd, F_SETFL, flags);
+        t++;
       case 'r':
         max_requests=atoi(optarg);
         break;

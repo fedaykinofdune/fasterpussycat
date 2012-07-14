@@ -34,6 +34,7 @@ struct request_response {
 struct test_score {
   struct url_test *test;
   double score;
+  int no_url_save;
   struct test_score *next;
 };
 
