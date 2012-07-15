@@ -50,7 +50,12 @@ unsigned char server_path_disclosure(struct http_request *req, struct http_respo
   strcat(unix_p,"/(var|www|usr|tmp|virtual|etc|home|mnt|mount|root|proc)/[a-z0-9_/.-]+");
   strcat(unix_p, new_path+1);
   unix_r=calloc(sizeof(regex_t),1);
-  if(regcomp(unix_r, unix_p, REG_EXTENDED | REG_ICASE)) fatal("Could not compile regex");
+  if(regcomp(unix_r, unix_p, REG_EXTENDED | REG_ICASE)) {
+    warn("Could not compile regex '%s'",unix_p);
+    free(unix_p);
+    free(unix_r);
+    return DETECT_NEXT_RULE;
+  }
 
   free(unix_p);
 
@@ -90,8 +95,12 @@ unsigned char server_path_disclosure(struct http_request *req, struct http_respo
   strcat(win_p, "[a-z]:\\\\(program files|windows|inetpub|php|document and settings|www|winnt|xampp|wamp|temp|websites|apache|apache2|site|sites|htdocs|web|http)\\[\\\\a-z 0-9_-.]+");
 
   strcat(win_p, new_newpath);
-  if(regcomp(win_r, win_p, REG_EXTENDED | REG_ICASE)) fatal("Could not compile regex");
-
+  if(regcomp(win_r, win_p, REG_EXTENDED | REG_ICASE)){
+    warn("Could not compile regex %s",win_p);
+    free(win_p);
+    free(win_r);
+    return DETECT_NEXT_RULE;
+  }
   free(win_p);
 
   if(!regexec(win_r, (char *) res->payload, 1, m, 0)){
@@ -143,14 +152,12 @@ unsigned char index_of(struct http_request *req, struct http_response *res, void
   }
   for(i=0;text[i];i++){
     if(strstr((char *) res->payload, (char *) text[i])){
-    info("match %s", text[i]);
     goto success;
     }
   }
   for(i=0;regex[i];i++){
     if(!regexec(regex[i],(char *) res->payload,0,NULL,0)){
       
-    info("match %s", patterns[i]);
       goto success;
     }
   }

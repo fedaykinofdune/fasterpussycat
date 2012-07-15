@@ -145,7 +145,6 @@ void maybe_queue_more_hosts(){
     c=0;
     struct t_list *tl;
     char buffer[255];
-    info("queing hosts");
     while(fgets(buffer,255,file) && c<100){
       
       tl=calloc(sizeof(target_list),1);
@@ -159,7 +158,6 @@ void maybe_queue_more_hosts(){
       }
       if(!tl->host) fatal("null host");
       tl->next=target_list;
-      info("queued %s",tl->host);
       target_list=tl;
       c++;
       unqueued_hosts++;
@@ -216,7 +214,7 @@ void do_scan(){
       last_req=(req_count - queue_cur);
       http_stats(st_time);
     }
-    if((end_time-last_h_time)>10000){
+    if((end_time-last_h_time)>500){
       last_h_time=end_time;
       maybe_queue_more_hosts();
     }

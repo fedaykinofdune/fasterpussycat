@@ -167,7 +167,7 @@ void create_magic_rule(struct detect_404_info *info, char *ext, char *mime_type)
   strcat(pattern,ext);
   strcat(pattern,"$");
   
-  if(regcomp(regex, pattern, REG_EXTENDED | REG_NOSUB) ) fatal("Could not compile regex %s",pattern);
+  if(regcomp(regex, pattern, REG_EXTENDED | REG_NOSUB) ) fatal("Could not compile regex '%s'",pattern);
   rule->code=200;
   rule->method=(unsigned char *) "GET";
   rule->pattern=regex;
@@ -524,6 +524,25 @@ int is_404(struct detect_404_info *info, struct http_request *req, struct http_r
     async_request(req2);
     rc=DETECT_UNKNOWN;
   }
+  if(rc==DETECT_SUCCESS) info->success++;
+  if(rc!=DETECT_UNKNOWN) info->count++;
+  if(info->count>100){
+ 
+    if(((double) info->success/(double) info->count)>0.3 && !info->removed){
+      warn("30%% success rate over 100 queries, removing %s",req->host);
+      info->removed=1;
+      remove_host_from_queue(req->host);
+    }
+  }
+ if(info->count>300 && train){
+ 
+    if(((double) info->success/(double) info->count)>0.05 && !info->removed){
+      warn("5%% success rate over 300 queries, removing %s",req->host);
+      info->removed=1;
+      remove_host_from_queue(req->host);
+    }
+  }
+  
   return rc;
 }
 

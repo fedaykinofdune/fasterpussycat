@@ -1833,9 +1833,6 @@ void async_dns_callback(struct dns_cb_data *d){
     fake_host(req->host, req->addr);
   }
 
-  if(d->error==DNS_TIMEOUT){
-    info("dns timeout for %s",serialize_path(req,1,0));
-  }
   dns_requests--;
   real_async_request(req);
 }

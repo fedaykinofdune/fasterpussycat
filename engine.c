@@ -226,7 +226,6 @@ u8 process_test_result(struct http_request *req, struct http_response *res){
 }
 
 void add_target(u8 *host){
-  u32 cur_pos;
   u8 *url;
   struct target *t=(struct target *) ck_alloc(sizeof(struct target));
   struct http_request *first=(struct http_request *) ck_alloc(sizeof(struct http_request));
@@ -321,6 +320,7 @@ unsigned char process_first_page(struct http_request *req, struct http_response 
     info("dns error or coudn't reach url for host %s", req->host);
     return 0;
   }
+  if(req->addr) req->t->prototype_request->addr=req->addr;
   process_features(res,req->t);
   add_features_from_triggers(res,req->t);
   launch_404_probes(req->t);
