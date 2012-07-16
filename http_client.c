@@ -1784,7 +1784,7 @@ static void reuse_conn(struct conn_entry* c, u8 keep) {
 }
 
 int sort_func(struct queue_entry *a, struct queue_entry *b){
-  if(a->req->score>b->req->score) return 1;
+  if(a->req->score<b->req->score) return 1;
   if(a->req->score==b->req->score) return 0;
   return -1;
 }

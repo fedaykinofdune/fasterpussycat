@@ -495,6 +495,8 @@ struct url_test *load_test(sqlite3_stmt *stmt){
 void add_or_update_url(char *url, char *description, unsigned int flags){
   struct url_test *test,*tmp,*lng=NULL;
   int new=0;
+  
+  sqlite3_exec(db, "BEGIN", 0, 0, 0);
   if(url[strlen(url)-1]=='/') flags|=F_DIRECTORY;
   if(strstr(url, "/cgi-bin/")) flags|=F_CGI;
   if(url[0]!='/'){
@@ -521,25 +523,51 @@ void add_or_update_url(char *url, char *description, unsigned int flags){
   info("saved url!\n");
   if(new){
     load_tests();
-    if(!(flags & F_DIRECTORY)){
-      int longest=0;
-      for(tmp=get_tests();tmp;tmp=tmp->hh.next){
-        if((test->flags & F_DIRECTORY) && strstr(test->url,tmp->url)==test->url && strlen(tmp->url)>longest){
-          lng=tmp;
-          longest=strlen(tmp->url);
+    int longest=0;
+    for(tmp=get_tests();tmp;tmp=tmp->hh.next){
+      if(tmp->id==test->id) continue;
+      if((tmp->flags & F_DIRECTORY) && strstr(test->url,tmp->url)==test->url && strlen(tmp->url)>longest){
+        lng=tmp;
+        longest=strlen(tmp->url);
+      }
+      if((test->flags & F_DIRECTORY) && strstr(tmp->url,test->url)==tmp->url){
+        if(!tmp->parent){
+          struct dir_link *link=calloc(sizeof(struct dir_link),1);
+          link->parent_id=test->id;
+          link->child_id=tmp->id;
+          link->id=-1;
+          link->dirty=-1;
+          save_dir_link(link);
+        }
+        else{
+          struct dir_link *link=tmp->parent;
+          if(strlen(test->url)>strlen(link->parent->url)){
+            link->parent=test;
+            link->parent_id=test->id;
+            link->child_id=tmp->id;
+            link->count=0;
+            link->parent_success=0;
+            link->child_success=0;
+            link->parent_child_success=0;
+            save_dir_link(link);
+          }
         }
       }
-      if(longest>0){
-        struct dir_link *link=calloc(sizeof(struct dir_link),1);
-        link->child_id=test->id;
-        link->parent_id=lng->id;
-        link->id=-1;
-        link->dirty=-1;
-        save_dir_link(link);
-      }
-
     }
+    if(longest>0){
+      struct dir_link *link=calloc(sizeof(struct dir_link),1);
+      link->child_id=test->id;
+      link->parent_id=lng->id;
+      link->id=-1;
+      link->dirty=-1;
+      info("saving child %d parent %d", test->id, lng->id);
+      save_dir_link(link);
+    }
+
+
   }
+
+  sqlite3_exec(db, "COMMIT", 0, 0, 0);
 }
 
 int load_tests(){

@@ -24,6 +24,47 @@ struct annotation *annotate(struct http_response *res, char *key, char *value){
   return a;
 }
 
+unsigned char input_fields(struct http_request *req, struct http_response *res, void *data){
+  static regex_t *regex=NULL;
+  char *p;
+  char input[200];
+  int i, copy, seen_upload=0, seen_password=0;
+  regmatch_t m[1];
+  if(regex==NULL){
+    regex=ck_alloc(sizeof(regex_t));
+    regcomp(regex,"<input[^>]+",REG_EXTENDED | REG_ICASE);
+  }
+  p=(char *) res->payload;
+  while(!regexec(regex, p, 1, m, 0)){
+    copy=m[0].rm_eo-m[0].rm_so+1;
+    if(copy>198) copy=198;
+    memcpy(input,p+m[0].rm_so,copy);
+    input[copy]=0;
+    for(i=0;i<copy;i++){
+      input[i]=tolower(input[i]);
+    }
+    if((strstr(input,"type='password'") ||
+       strstr(input,"type=\"password\"") ||
+       strstr(input,"type=password")) &&
+       !seen_password){
+      seen_password=1;
+      annotate(res,"password-field",NULL);
+    }
+
+    if((strstr(input,"type='file'") ||
+       strstr(input,"type=\"file\"") ||
+       strstr(input,"type=file")) &&
+       !seen_upload){
+      seen_upload=1;
+      annotate(res,"file-upload",NULL);
+    }
+    p=p+m[0].rm_eo;
+
+  }
+  return DETECT_NEXT_RULE;
+}
+
+
 unsigned char server_path_disclosure(struct http_request *req, struct http_response *res, void *data){
   regex_t *unix_r;
   regex_t *win_r;
@@ -121,6 +162,26 @@ unsigned char server_path_disclosure(struct http_request *req, struct http_respo
   return DETECT_NEXT_RULE;
 }
 
+unsigned char realm(struct http_request *req, struct http_response *res, void *data){
+  static regex_t *realm_regex=NULL;
+  regmatch_t m[2];
+  char *realm;
+  int size;
+  char *auth;
+  if(!realm_regex){
+    realm_regex=malloc(sizeof(regex_t));
+    regcomp(realm_regex, "realm=\"(.*)\"", REG_EXTENDED | REG_ICASE);
+  }
+  auth=(char *) GET_HDR((unsigned char *) "www-authenticate",&res->hdr);
+  if(!auth) return DETECT_NEXT_RULE;
+  if(regexec(realm_regex, auth, 2, m, 0)) return DETECT_NEXT_RULE;
+  size=m[1].rm_eo-m[1].rm_so;
+  realm=ck_alloc(size+1);
+  memcpy(realm,auth+m[1].rm_so,size);
+  annotate(res,"realm",realm);
+  return DETECT_NEXT_RULE;
+}
+
 unsigned char index_of(struct http_request *req, struct http_response *res, void *data){
   static char * text[]={"<title>Directory Listing For",
 						            		"Directory Listing for",
@@ -184,6 +245,17 @@ void add_post_rules(){
   rule=new_rule(&post_rules);
   rule->code=200;
   rule->evaluate=server_path_disclosure;
+
+
+  rule=new_rule(&post_rules);
+  rule->code=200;
+  rule->evaluate=input_fields;
+
+
+
+  rule=new_rule(&post_rules);
+  rule->code=401;
+  rule->evaluate=realm;
 
 }
 
