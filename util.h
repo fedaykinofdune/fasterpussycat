@@ -8,3 +8,4 @@ void info(char *format, ...);
 void fatal(char *format, ...);
 void warn(char *format, ...);
 void debug(char *format, ...);
+char *trim(char *str);

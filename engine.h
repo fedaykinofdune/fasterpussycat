@@ -42,6 +42,7 @@ struct target {
   unsigned char *host;
   unsigned char skip_dir;
   unsigned char skip_cgi_bin;
+  unsigned char *full_host;
   struct http_request *prototype_request;
   struct feature_node *features;
   struct test_score  *test_scores;

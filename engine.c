@@ -230,16 +230,24 @@ void add_target(u8 *host){
   struct target *t=(struct target *) ck_alloc(sizeof(struct target));
   struct http_request *first=(struct http_request *) ck_alloc(sizeof(struct http_request));
   if(!host) fatal("host is null");
+  trim((char *) host);
   if(strlen((char *) host)==0) fatal("host is empty");
-  t->host=host;
+  
+  url=calloc(strlen((char *) host)+10,1);
+  if(strstr((char *) host,"http")!=(char *) host) strcat((char *) url,"http://");
+  strcat((char *) url,(char *) host);
+  if(host[strlen((char *) host)-1]!='/') strcat((char *) url,"/");
   t->features=NULL;
   t->test_scores=NULL;
-  HASH_ADD_KEYPTR( hh, targets, t->host, strlen((char *) t->host), t );
-  url=calloc(strlen((char *) host)+10,1);
-  strcat((char *) url,"http://");
-  strcat((char *) url,(char *) host);
-  strcat((char *) url,"/");
+  t->full_host=url;
+  HASH_ADD_KEYPTR( hh, targets, t->full_host, strlen((char *) t->full_host), t );
   parse_url(url,first,NULL);
+  
+  if(first->host==NULL){
+    info("couldn't parse host for '%s', skipping", url);
+    return;
+  }
+  t->host=ck_strdup(host);
   t->prototype_request=req_copy(first,0);
   t->prototype_request->method=ck_alloc(5);
   memcpy(t->prototype_request->method,"HEAD",5);
@@ -247,10 +255,6 @@ void add_target(u8 *host){
   add_default_rules(t->detect_404);
   first->callback=process_first_page;
   first->t=t;
-  if(first->host==NULL){
-    info("couldn't parse host for '%s', skipping", host);
-    return;
-  }
   async_request(first);
 }
 

@@ -1857,7 +1857,6 @@ void async_request(struct http_request* req) {
   t->next=to_dns;
   t->req=req;
   to_dns=t;
-  dns_requests++;
 }
 
 /* Schedules a new asynchronous request (does not make a copy of the
@@ -2150,6 +2149,7 @@ u32 next_from_queue(void) {
     d=to_dns->next;
     ck_free(to_dns); 
     to_dns=d;
+    dns_requests++;
   }
 
   dns_poll(adns); 
