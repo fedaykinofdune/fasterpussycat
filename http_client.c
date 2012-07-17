@@ -1809,16 +1809,19 @@ struct host_entry  *find_host_queue(u8 *host){
   return NULL;
 }
 
-void remove_host_from_queue(u8 *host) {
+void remove_host_from_queue(u8 *full_host) {
   struct host_entry *e;
   struct queue_entry *q;
   struct queue_entry *n;
-  e=find_host_queue(host);
+  struct http_request *r=ck_alloc(sizeof(struct http_request));
+  parse_url(full_host,r,0);
+  e=find_host_queue(r->host);
+  ck_free(r);
   if (!e) return;
   q=e->q_head;
   while(q){
     n=q->next;
-    if(!strcmp((char *) q->req->host,(char *) host) && !q->c){
+    if(!strcmp((char *) q->req->t->full_host,(char *) full_host) && !q->c){
       destroy_unlink_queue(q,0);
     }
     q=n;
@@ -2126,7 +2129,7 @@ connect_error:
   c->write_len  = strlen((char*)c->write_buf);
   q->req->t->requests++;
   if(q->req->t->requests>=max_requests && max_requests>0){
-     remove_host_from_queue(q->req->host);
+     remove_host_from_queue(q->req->t->full_host);
   }
 }
 

@@ -531,7 +531,7 @@ int is_404(struct detect_404_info *info, struct http_request *req, struct http_r
     if(((double) info->success/(double) info->count)>0.3 && !info->removed){
       warn("30%% success rate over 100 queries, removing %s",req->host);
       info->removed=1;
-      remove_host_from_queue(req->host);
+      remove_host_from_queue(req->t->full_host);
     }
   }
  if(info->count>300 && train){
@@ -539,7 +539,7 @@ int is_404(struct detect_404_info *info, struct http_request *req, struct http_r
     if(((double) info->success/(double) info->count)>0.05 && !info->removed){
       warn("5%% success rate over 300 queries, removing %s",req->host);
       info->removed=1;
-      remove_host_from_queue(req->host);
+      remove_host_from_queue(req->t->full_host);
     }
   }
   

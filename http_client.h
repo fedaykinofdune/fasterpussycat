@@ -292,7 +292,7 @@ struct dns_entry {
   } while (0)
 
 
-void remove_host_from_queue(u8 *host);
+void remove_host_from_queue(u8 *full_host);
 
 /* Extracts parameter value from param_array. Name is matched if
    non-NULL. Returns pointer to value data, not a duplicate string;
