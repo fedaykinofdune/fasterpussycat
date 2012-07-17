@@ -221,7 +221,7 @@ u8 process_test_result(struct http_request *req, struct http_response *res){
   return 0;
 }
 
-void add_target(u8 *host){
+struct target *add_target(u8 *host){
   u8 *url;
   struct target *t=(struct target *) ck_alloc(sizeof(struct target));
   struct http_request *first=(struct http_request *) ck_alloc(sizeof(struct http_request));
@@ -241,7 +241,7 @@ void add_target(u8 *host){
   
   if(first->host==NULL){
     info("couldn't parse host for '%s', skipping", url);
-    return;
+    return NULL;
   }
   t->host=ck_strdup(host);
   t->prototype_request=req_copy(first,0);
@@ -252,6 +252,8 @@ void add_target(u8 *host){
   first->callback=process_first_page;
   first->t=t;
   async_request(first);
+  t->after_probes=enqueue_tests;
+  return t;
 }
 
 struct http_request *new_request(struct target *t){

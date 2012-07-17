@@ -46,7 +46,7 @@
 #include "detect_404.h"
 #include "post.h"
 #include "utlist.h"
-
+#include "backup_bruteforce.h"
 
 #ifdef DEBUG_ALLOCATOR
 struct __AD_trk_obj* __AD_trk[ALLOC_BUCKETS];
@@ -63,6 +63,9 @@ u32 __AD_trk_cnt[ALLOC_BUCKETS];
 #define FLAGS 8
 #define STATISTICS 9
 #define MODE_ANALYZE 10
+#define MODE_BRUTE_BACKUP 11
+#define BRUTE_BACKUP_DAYS 12
+#define BRUTE_BACKUP_PATTERN 13
 
 struct t_list;
 
@@ -86,7 +89,6 @@ printf(
 "\n"
 "Attack mode:\n"
 "\n"
-"\n"
 "  -f, --file=FILE               read hosts from FILE or - for stdin\n"
 "  -n, --max-hosts=N             maximum simultaneous hosts to scan\n"
 "  -c, --max-conn=N              maximum connections per a host\n"
@@ -106,6 +108,17 @@ printf(
 "      --skip-blacklist-success  don't blacklist pages on success to prevent\n" 
 "                                   duplicates\n"
 "      --force-save              save results even though training mode is off\n"
+"\n"
+"Brute force backups:\n"
+"\n"
+"  --brute-backup=URL            brute force back up files at URL eg.\n" 
+"                                    http://www.example.com/backups/ \n"
+"  --brute-backup-pattern=PATTERN\n"     
+"                                over-ride default bruteforce pattern in strftime\n"
+"                                    format, macros are allowed eg:\n"
+"                                    %%BIGDOMAIN%%-%%Y-%%m-%%d.sql\n"
+"  --brute-backup-days=DAYS      days back to brute (default 365)\n"
+"  --brute-backup-no-stop        don't stop after the first success\n"
 "\n"
 "Database:\n"
 "\n"
@@ -240,6 +253,10 @@ void parse_opts(int argc, char** argv){
   struct option long_options[] = {        /* long options array. Items are all caSe SensiTivE! */
     { "add-url", no_argument, &mode, MODE_ADD_URL   }, 
     { "add-trigger", no_argument, &mode, MODE_ADD_TRIGGER},
+    { "brute-backup", required_argument, NULL, MODE_BRUTE_BACKUP},
+    { "brute-backup-days", required_argument, NULL, BRUTE_BACKUP_DAYS},
+    { "brute-backup-pattern", required_argument, NULL, BRUTE_BACKUP_PATTERN},
+    { "brute-backup-no-stop", no_argument, &backup_bruteforce_stop, 0},
     { "trigger", required_argument,NULL, TRIGGER},
     { "max-hosts", required_argument,NULL, 'n'},
     { "max-connections", required_argument,NULL, 'c'},
@@ -269,6 +286,16 @@ void parse_opts(int argc, char** argv){
         unqueued_hosts++;
         LL_APPEND(target_list,target);
         t++;
+        break;
+      case MODE_BRUTE_BACKUP:
+        backup_bruteforce_url=optarg;
+        mode=MODE_BRUTE_BACKUP;
+        break;
+      case BRUTE_BACKUP_DAYS:
+        backup_bruteforce_days_back=atoi(optarg);
+        break;
+      case BRUTE_BACKUP_PATTERN:
+        backup_bruteforce_pattern=optarg;
         break;
       case 'B':
         if (!strcasecmp("metal",optarg)) browser_type=BROWSER_METAL;
@@ -385,6 +412,17 @@ void parse_opts(int argc, char** argv){
       info("performing feature selection...");
       do_feature_selection();
       exit(0);
+    case MODE_BRUTE_BACKUP:
+      do {
+      struct target *tar;
+      skip_other_probes=1;
+      load_features();
+      tar=add_target(backup_bruteforce_url);
+      if(!tar) exit(1);
+      tar->after_probes=start_bruteforce_backup;
+      do_scan();
+      } while(0);
+      break;
   }
 
 }

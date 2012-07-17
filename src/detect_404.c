@@ -458,7 +458,7 @@ u8 process_probe(struct http_request *req,struct http_response *res){
   if(probe->type==PROBE_GENERAL) info("404 detection method for %s: %s", req->t->host, type_str);
 
   if(probe->type==PROBE_GENERAL && !skip_other_probes) enqueue_other_probes(req->t);
-  else if(!req->t->detect_404->probes) enqueue_tests(req->t);
+  else if(!req->t->detect_404->probes) req->t->after_probes(req->t);
   return 1; 
 }
 

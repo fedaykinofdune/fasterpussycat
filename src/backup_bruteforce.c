@@ -4,6 +4,12 @@
 
 unsigned int backup_bruteforce_days_back=365;
 unsigned int backup_bruteforce_stop=1;
+unsigned char *backup_bruteforce_url=NULL;
+unsigned char *backup_bruteforce_pattern=NULL;
+
+void start_bruteforce_backup(struct target *t){
+  backup_bruteforce(t,backup_bruteforce_url);
+}
 
 void backup_bruteforce(struct target *t, unsigned char *full_url){
   static int day_in_seconds=60*60*24;

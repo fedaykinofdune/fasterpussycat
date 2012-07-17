@@ -50,6 +50,7 @@ struct target {
   unsigned char skip_dir;
   unsigned char skip_cgi_bin;
   unsigned char *full_host;
+  void (*after_probes) (struct target *t);
   struct http_request *prototype_request;
   struct feature_node *features;
   struct test_score  *test_scores;
@@ -69,7 +70,7 @@ void maybe_enqueue_tests(struct target *t);
 void add_feature_to_target(struct feature *f, struct target *t);
 void process_features(struct http_response *rep, struct target *t);
 unsigned char process_test_result(struct http_request *req, struct http_response *rep);
-void add_target(unsigned char *host);
+struct target *add_target(unsigned char *host);
 void gen_random(unsigned char *s, const int len);
 unsigned char process_first_page(struct http_request *req, struct http_response *rep);
 int score_sort(struct test_score *lhs, struct test_score *rhs);
