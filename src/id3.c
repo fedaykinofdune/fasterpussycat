@@ -1,7 +1,3 @@
-#include "uthash.h"
-#include "utlist.h"
-#include "http_client.h"
-#include "db.h"
 #include "engine.h"
 #include "bayes.h"
 #include "id3.h"

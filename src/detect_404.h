@@ -1,6 +1,14 @@
+
+#ifndef FASTERPUSSYCAT_DETECT_404_H
+#define FASTERPUSSYCAT_DETECT_404_H
+
+
 #include <openssl/md5.h>
 #include <sys/types.h>
 #include <regex.h>
+#include "engine.h"
+#include "match_rule.h"
+
 #define CHECK_EXT {"php", "html", "asp", "idq","jsp"}
 #define CHECK_EXT_LEN 5
 
@@ -87,3 +95,5 @@ int is_404(struct detect_404_info *info, struct http_request *req, struct http_r
 unsigned char enforce_magic_rule(struct http_request *req, struct http_response *res, void *data);
 void create_magic_rules(struct detect_404_info *info);
 void create_magic_rule(struct detect_404_info *info, char *ext, char *mime_type);
+
+#endif

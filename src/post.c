@@ -2,15 +2,9 @@
 #include <string.h>
 #include <sys/types.h>
 #include <regex.h>
-#include "uthash.h"
-#include "utlist.h"
-#include "http_client.h"
 #include "db.h"
-#include "engine.h"
-#include "bayes.h"
-#include "util.h"
 #include "match_rule.h"
-#include "detect_404.h"
+#include "post.h"
 
 
 static struct match_rule *post_rules=NULL;

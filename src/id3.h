@@ -1,6 +1,14 @@
+
+#ifndef FASTERPUSSYCAT_ID3_H
+#define FASTERPUSSYCAT_ID3_H
+
+#include "db.h"
+
 #define ID3_ROOT 3
 #define ID3_NO_EVD 0
 #define ID3_EVD 1
+
+
 struct id3_node;
 
 struct id3_node {
@@ -20,3 +28,5 @@ struct feature *pick_feature(struct id3_node *root);
 struct id3_node *spawn_child(struct id3_node *parent, int evidence);
 struct id3_node *build_tree(struct url_test *test ,struct id3_node *root);
 struct feature_selection *collapse_tree(struct id3_node *current, struct feature_selection **head);
+
+#endif

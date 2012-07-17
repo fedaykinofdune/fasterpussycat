@@ -1,16 +1,4 @@
-#include <sys/types.h>
-#include <regex.h>
-#include <openssl/md5.h>
-
-#include "uthash.h"
-#include "utlist.h"
-#include "http_client.h"
-#include "db.h"
-#include "engine.h"
-#include "bayes.h"
-#include "util.h"
 #include "match_rule.h"
-#include "detect_404.h"
 
 
 unsigned char detected_success(struct http_request *req, struct http_response *res, void *data){

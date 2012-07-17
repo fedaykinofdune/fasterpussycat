@@ -1,11 +1,9 @@
 #include <math.h>
 #include <stdio.h>
-#include "utlist.h"
-#include <gmp.h>
-#include "http_client.h"
+
 #include "db.h"
-#include "engine.h"
 #include "bayes.h"
+#include "utlist.h"
 void setup_bayes(){
 
 }

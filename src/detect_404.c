@@ -2,14 +2,8 @@
 #include <regex.h>
 #include <openssl/md5.h>
 #include <magic.h>
-#include "uthash.h"
-#include "utlist.h"
-#include "http_client.h"
-#include "db.h"
 #include "engine.h"
-#include "bayes.h"
 #include "util.h"
-#include "match_rule.h"
 #include "detect_404.h"
 
 

@@ -2,17 +2,13 @@
 #include <gmp.h>
 #include <string.h>
 #include <sys/types.h>
-#include <regex.h>
-#include "uthash.h"
-#include "utlist.h"
-#include "http_client.h"
-#include "db.h"
 #include "engine.h"
 #include "bayes.h"
 #include "util.h"
 #include "match_rule.h"
 #include "detect_404.h"
 #include "post.h"
+#include "utlist.h"
 
 static struct target *targets=NULL;
 int check_dir=1;
@@ -283,12 +279,25 @@ struct http_request *new_request_with_method_and_path(struct target *t, unsigned
   return r;
 }
 
-unsigned char *macro_expansion(struct target *t, struct url_test *test){
+unsigned char *target_and_test_to_url(struct target *t, struct url_test *test){
+    unsigned char *f=serialize_path(t->prototype_request,1,0);
+    unsigned char *ret=ck_alloc(strlen((char *) f)+strlen((char *) test->url)+1);
+    strcat((char *) ret, (char *) f);
+    strcat((char *) ret, (char *) test->url);
+    return ret;
+}
+
+unsigned char *macro_expansion(const unsigned char *url){
     static regex_t *full_domain_regex=NULL;
     static regex_t *longest_domain_part_regex=NULL;
     int longest_c=0;
     char *longest=NULL, *temp=NULL;
     char *host_copy;
+    
+    if(!strstr((char *) url,"%HOSTNAME%") && !strstr((char *) url,"%BIGDOMAIN%")) return ck_strdup(url); /* nothing to do */
+
+    struct http_request *r=ck_alloc(sizeof(struct http_request));
+    parse_url(url,r,0);
     if(!full_domain_regex){
       full_domain_regex=malloc(sizeof(regex_t));
       regcomp(full_domain_regex, "%HOSTNAME%", 0);
@@ -298,11 +307,11 @@ unsigned char *macro_expansion(struct target *t, struct url_test *test){
       longest_domain_part_regex=malloc(sizeof(regex_t));
       regcomp(longest_domain_part_regex, "%BIGDOMAIN%", 0);
     }
-    int size=strlen(test->url)+100;
+    int size=strlen(url)+100;
     char *url_copy=ck_alloc(size); /* plenty of space */
-    memcpy(url_copy,test->url,strlen(test->url));
-    rreplace (url_copy, size, full_domain_regex, (char *) t->host);
-    host_copy=ck_strdup(t->host);
+    memcpy(url_copy,url,strlen(url));
+    rreplace (url_copy, size, full_domain_regex, (char *) r->host);
+    host_copy=ck_strdup(r->host);
     temp=strtok(host_copy,".");
     while(temp){
       if(strlen(temp)>longest_c){
@@ -313,6 +322,7 @@ unsigned char *macro_expansion(struct target *t, struct url_test *test){
     }
     if(longest_c>0) rreplace (url_copy, size, longest_domain_part_regex, longest);
     ck_free(host_copy);
+    ck_free(r);
     return (unsigned char *) url_copy;
 }
 
@@ -352,7 +362,7 @@ void enqueue_tests(struct target *t){
   struct test_score *score;
   struct http_request *request;
   struct dir_link_res *dir_res;
-  
+  unsigned char *before_expansion; 
   struct dir_link_res *parent_res;
   unsigned char *url_cpy;
   unsigned int queued=0;
@@ -405,7 +415,9 @@ void enqueue_tests(struct target *t){
     method=(unsigned char*) recommend_method(t->detect_404, score->test);
     if(method==RECOMMEND_SKIP) continue;
     request=new_request(t);
-    url_cpy=macro_expansion(t,score->test);
+    before_expansion=target_and_test_to_url(t,score->test);
+    url_cpy=macro_expansion(before_expansion);
+    ck_free(before_expansion);
 
     tokenize_path(url_cpy, request, 0);
     ck_free(url_cpy);

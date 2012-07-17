@@ -1,10 +1,16 @@
+#ifndef FASTERPUSSYCAT_DB_H
+#define FASTERPUSSYCAT_DB_H
+
 #include "uthash.h"
+#include "http_client.h"
 /* db.c */
 
 #define F_CRITICAL  (1 << 0) /* 0x01 */
 #define F_DIRECTORY (1 << 1) /* 0x02 */
 #define F_INFO (1 << 2) /* 0x04 */
 #define F_CGI (1 << 3) /* 0x08 */
+
+struct target;
 
 struct feature_selection;
 
@@ -122,3 +128,4 @@ int load_ftr(void);
 int load_tests(void);
 struct url_test *get_tests(void);
 void add_or_update_url(char *url, char *description, unsigned int flags);
+#endif

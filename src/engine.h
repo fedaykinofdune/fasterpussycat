@@ -1,3 +1,7 @@
+
+#ifndef FASTERPUSSYCAT_ENGINE_H
+#define FASTERPUSSYCAT_ENGINE_H
+
 #define MAX_404_QUERIES 5
 
 #define DETECT_404_NONE 0
@@ -6,6 +10,9 @@
 
 #define MAX_REPEATED_SIZE_COUNT 10
 
+#include "http_client.h"
+#include "db.h"
+#include "uthash.h"
 
 extern int check_dir;
 extern int check_cgi_bin;
@@ -54,6 +61,7 @@ struct target {
 };
 
 /* engine.c */
+unsigned char *macro_expansion(const unsigned char *url);
 void output_result(struct http_request *req, struct http_response *res);
 struct target *target_by_host(unsigned char *host);
 void add_feature_label_to_target(const char *label, struct target *t);
@@ -71,3 +79,5 @@ void maybe_update_dir_link(struct req_pointer *pointer);
 struct http_request *new_request(struct target *t);
 struct http_request *new_request_with_method(struct target *t, unsigned char *method);
 struct http_request *new_request_with_method_and_path(struct target *t, unsigned char *method, unsigned char *path);
+
+#endif

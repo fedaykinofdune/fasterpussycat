@@ -192,9 +192,9 @@ void set_value(u8 type, u8* name, u8* val,
 /* Convert a fully-qualified or relative URL string to a proper http_request
    representation. Returns 0 on success, 1 on format error. */
 
-u8 parse_url(u8* url, struct http_request* req, struct http_request* ref) {
+u8 parse_url(const u8* url, struct http_request* req, struct http_request* ref) {
 
-  u8* cur = url;
+  const u8* cur = url;
   u32 maybe_proto = strcspn((char*)url, ":/?#@");
   u8 has_host = 0, add_slash = 1;
 
@@ -418,9 +418,10 @@ u8 parse_url(u8* url, struct http_request* req, struct http_request* ref) {
 /* URL-decodes a string. 'Plus' parameter governs the behavior on +
    signs (as they have a special meaning only in query params, not in path). */
 
-u8* url_decode_token(u8* str, u32 len, u8 plus) {
+u8* url_decode_token(const u8* str, u32 len, u8 plus) {
   u8 *ret = ck_alloc(len + 1);
-  u8 *src = str, *dst = ret;
+  const u8 *src = str;
+  u8 *dst = ret;
   char *hex_str = "0123456789abcdef";
 
   while (len--) {
@@ -489,9 +490,9 @@ u8* url_encode_token(u8* str, u32 len, u8 also_slash) {
 /* Split path at known "special" character boundaries, URL decode values,
    then put them in the provided http_request struct. */
 
-void tokenize_path(u8* str, struct http_request* req, u8 add_slash) {
+void tokenize_path(const u8* str, struct http_request* req, u8 add_slash) {
 
-  u8* cur;
+  const u8* cur;
   u8  know_dir = 0;
 
   while (*str == '/') str++;

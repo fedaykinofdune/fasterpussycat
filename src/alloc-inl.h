@@ -97,7 +97,7 @@ static inline void* __DFL_ck_realloc(void* orig, u32 size) {
 }
 
 
-static inline void* __DFL_ck_strdup(u8* str) {
+static inline void* __DFL_ck_strdup(const u8* str) {
   void* ret;
   u32   size;
 
@@ -118,7 +118,7 @@ static inline void* __DFL_ck_strdup(u8* str) {
 }
 
 
-static inline void* __DFL_ck_memdup(u8* mem, u32 size) {
+static inline void* __DFL_ck_memdup(const u8* mem, u32 size) {
   void* ret;
 
   if (!mem || !size) return NULL;
