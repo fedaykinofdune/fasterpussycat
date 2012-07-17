@@ -1824,7 +1824,7 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 
 
-PACKAGE=fasterpussycat.c
+PACKAGE=fasterpussycat
 VERSION=0.0.1
 
 am__api_version='1.11'

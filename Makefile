@@ -15,10 +15,10 @@
 
 
 
-pkgdatadir = $(datadir)/fasterpussycat.c
-pkgincludedir = $(includedir)/fasterpussycat.c
-pkglibdir = $(libdir)/fasterpussycat.c
-pkglibexecdir = $(libexecdir)/fasterpussycat.c
+pkgdatadir = $(datadir)/fasterpussycat
+pkgincludedir = $(includedir)/fasterpussycat
+pkglibdir = $(libdir)/fasterpussycat
+pkglibexecdir = $(libexecdir)/fasterpussycat
 am__cd = CDPATH="$${ZSH_VERSION+.}$(PATH_SEPARATOR)" && cd
 install_sh_DATA = $(install_sh) -c -m 644
 install_sh_PROGRAM = $(install_sh) -c
@@ -110,7 +110,7 @@ CPPFLAGS =
 CRYPTO_CFLAGS =  
 CRYPTO_LIBS = -lcrypto  
 CYGPATH_W = echo
-DEFS = -DPACKAGE_NAME=\"\" -DPACKAGE_TARNAME=\"\" -DPACKAGE_VERSION=\"\" -DPACKAGE_STRING=\"\" -DPACKAGE_BUGREPORT=\"\" -DPACKAGE_URL=\"\" -DPACKAGE=\"fasterpussycat.c\" -DVERSION=\"0.0.1\"
+DEFS = -DPACKAGE_NAME=\"\" -DPACKAGE_TARNAME=\"\" -DPACKAGE_VERSION=\"\" -DPACKAGE_STRING=\"\" -DPACKAGE_BUGREPORT=\"\" -DPACKAGE_URL=\"\" -DPACKAGE=\"fasterpussycat\" -DVERSION=\"0.0.1\"
 DEPDIR = .deps
 ECHO_C = 
 ECHO_N = -n
@@ -132,7 +132,7 @@ MAKEINFO = ${SHELL} /home/alhazred/src/fasterpussycat/missing --run makeinfo
 MKDIR_P = /bin/mkdir -p
 M_LIBS = -lm
 OBJEXT = o
-PACKAGE = fasterpussycat.c
+PACKAGE = fasterpussycat
 PACKAGE_BUGREPORT = 
 PACKAGE_NAME = 
 PACKAGE_STRING = 

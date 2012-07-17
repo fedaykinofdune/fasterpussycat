@@ -1,6 +1,6 @@
 AC_INIT(src/fasterpussycat.c)
 
-PACKAGE=fasterpussycat.c
+PACKAGE=fasterpussycat
 VERSION=0.0.1
 
 AM_INIT_AUTOMAKE($PACKAGE, $VERSION)
