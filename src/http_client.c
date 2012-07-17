@@ -1810,6 +1810,23 @@ struct host_entry  *find_host_queue(u8 *host){
   return NULL;
 }
 
+void remove_host_from_queue_with_callback(u8 *full_host, u8 (*callback)(struct http_request*, struct http_response*)){
+
+  struct http_request *r=ck_alloc(sizeof(struct http_request));
+  parse_url(full_host,r,0);
+  struct queue_entry *q;
+  struct queue_entry *n;
+  struct host_entry *e=find_host_queue(r->host);
+  ck_free(r);
+  if(!e) return;
+  q=e->q_head;
+  while(q){
+    n=q->next;
+    if(!q->c && q->req->callback==callback && !strcmp((char *) full_host, (char *) q->req->t->full_host)) destroy_unlink_queue(q,0);
+    q=n;
+  }
+}
+
 void remove_host_from_queue(u8 *full_host) {
   struct host_entry *e;
   struct queue_entry *q;

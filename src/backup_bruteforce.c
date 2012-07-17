@@ -1,18 +1,6 @@
-#include <time.h>
-#include <gmp.h>
-#include <string.h>
-#include <sys/types.h>
-#include <regex.h>
-#include "uthash.h"
-#include "utlist.h"
 #include "http_client.h"
-#include "db.h"
-#include "engine.h"
-#include "bayes.h"
-#include "util.h"
-#include "match_rule.h"
-#include "detect_404.h"
 #include "post.h"
+#include "backup_bruteforce.h"
 
 unsigned int backup_bruteforce_days_back=365;
 unsigned int backup_bruteforce_stop=1;
@@ -66,12 +54,7 @@ u8 process_backup_bruteforce(struct http_request *req, struct http_response *res
   annotate(res,"found-backup",NULL);
   output_result(req,res);
   if(backup_bruteforce_stop){
-    struct queue_entry *q=find_host_queue(req->t->full_host),*n;
-    while(q){
-      n=q->next;
-      if(!q->c && q->req->callback==process_backup_brute_force && !strcmp((char *) q->req->t->full_host, (char *) req->t->full_host)) destroy_unlink_queue(q);
-      q=n;
-    }
+    remove_host_from_queue_with_callback(req->t->full_host,process_backup_bruteforce);
   }
 
 }

@@ -291,7 +291,7 @@ struct dns_entry {
     ck_free((_ar)->v); \
   } while (0)
 
-
+void remove_host_from_queue_with_callback(u8 *full_host, u8 (*callback)(struct http_request*, struct http_response*));
 void remove_host_from_queue(u8 *full_host);
 
 /* Extracts parameter value from param_array. Name is matched if

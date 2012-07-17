@@ -1,5 +1,8 @@
 *.sqlite3
 *.o
-sametest
-test
-skipfish
+fasterpussycat
+aclocal.m4
+autom4te.cache/
+config.*
+src/.deps/
+

@@ -1,8 +1,10 @@
 #ifndef FASTERPUSSYCAT_BACKUP_BRUTEFORCE_H
 #define FASTERPUSSYCAT_BACkUP_BRUTEFORCE_H
 
-/* backup_bruteforce.c */
+#include "http_client.h"
+#include "engine.h"
 
+/* backup_bruteforce.c */
 extern unsigned int backup_bruteforce_stop;
 extern unsigned int backup_bruteforce_days_back;
 

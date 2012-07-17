@@ -47,7 +47,8 @@ PROGRAMS = $(bin_PROGRAMS)
 am_fasterpussycat_OBJECTS = fasterpussycat.$(OBJEXT) engine.$(OBJEXT) \
 	bayes.$(OBJEXT) post.$(OBJEXT) tadns.$(OBJEXT) \
 	http_client.$(OBJEXT) match_rule.$(OBJEXT) id3.$(OBJEXT) \
-	ac.$(OBJEXT) db.$(OBJEXT) util.$(OBJEXT) detect_404.$(OBJEXT)
+	ac.$(OBJEXT) db.$(OBJEXT) util.$(OBJEXT) detect_404.$(OBJEXT) \
+	backup_bruteforce.$(OBJEXT)
 fasterpussycat_OBJECTS = $(am_fasterpussycat_OBJECTS)
 am__DEPENDENCIES_1 =
 fasterpussycat_DEPENDENCIES = $(am__DEPENDENCIES_1) \
@@ -166,7 +167,7 @@ top_srcdir = ..
 AM_CXXFLAGS = $(IDN_CFLAGS) $(CRYPTO_CFLAGS) $(M_CFLAGS) $(MAGIC_CFLAGS) $(SQLITE3_CFLAGS) $(SSL_CFLAGS) $(Z_CFLAGS)
 fasterpussycat_SOURCES = fasterpussycat.c engine.c engine.h bayes.c bayes.h post.c post.h tadns.c tadns.h \
   http_client.c http_client.h match_rule.c match_rule.h id3.c id3.h ac.c ac.h db.c db.h string-inl.h alloc-inl.h \
-  util.c util.h detect_404.h detect_404.c
+  util.c util.h detect_404.h detect_404.c backup_bruteforce.c backup_bruteforce.h
 
 fasterpussycat_LDADD = $(IDN_LIBS)  $(CRYPTO_LIBS) $(M_LIBS) $(MAGIC_LIBS) $(SQLITE3_LIBS) $(SSL_LIBS) $(Z_LIBS)
 all: all-am
@@ -251,6 +252,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 include ./$(DEPDIR)/ac.Po
+include ./$(DEPDIR)/backup_bruteforce.Po
 include ./$(DEPDIR)/bayes.Po
 include ./$(DEPDIR)/db.Po
 include ./$(DEPDIR)/detect_404.Po
