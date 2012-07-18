@@ -24,18 +24,14 @@ unsigned char detected_fail(struct http_request *req, struct http_response *res,
 
 
 
+/* Compares the checksums for two responses: */
+
 int same_page(struct http_sig* sig1, struct http_sig* sig2) {
   u32 i, bucket_fail = 0;
   s32 total_diff  = 0;
   u32 total_scale = 0;
 
-  /* Different response codes: different page */
-  if (sig1->code != sig2->code)
-    return 0;
-
-  /* One has text and the other hasnt: different page */
-  if (sig1->has_text != sig2->has_text)
-    return 0;
+  if (sig1->code != sig2->code) return 0;
 
   for (i=0;i<FP_SIZE;i++) {
     s32 diff = sig1->data[i] - sig2->data[i];
@@ -45,15 +41,16 @@ int same_page(struct http_sig* sig1, struct http_sig* sig2) {
         abs(diff) > FP_T_ABS)
       if (++bucket_fail > FP_B_FAIL) return 0;
 
-    total_diff     += diff;
-    total_scale    += scale;
+    total_diff  += diff;
+    total_scale += scale;
 
   }
-
   if (abs(total_diff) > 1 + (total_scale * FP_T_REL / 100))
     return 0;
 
+  debug("same page");
   return 1;
+
 }
 
 
