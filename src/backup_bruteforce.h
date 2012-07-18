@@ -9,6 +9,7 @@ extern unsigned int backup_bruteforce_stop;
 extern unsigned int backup_bruteforce_days_back;
 extern unsigned char *backup_bruteforce_url;
 extern unsigned char *backup_bruteforce_pattern;
+extern unsigned int backup_bruteforce_slash;
 
 void start_bruteforce_backup(struct target *t);
 void backup_bruteforce(struct target *t, unsigned char *full_url);

@@ -120,6 +120,7 @@ printf(
 "       --brute-backup-days=DAYS\n"
 "                                days back to brute (default 365)\n"
 "       --brute-backup-no-stop   don't stop after the first success\n"
+"       --brute-backup-no-slash  don't add trailing dir slash\n"
 "\n"
 "Database:\n"
 "\n"
@@ -258,6 +259,7 @@ void parse_opts(int argc, char** argv){
     { "brute-backup-days", required_argument, NULL, BRUTE_BACKUP_DAYS},
     { "brute-backup-pattern", required_argument, NULL, BRUTE_BACKUP_PATTERN},
     { "brute-backup-no-stop", no_argument, &backup_bruteforce_stop, 0},
+    { "brute-backup-no-slash", no_argument, &backup_bruteforce_slash, 0},
     { "trigger", required_argument,NULL, TRIGGER},
     { "max-hosts", required_argument,NULL, 'n'},
     { "max-connections", required_argument,NULL, 'c'},
@@ -417,7 +419,6 @@ void parse_opts(int argc, char** argv){
       do {
       struct target *tar;
       skip_other_probes=1;
-      load_features();
       tar=add_target(backup_bruteforce_url);
       if(!tar) exit(1);
       tar->after_probes=start_bruteforce_backup;
