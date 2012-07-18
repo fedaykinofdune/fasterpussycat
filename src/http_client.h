@@ -84,6 +84,7 @@ struct queue_entry;
 struct http_sig {
   u32 code;                     /* HTTP response code           */
   u32 data[FP_SIZE];            /* Response fingerprint data    */
+  int has_text;
 };
 
 

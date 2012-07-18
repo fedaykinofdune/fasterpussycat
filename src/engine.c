@@ -421,7 +421,7 @@ void enqueue_tests(struct target *t){
     url_cpy=macro_expansion(before_expansion);
     ck_free(before_expansion);
 
-    tokenize_path(url_cpy, request, 0);
+    parse_url(url_cpy, request, 0);
     ck_free(url_cpy);
     request->test=score->test;
     request->callback=process_test_result;
