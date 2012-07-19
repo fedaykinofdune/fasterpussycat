@@ -4166,6 +4166,8 @@ done
 ac_fn_c_check_header_mongrel "$LINENO" "idna.h" "ac_cv_header_idna_h" "$ac_includes_default"
 if test "x$ac_cv_header_idna_h" = x""yes; then :
 
+else
+  as_fn_error $? "failed to find the required header file idna.h" "$LINENO" 5
 fi
 
 
@@ -4350,18 +4352,24 @@ fi
 ac_fn_c_check_header_mongrel "$LINENO" "openssl/ssl.h" "ac_cv_header_openssl_ssl_h" "$ac_includes_default"
 if test "x$ac_cv_header_openssl_ssl_h" = x""yes; then :
 
+else
+  as_fn_error $? "failed to find the required header file openssl/ssl.h" "$LINENO" 5
 fi
 
 
 ac_fn_c_check_header_mongrel "$LINENO" "openssl/err.h" "ac_cv_header_openssl_err_h" "$ac_includes_default"
 if test "x$ac_cv_header_openssl_err_h" = x""yes; then :
 
+else
+  as_fn_error $? "failed to find the required header file openssl/err.h" "$LINENO" 5
 fi
 
 
 ac_fn_c_check_header_mongrel "$LINENO" "openssl/md5.h" "ac_cv_header_openssl_md5_h" "$ac_includes_default"
 if test "x$ac_cv_header_openssl_md5_h" = x""yes; then :
 
+else
+  as_fn_error $? "failed to find the required header file openssl/md5.h" "$LINENO" 5
 fi
 
 
@@ -4424,6 +4432,8 @@ fi
 ac_fn_c_check_header_mongrel "$LINENO" "sqlite3.h" "ac_cv_header_sqlite3_h" "$ac_includes_default"
 if test "x$ac_cv_header_sqlite3_h" = x""yes; then :
 
+else
+  as_fn_error $? "failed to find the required header file sqlite3.h" "$LINENO" 5
 fi
 
 
@@ -4471,6 +4481,8 @@ fi
 ac_fn_c_check_header_mongrel "$LINENO" "magic.h" "ac_cv_header_magic_h" "$ac_includes_default"
 if test "x$ac_cv_header_magic_h" = x""yes; then :
 
+else
+  as_fn_error $? "failed to find the required header file magic.h" "$LINENO" 5
 fi
 
 
@@ -4518,6 +4530,8 @@ fi
 ac_fn_c_check_header_mongrel "$LINENO" "zlib.h" "ac_cv_header_zlib_h" "$ac_includes_default"
 if test "x$ac_cv_header_zlib_h" = x""yes; then :
 
+else
+  as_fn_error $? "failed to find the required header file zlib.h" "$LINENO" 5
 fi
 
 
@@ -4565,6 +4579,8 @@ fi
 ac_fn_c_check_header_mongrel "$LINENO" "math.h" "ac_cv_header_math_h" "$ac_includes_default"
 if test "x$ac_cv_header_math_h" = x""yes; then :
 
+else
+  as_fn_error $? "failed to find the required header file math.h" "$LINENO" 5
 fi
 
 
