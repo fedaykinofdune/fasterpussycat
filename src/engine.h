@@ -59,9 +59,11 @@ struct target {
   struct request_responses *results;
   struct dir_link_res *link_map;
   int requests;
+  char *upload_file;
 };
 
 /* engine.c */
+struct target *get_targets();
 unsigned char *macro_expansion(const unsigned char *url);
 void output_result(struct http_request *req, struct http_response *res);
 struct target *target_by_host(unsigned char *host);

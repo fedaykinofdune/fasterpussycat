@@ -47,6 +47,7 @@
 #include "post.h"
 #include "utlist.h"
 #include "backup_bruteforce.h"
+#include "find_uploaded_file.h"
 
 #ifdef DEBUG_ALLOCATOR
 struct __AD_trk_obj* __AD_trk[ALLOC_BUCKETS];
@@ -66,6 +67,7 @@ u32 __AD_trk_cnt[ALLOC_BUCKETS];
 #define MODE_BRUTE_BACKUP 11
 #define BRUTE_BACKUP_DAYS 12
 #define BRUTE_BACKUP_PATTERN 13
+#define MODE_FIND_UPLOAD 14
 
 struct t_list;
 
@@ -111,16 +113,16 @@ printf(
 "\n"
 "Brute force backups:\n"
 "\n"
-"       --brute-backup=URL       brute force back up files at URL eg.\n" 
+"      --brute-backup=URL        brute force back up files at URL eg.\n" 
 "                                   http://www.example.com/backups/ \n"
-"       --brute-backup-pattern=PATTERN\n"     
+"      --brute-backup-pattern=PATTERN\n"     
 "                                over-ride default bruteforce pattern in strftime\n"
-"                                    format, macros are allowed eg:\n"
-"                                    %%BIGDOMAIN%%-%%Y-%%m-%%d.sql\n"
-"       --brute-backup-days=DAYS\n"
+"                                   format, macros are allowed eg:\n"
+"                                   %%BIGDOMAIN%%-%%Y-%%m-%%d.sql\n"
+"      --brute-backup-days=DAYS\n"
 "                                days back to brute (default 365)\n"
-"       --brute-backup-no-stop   don't stop after the first success\n"
-"       --brute-backup-no-slash  don't add trailing dir slash\n"
+"      --brute-backup-no-stop    don't stop after the first success\n"
+"      --brute-backup-no-slash   don't add trailing dir slash\n"
 "\n"
 "Database:\n"
 "\n"
@@ -129,9 +131,15 @@ printf(
 "      --add-url                 adds or updates a url test in the database,\n"
 "                                   requires the url and optional flag option.\n"
 "      --url=PATH                the url path to manipulate NOTE: no host or\n"
-"                                  protocol sections i.e. \"/index.php\"\n"
+"                                   protocol sections i.e. \"/index.php\"\n"
 "      --statistics              print statistics\n"
 "      --analyze                 build decision tree\n"
+"\n"
+"Misc:\n"
+"\n"
+"      --find-uploaded-file FILE\n"
+"                                search for an uploaded file in common locations,\n"
+"                                   must specify a host\n"
 "\n"
 "Other:\n"
 "  -h  --help                    this help\n"
@@ -142,6 +150,7 @@ printf(
 static u8 enable_trap=0;
 static u8 stop_soon;
 static u32 progress=10;
+static u8 no_add_from_queue=0;
 static void ctrlc_handler(int sig) {
   if(enable_trap) stop_soon = 1;
   else exit(0);
@@ -155,6 +164,8 @@ u8 print_body(struct http_request *req, struct http_response *rep){
 void maybe_queue_more_hosts(){
   struct t_list *n=NULL;
   int c=0;
+  
+  if(no_add_from_queue) return;
 
   if(file){
     c=0;
@@ -251,6 +262,7 @@ void parse_opts(int argc, char** argv){
   char *trigger=NULL;
   char *feature=NULL;
   char *description="";
+  char *upload_file=NULL;
   unsigned int flags=0;
   struct option long_options[] = {        /* long options array. Items are all caSe SensiTivE! */
     { "add-url", no_argument, &mode, MODE_ADD_URL   }, 
@@ -277,6 +289,7 @@ void parse_opts(int argc, char** argv){
     { "blacklist-success", no_argument, &blacklist_success, 0},
     { "force-save", no_argument, &force_save, 1},
     { "analyze", no_argument, &mode, MODE_ANALYZE},
+    { "find-uploaded-file", required_argument, NULL, MODE_FIND_UPLOAD },
     { 0,    0,    0,    0   }       /* terminating -0 item */
   };
   int opt;
@@ -379,7 +392,12 @@ void parse_opts(int argc, char** argv){
           }
         }
         break;
+      case MODE_FIND_UPLOAD:
+        mode=MODE_FIND_UPLOAD;
+        upload_file=optarg;
+        break;
     }
+  
   }
 
   if(train){
@@ -392,6 +410,26 @@ void parse_opts(int argc, char** argv){
   }
 
   switch(mode){
+    case MODE_FIND_UPLOAD:
+      do {
+        struct target *tar;
+        if(!t){
+          fprintf(stderr, "You must specify a host");
+          exit(1);
+        }
+        skip_other_probes=1;
+        tar=add_target(target_list->host) ; /* first target only */
+        no_add_from_queue=1;
+        if(!tar){
+          fprintf(stderr,"Couldn't create target '%s'",target_list->host);
+          exit(1);
+        }
+
+        tar->upload_file=upload_file;
+        tar->after_probes=start_find_uploaded_file;
+        do_scan();
+      } while(0);
+      break;
     case MODE_ADD_URL:
       add_or_update_url(url, description, flags);
       exit(0);

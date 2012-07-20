@@ -25,6 +25,11 @@ struct target *target_by_host(u8 *host){
   return t;
 }
 
+
+struct target *get_targets(){
+  return targets;
+}
+
 void output_result(struct http_request *req, struct http_response *res){
   struct annotation *a;
   char line[80];
