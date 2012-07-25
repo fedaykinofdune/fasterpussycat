@@ -165,6 +165,7 @@ printf(
 "                                   'backup' etc\n"
 "      --mime-type MIME          mime-type to search for\n"
 "      --recent DAYS             find only results that are less than DAYS old\n"
+"      --all                     output everything\n"
 "\n"
 "Misc:\n"
 "\n"
@@ -291,6 +292,7 @@ void parse_opts(int argc, char** argv){
   int t=0;
   int recent=0;
   int code=0;
+  int query_all=0;
   char *post_key=NULL;
   char *url=NULL;
   char *mime=NULL;
@@ -309,6 +311,7 @@ void parse_opts(int argc, char** argv){
     { "brute-backup-no-slash", no_argument, &backup_bruteforce_slash, 0},
     { "store-successes", no_argument, NULL, 'S'},
     { "query", no_argument, &mode, MODE_QUERY}, 
+    { "all", no_argument, &query_all, 1}, 
     { "code", required_argument, NULL, CODE}, 
     { "post-key", required_argument, NULL, POST_KEY}, 
     { "mime-type", required_argument, NULL, MIME}, 
@@ -483,14 +486,14 @@ void parse_opts(int argc, char** argv){
       do {
         struct target *tar;
         if(!t){
-          fprintf(stderr, "You must specify a host");
+          fprintf(stderr, "You must specify a host\n");
           exit(1);
         }
         skip_other_probes=1;
         tar=add_target(target_list->host) ; /* first target only */
         no_add_from_queue=1;
         if(!tar){
-          fprintf(stderr,"Couldn't create target '%s'",target_list->host);
+          fprintf(stderr,"Couldn't create target '%s'\n",target_list->host);
           exit(1);
         }
 
@@ -518,6 +521,10 @@ void parse_opts(int argc, char** argv){
       break;
     case MODE_QUERY:
       do {
+        if(!url && !code && !mime && !flags && !recent && !post_key && !query_all){
+          fprintf(stderr,"You must specify at least one attribute to search on (or --all)\n");
+          exit(1);
+        }
         struct query *q=ck_alloc(sizeof(struct query));
         q->url=url;
         q->code=code;

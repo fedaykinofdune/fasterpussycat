@@ -171,7 +171,6 @@ void do_query(struct query *q){
   if(q->mime) r_strcat(&sql, sqlite3_mprintf(" AND mime='%%%q%%'",q->mime));
   if(q->post_key) r_strcat(&sql, sqlite3_mprintf(" AND results_post.key='%%%q%%'",q->post_key));
   r_strcat(&sql," ORDER BY results.id");
-  info("sql %s",sql);
   sqlite3_stmt *s;
   sqlite3_prepare_v2(db, sql, -1, &s,NULL);
   int last_id=-1;
