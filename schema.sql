@@ -10,6 +10,6 @@ CREATE INDEX "index_feature_selections_url" ON "feature_selections" ("url_test_i
 CREATE UNIQUE INDEX "index_feature_test_results_feature_url" ON "feature_test_results" ("feature_id","url_test_id");
 CREATE UNIQUE INDEX "index_trigger" ON "aho_corasick_feature_triggers" ("trigger");
 CREATE UNIQUE INDEX "index_url" ON "url_tests" ("url");
-CREATE TABLE "results" ("id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, "time" INTEGER NOT NULL, "url" VARCHAR NOT NULL, "code" INTEGER NOT NULL, "mime" VARCHAR NOT NULL, "flags" INTEGER NOT NULL);
+CREATE TABLE "results" ("id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, "time" INTEGER NOT NULL, "url" VARCHAR NOT NULL, "code" INTEGER NOT NULL, "mime" VARCHAR NOT NULL, "flags" INTEGER NOT NULL, "content_length" INTEGER NOT NULL);
 CREATE TABLE "results_post" ("id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, "result_id" INTEGER NOT NULL, "key" VARCHAR NOT NULL, "value" VARCHAR);
 

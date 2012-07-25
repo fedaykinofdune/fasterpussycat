@@ -14,7 +14,7 @@
 #include "util.h"
 
 
-#define INSERT_RESULT_SQL "INSERT INTO results (code, time, url, mime, flags) VALUES (?,?,?,?,?)"
+#define INSERT_RESULT_SQL "INSERT INTO results (code, time, url, mime, flags, content_length) VALUES (?,?,?,?,?,?)"
 #define INSERT_RESULT_POST_SQL "INSERT INTO results_post (result_id, key, value) VALUES (?,?,?)"
 #define INSERT_DIR_LINK_SQL "INSERT INTO dir_links (parent_id, child_id, count, parent_success, child_success, parent_child_success) VALUES (?,?,?,?,?,?)"
 
@@ -39,6 +39,7 @@
 
 struct request_response *successes=NULL;
 int store_successes=0;
+
 static AC_STRUCT *aho_corasick;
 static struct url_test *test_map=NULL;
 static struct feature_test_result *result_map=NULL;
@@ -288,12 +289,15 @@ void save_successes(){
 }
 
 void save_success(struct http_request *req, struct http_response *res){
+  int content_length=0;
+  if(GET_HDR((unsigned char *) "content-length", &res->hdr)) content_length=atoi(GET_HDR((unsigned char *) "content-length", &res->hdr));
   sqlite3_reset(insert_result_stmt);
   sqlite3_bind_int(insert_result_stmt,1,res->code);
   sqlite3_bind_int(insert_result_stmt,2,time(NULL));
   sqlite3_bind_text(insert_result_stmt,3, serialize_path(req,1,0), -1, SQLITE_TRANSIENT);
   sqlite3_bind_text(insert_result_stmt,4, res->header_mime, -1, SQLITE_TRANSIENT);
   sqlite3_bind_int(insert_result_stmt,5, (req->test ? req->test->flags : 0));
+  sqlite3_bind_int(insert_result_stmt,6, content_length);
   if(sqlite3_step(insert_result_stmt)!=SQLITE_DONE){
     fatal("SOME KIND OF FAIL IN RESULT INSERT %s\n",sqlite3_errmsg(db));
   }
