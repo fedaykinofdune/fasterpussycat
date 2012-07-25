@@ -94,6 +94,7 @@ printf(
 "\n"
 "General:\n"
 "\n"
+"  -S  --store-successes         store successes in the db\n" 
 "      --no-async-resolve        don't do asynchronous dns\n" 
 "      --request-timeout TIMEOUT total request timeout\n" 
 "      --rw-timeout TIMEOUT      rw timeout\n" 
@@ -119,7 +120,8 @@ printf(
 "      --skip-other-probes       skips probes for specific extentions\n"
 "      --skip-blacklist-success  don't blacklist pages on success to prevent\n" 
 "                                   duplicates\n"
-"      --force-save              save results even though training mode is off\n"
+"      --force-save              save training results even though training mode\n"
+"                                   is off\n"
 "\n"
 "Brute force backups:\n"
 "\n"
@@ -256,7 +258,7 @@ void do_scan(){
     }
   }
   if(train || force_save) save_all();
-
+  if(store_successes) save_successes();
 
 }
 
@@ -282,6 +284,7 @@ void parse_opts(int argc, char** argv){
     { "brute-backup-pattern", required_argument, NULL, BRUTE_BACKUP_PATTERN},
     { "brute-backup-no-stop", no_argument, &backup_bruteforce_stop, 0},
     { "brute-backup-no-slash", no_argument, &backup_bruteforce_slash, 0},
+    { "store-successes", no_argument, NULL, 'S'},
     { "no-async-resolve", no_argument, &async_dns, 0}, 
     { "trigger", required_argument,NULL, TRIGGER},
     { "max-hosts", required_argument,NULL, 'n'},
@@ -308,7 +311,7 @@ void parse_opts(int argc, char** argv){
   };
   int opt;
   struct t_list *target;
-  while((opt=getopt_long( argc, argv, "-n:f:P:c:B:h:r:T::", long_options, &longIndex ))!=-1){
+  while((opt=getopt_long( argc, argv, "-n:Sf:P:c:B:h:r:T::", long_options, &longIndex ))!=-1){
     switch(opt){
       case 1:
         target=calloc(sizeof(struct t_list),1);
@@ -350,6 +353,9 @@ void parse_opts(int argc, char** argv){
       case 'h':
         usage();
         exit(0);
+      case 'S':
+        store_successes=1;
+        break;
       case URL:
         url=optarg;
         break;

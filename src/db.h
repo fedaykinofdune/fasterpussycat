@@ -3,6 +3,7 @@
 
 #include "uthash.h"
 #include "http_client.h"
+#include "engine.h"
 /* db.c */
 
 #define F_CRITICAL  (1 << 0) /* 0x01 */
@@ -13,6 +14,11 @@
 struct target;
 
 struct feature_selection;
+
+
+struct request_response;
+
+extern struct request_response *successes;
 
 struct feature_selection {
   struct feature *feature;
@@ -104,6 +110,8 @@ struct dir_link {
   UT_hash_handle hh;
 };
 
+extern int store_successes;
+
 void update_feature_selection(struct url_test *test);
 
 void load_feature_selections();
@@ -116,7 +124,7 @@ struct feature *find_or_create_feature_by_label(const char *label);
 void save_feature(struct feature *f);
 void save_all(void);
 void save_ftr(struct feature_test_result *f);
-
+void save_success(struct http_request *req, struct http_response *res);
 void create_dir_links();
 void save_dir_link(struct dir_link *link);
 void save_url_test(struct url_test *f);

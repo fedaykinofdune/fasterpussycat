@@ -14,6 +14,8 @@
 #include "util.h"
 
 
+#define INSERT_RESULT_SQL "INSERT INTO results (code, time, url, mime, flags) VALUES (?,?,?,?,?)"
+#define INSERT_RESULT_POST_SQL "INSERT INTO results_post (result_id, key, value) VALUES (?,?,?)"
 #define INSERT_DIR_LINK_SQL "INSERT INTO dir_links (parent_id, child_id, count, parent_success, child_success, parent_child_success) VALUES (?,?,?,?,?,?)"
 
 #define UPDATE_DIR_LINK_SQL "UPDATE dir_links SET parent_id=?, child_id=?, count=?, parent_success=?, child_success=?, parent_child_success=? WHERE id=?"
@@ -35,6 +37,8 @@
 #define INSERT_FEATURE_SELECTION_SQL "INSERT INTO feature_selections (url_test_id,feature_test_id) VALUES (?,?)"
 #define DELETE_FEATURE_SELECTION_SQL "DELETE FROM feature_selections WHERE url_test_id=?"
 
+struct request_response *successes=NULL;
+int store_successes=0;
 static AC_STRUCT *aho_corasick;
 static struct url_test *test_map=NULL;
 static struct feature_test_result *result_map=NULL;
@@ -49,6 +53,11 @@ static sqlite3_stmt *get_tests_stmt;
 static sqlite3_stmt *get_test_by_url_stmt;
 static sqlite3_stmt *get_features_stmt;
 static sqlite3_stmt *get_triggers_stmt;
+
+
+static sqlite3_stmt *insert_result_stmt;
+
+static sqlite3_stmt *insert_result_post_stmt;
 
 static sqlite3_stmt *insert_feature_stmt;
 
@@ -78,7 +87,8 @@ int open_database(){
   }
 
 
-
+  sqlite3_prepare_v2(db, INSERT_RESULT_SQL, -1, &insert_result_stmt,NULL);
+  sqlite3_prepare_v2(db, INSERT_RESULT_POST_SQL, -1, &insert_result_post_stmt,NULL);
   sqlite3_prepare_v2(db, INSERT_DIR_LINK_SQL, -1, &insert_dir_link_stmt,NULL);
   sqlite3_prepare_v2(db, UPDATE_DIR_LINK_SQL, -1, &update_dir_link_stmt,NULL);
   sqlite3_prepare_v2(db, GET_DIR_LINKS_SQL, -1, &get_dir_links_stmt,NULL);
@@ -257,6 +267,49 @@ struct feature *find_or_create_feature_by_label(const char *label){
 
   HASH_ADD_INT( feature_map_by_id, id, result);
   return result; 
+}
+
+
+void save_successes(){
+  info("save successes");
+  struct request_response *r;
+  struct request_response *n;
+  r=successes;
+  
+  sqlite3_exec(db, "BEGIN", 0, 0, 0);
+  while(r){
+    n=r->next;
+    save_success(r->req, r->res);
+    ck_free(r);
+    r=n;
+  }
+
+  sqlite3_exec(db, "COMMIT", 0, 0, 0);
+}
+
+void save_success(struct http_request *req, struct http_response *res){
+  sqlite3_reset(insert_result_stmt);
+  sqlite3_bind_int(insert_result_stmt,1,res->code);
+  sqlite3_bind_int(insert_result_stmt,2,time(NULL));
+  sqlite3_bind_text(insert_result_stmt,3, serialize_path(req,1,0), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(insert_result_stmt,4, res->header_mime, -1, SQLITE_TRANSIENT);
+  sqlite3_bind_int(insert_result_stmt,5, (req->test ? req->test->flags : 0));
+  if(sqlite3_step(insert_result_stmt)!=SQLITE_DONE){
+    fatal("SOME KIND OF FAIL IN RESULT INSERT %s\n",sqlite3_errmsg(db));
+  }
+  int result_id=sqlite3_last_insert_rowid(db);
+  struct annotation *a=res->annotations;
+  for(;a;a=a->next){
+    sqlite3_reset(insert_result_post_stmt);    
+    sqlite3_bind_int(insert_result_post_stmt,1,result_id);
+    sqlite3_bind_text(insert_result_post_stmt,2, a->key, -1, SQLITE_TRANSIENT);
+    if(a->value) sqlite3_bind_text(insert_result_post_stmt,3, a->value, -1, SQLITE_TRANSIENT);
+    else sqlite3_bind_null(insert_result_post_stmt,3);
+    if(sqlite3_step(insert_result_post_stmt)!=SQLITE_DONE){
+      fatal("SOME KIND OF FAIL IN RESULT POST INSERT %s\n",sqlite3_errmsg(db));
+    }
+  }
+
 }
 
 void save_feature(struct feature *f){
