@@ -68,6 +68,9 @@ u32 __AD_trk_cnt[ALLOC_BUCKETS];
 #define BRUTE_BACKUP_DAYS 12
 #define BRUTE_BACKUP_PATTERN 13
 #define MODE_FIND_UPLOAD 14
+#define RESP_TIMEOUT 15
+#define RW_TIMEOUT 16
+#define CONN_TIMEOUT 17
 
 struct t_list;
 
@@ -88,6 +91,13 @@ printf(
 "        fasterpussycat --add-trigger --trigger TRIGGER --feature FEATURE\n"
 "\n"
 "Options:\n"
+"\n"
+"General:\n"
+"\n"
+"      --no-async-resolve        don't do asynchronous dns\n" 
+"      --request-timeout TIMEOUT total request timeout\n" 
+"      --rw-timeout TIMEOUT      rw timeout\n" 
+"      --conn-timeout TIMEOUT    connection teardown timeout\n" 
 "\n"
 "Attack mode:\n"
 "\n"
@@ -272,8 +282,12 @@ void parse_opts(int argc, char** argv){
     { "brute-backup-pattern", required_argument, NULL, BRUTE_BACKUP_PATTERN},
     { "brute-backup-no-stop", no_argument, &backup_bruteforce_stop, 0},
     { "brute-backup-no-slash", no_argument, &backup_bruteforce_slash, 0},
+    { "no-async-resolve", no_argument, &async_dns, 0}, 
     { "trigger", required_argument,NULL, TRIGGER},
     { "max-hosts", required_argument,NULL, 'n'},
+    { "idle-timeout", required_argument,NULL, RESP_TIMEOUT},
+    { "rw-timeout", required_argument,NULL, RW_TIMEOUT},
+    { "conn-timeout", required_argument,NULL, CONN_TIMEOUT},
     { "max-connections", required_argument,NULL, 'c'},
     { "max-requests", required_argument,NULL, 'r'},
     { "progress", required_argument, NULL, 'P' },
@@ -309,6 +323,15 @@ void parse_opts(int argc, char** argv){
         break;
       case BRUTE_BACKUP_DAYS:
         backup_bruteforce_days_back=atoi(optarg);
+        break;
+      case RESP_TIMEOUT:
+        resp_tmout=atoi(optarg);
+        break;
+      case RW_TIMEOUT:
+        rw_tmout=atoi(optarg);
+        break;
+      case CONN_TIMEOUT:
+        idle_tmout=atoi(optarg);
         break;
       case BRUTE_BACKUP_PATTERN:
         backup_bruteforce_pattern=optarg;

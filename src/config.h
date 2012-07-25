@@ -45,8 +45,8 @@
 #define MAX_REQUESTS_SEC        0.0     /* Max requests per second         */
 #define MAX_FAIL                100     /* Max consecutive failed requests */
 #define RW_TMOUT                10      /* Individual network R/W timeout  */
-#define RESP_TMOUT              20      /* Total request time limit        */
-#define IDLE_TMOUT              10      /* Connection tear down threshold  */
+#define RESP_TMOUT              50      /* Total request time limit        */
+#define IDLE_TMOUT              30      /* Connection tear down threshold  */
 #define SIZE_LIMIT              200000  /* Response size cap               */
 #define MAX_GUESSES             256     /* Guess-based wordlist size limit */
 

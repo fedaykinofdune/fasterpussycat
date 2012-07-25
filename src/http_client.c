@@ -60,10 +60,12 @@ u32 max_conn_host    = 10,
     hosts            = 0,
     unqueued_hosts   = 0,
     max_fail         = MAX_FAIL,
-    idle_tmout       = IDLE_TMOUT,
-    resp_tmout       = RESP_TMOUT,
-    rw_tmout         = RW_TMOUT,
+    idle_tmout       = 30,
+    resp_tmout       = 60,
+    rw_tmout         = 30,
+    async_dns        = 1,
     size_limit       = SIZE_LIMIT;
+    
 u8 browser_type      = BROWSER_FAST;
 u8 auth_type         = AUTH_NONE;
 
@@ -1879,10 +1881,16 @@ void async_request(struct http_request* req) {
   }
   if(!req->host) fatal("req host is null");
   if(adns==NULL) adns=dns_init();
+  
+  if(!async_dns){
+    req->addr=maybe_lookup_host(req->host);
+    real_async_request(req);
+    return;
+  }
   #ifdef PROXY_SUPPORT
   if(use_proxy){ /* don't do adns if using proxy */
     req->addr=maybe_lookup_host(req->host);
-    real_async_request(struct http_request* req);
+    real_async_request(req);
     return;
   }
   #endif
