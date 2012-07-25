@@ -161,6 +161,50 @@ void create_dir_links(){
 
 }
 
+void do_query(struct query *q){
+  static int day=60*60*24;
+  char *sql=strdup("SELECT results.id, results.code, results.url, results.mime, results.time, results.flags, results_post.key, results_post.value FROM results LEFT JOIN results_post ON results_post.result_id=results.id WHERE 1=1 ");
+  if(q->url) r_strcat(&sql, sqlite3_mprintf(" AND url LIKE '%%%q%%'",q->url));
+  if(q->recent) r_strcat(&sql, sqlite3_mprintf(" AND time>%d",time(NULL)-(day*q->recent)));
+  if(q->code) r_strcat(&sql, sqlite3_mprintf(" AND code=%d",q->code));
+  if(q->flags) r_strcat(&sql, sqlite3_mprintf(" AND (flags & %d)",q->flags));
+  if(q->mime) r_strcat(&sql, sqlite3_mprintf(" AND mime='%%%q%%'",q->mime));
+  if(q->post_key) r_strcat(&sql, sqlite3_mprintf(" AND results_post.key='%%%q%%'",q->post_key));
+  r_strcat(&sql," ORDER BY results.id");
+  info("sql %s",sql);
+  sqlite3_stmt *s;
+  sqlite3_prepare_v2(db, sql, -1, &s,NULL);
+  int last_id=-1;
+  struct http_request *req=NULL;
+  struct http_response *res=NULL; 
+  while (sqlite3_step(s) == SQLITE_ROW){
+        int id=sqlite3_column_int(s,0);
+        if(id!=last_id){
+          if(last_id!=-1) output_result(req,res);
+          last_id=id;
+          ck_free(req);
+          ck_free(res);
+          req=ck_alloc(sizeof(struct http_request));
+          res=ck_alloc(sizeof(struct http_response));
+          res->annotations=NULL;
+          res->code=sqlite3_column_int(s,1);
+          parse_url(sqlite3_column_text(s,2),req,NULL);
+          res->header_mime=strdup(sqlite3_column_text(s,3));
+          int time=sqlite3_column_int(s,4);
+          int flags=sqlite3_column_int(s,5);
+        }
+        if(sqlite3_column_type(s,6)!=SQLITE_NULL){
+          char *key=strdup(sqlite3_column_text(s,6));
+          char *value=NULL;
+          if(sqlite3_column_type(s,7)!=SQLITE_NULL) value=strdup(sqlite3_column_text(s,7));
+          annotate(res,key,value);
+        }
+
+  }
+  if(last_id!=-1) output_result(req,res);
+}
+
+
 void update_feature_selection(struct url_test *test){
   struct feature_selection *fs;
 

@@ -32,6 +32,16 @@ struct trigger {
   UT_hash_handle hh;
 };
 
+
+struct query {
+  char *url;
+  int flags;
+  int code;
+  char *mime;
+  int recent;
+  char *post_key;
+};
+
 struct feature {
   int id;
   char *label;
@@ -117,6 +127,7 @@ void update_feature_selection(struct url_test *test);
 void load_feature_selections();
 struct feature *get_features(void);
 int open_database(void);
+void do_query(struct query *q);
 void load_aho_corasick_triggers(void);
 void add_features_from_triggers(struct http_response *rep, struct target *t);
 void add_aho_corasick_trigger(char *trigger, char *feature);

@@ -71,6 +71,12 @@ u32 __AD_trk_cnt[ALLOC_BUCKETS];
 #define RESP_TIMEOUT 15
 #define RW_TIMEOUT 16
 #define CONN_TIMEOUT 17
+#define MODE_QUERY 17
+#define CODE 18
+#define POST_KEY 19
+#define RECENT 20
+#define MIME 21
+
 
 struct t_list;
 
@@ -146,6 +152,19 @@ printf(
 "                                   protocol sections i.e. \"/index.php\"\n"
 "      --statistics              print statistics\n"
 "      --analyze                 build decision tree\n"
+"\n"
+"Database Success Query:\n"
+"\n"
+"      --query                   query the success database with one more of the\n"
+"                                    following: (query terms will be ANDed\n"
+"                                    together)\n"
+"      --url FRAGMENT            part of a url to search for\n"
+"      --code CODE               http result code\n"
+"      --flags FLAGS             flags to search for\n"
+"      --post-key KEY            post analysis key to search for i.e. 'index-of',\n"
+"                                   'backup' etc\n"
+"      --mime-type MIME          mime-type to search for\n"
+"      --recent DAYS             find only results that are less than DAYS old\n"
 "\n"
 "Misc:\n"
 "\n"
@@ -270,7 +289,11 @@ void parse_opts(int argc, char** argv){
   int i;
   unsigned int f;
   int t=0;
+  int recent=0;
+  int code=0;
+  char *post_key=NULL;
   char *url=NULL;
+  char *mime=NULL;
   char *trigger=NULL;
   char *feature=NULL;
   char *description="";
@@ -285,6 +308,11 @@ void parse_opts(int argc, char** argv){
     { "brute-backup-no-stop", no_argument, &backup_bruteforce_stop, 0},
     { "brute-backup-no-slash", no_argument, &backup_bruteforce_slash, 0},
     { "store-successes", no_argument, NULL, 'S'},
+    { "query", no_argument, &mode, MODE_QUERY}, 
+    { "code", required_argument, NULL, CODE}, 
+    { "post-key", required_argument, NULL, POST_KEY}, 
+    { "mime-type", required_argument, NULL, MIME}, 
+    { "recent", required_argument, NULL, RECENT}, 
     { "no-async-resolve", no_argument, &async_dns, 0}, 
     { "trigger", required_argument,NULL, TRIGGER},
     { "max-hosts", required_argument,NULL, 'n'},
@@ -397,6 +425,18 @@ void parse_opts(int argc, char** argv){
       case FEATURE:
         feature=optarg;
         break;
+      case POST_KEY:
+        post_key=optarg;
+        break;
+      case MIME:
+        mime=optarg;
+        break;
+      case CODE:
+        code=atoi(optarg);
+        break;
+      case RECENT:
+        recent=atoi(optarg);
+        break;
       case TRIGGER:
         trigger=optarg;
         break;
@@ -476,6 +516,20 @@ void parse_opts(int argc, char** argv){
       add_aho_corasick_trigger(trigger, feature);
       exit(0);
       break;
+    case MODE_QUERY:
+      do {
+        struct query *q=ck_alloc(sizeof(struct query));
+        q->url=url;
+        q->code=code;
+        q->mime=mime;
+        q->flags=flags;
+        q->recent=recent;
+        q->post_key=post_key;
+        store_successes=0;
+        do_query(q);
+        exit(0);
+      break;
+      } while(0);
     case MODE_ANALYZE:
       load_tests();
       load_features();

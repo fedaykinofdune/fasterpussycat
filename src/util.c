@@ -8,9 +8,13 @@
 int show_debug=0;
 
 inline void maybe_newline(FILE *f, char *format){
-  if(format[strlen(format)-1]!='\n'){
-    fprintf(f,"\n");
-  }
+  if(format[strlen(format)-1]!='\n')fprintf(f,"\n");
+}
+
+void r_strcat(char **dest, char *src){
+   *dest = realloc(*dest, strlen(*dest) + strlen(src) + sizeof(char));
+    if((*dest)==0) fatal("Could not realloc string");
+    strcat(*dest, src);
 }
 
 void info(char *format, ...){
