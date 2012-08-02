@@ -18,6 +18,44 @@ struct annotation *annotate(struct http_response *res, char *key, char *value){
   return a;
 }
 
+
+
+unsigned char php_error(struct http_request *req, struct http_response *res, void *data){
+  static regex_t *regex=NULL;
+  if(regex==NULL){
+    regex=ck_alloc(sizeof(regex_t));
+    regcomp(regex," <b>(Warning|Fatal error)</b>: .* in <b>([^<]+)</b> on line",REG_EXTENDED | REG_ICASE);
+  }
+  if(!regexec(regex, res->payload, 0, 0, 0)){
+    annotate(res,"php-error",NULL);
+  }
+  return DETECT_NEXT_RULE;
+}
+
+unsigned char mysql_syntax_error(struct http_request *req, struct http_response *res, void *data){
+  if(strstr(res->payload, "You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version")){
+    annotate(res,"mysql-syntax-error",NULL);
+  }
+  return DETECT_NEXT_RULE;
+}
+
+
+
+unsigned char phpinfo(struct http_request *req, struct http_response *res, void *data){
+  if(strstr(res->payload, "alt=\"PHP Logo\"") && strstr(res->payload, "safe_mode_exec_dir")){
+    annotate(res,"phpinfo",NULL);
+  }
+  return DETECT_NEXT_RULE;
+}
+
+unsigned char postgres_error(struct http_request *req, struct http_response *res, void *data){
+  if(strstr(res->payload, "PostgreSQL query failed")){
+    annotate(res,"postgres-error",NULL);
+  }
+  return DETECT_NEXT_RULE;
+}
+
+
 unsigned char input_fields(struct http_request *req, struct http_response *res, void *data){
   static regex_t *regex=NULL;
   char *p;
@@ -240,12 +278,25 @@ void add_post_rules(){
   rule->code=200;
   rule->evaluate=server_path_disclosure;
 
-
   rule=new_rule(&post_rules);
   rule->code=200;
   rule->evaluate=input_fields;
 
+  rule=new_rule(&post_rules);
+  rule->code=200;
+  rule->evaluate=php_error;
 
+  rule=new_rule(&post_rules);
+  rule->code=200;
+  rule->evaluate=mysql_syntax_error;
+
+  rule=new_rule(&post_rules);
+  rule->code=200;
+  rule->evaluate=postgres_error;
+
+  rule=new_rule(&post_rules);
+  rule->code=200;
+  rule->evaluate=phpinfo;
 
   rule=new_rule(&post_rules);
   rule->code=401;
