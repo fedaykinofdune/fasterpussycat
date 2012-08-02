@@ -14,7 +14,9 @@
 #include "util.h"
 
 
-#define INSERT_RESULT_SQL "INSERT INTO results (code, time, url, mime, flags, content_length) VALUES (?,?,?,?,?,?)"
+#define INSERT_RESULT_SQL "INSERT OR REPLACE INTO results (code, time, url, mime, flags, content_length) VALUES (?,?,?,?,?,?)"
+
+#define DELETE_RESULT_POST_SQL "DELETE FROM results_post WHERE results_id=(SELECT id FROM results WHERE url='?')"
 #define INSERT_RESULT_POST_SQL "INSERT INTO results_post (result_id, key, value) VALUES (?,?,?)"
 #define INSERT_DIR_LINK_SQL "INSERT INTO dir_links (parent_id, child_id, count, parent_success, child_success, parent_child_success) VALUES (?,?,?,?,?,?)"
 
@@ -57,7 +59,7 @@ static sqlite3_stmt *get_triggers_stmt;
 
 
 static sqlite3_stmt *insert_result_stmt;
-
+static sqlite3_stmt *delete_result_post_stmt;
 static sqlite3_stmt *insert_result_post_stmt;
 
 static sqlite3_stmt *insert_feature_stmt;
@@ -90,6 +92,7 @@ int open_database(){
 
   sqlite3_prepare_v2(db, INSERT_RESULT_SQL, -1, &insert_result_stmt,NULL);
   sqlite3_prepare_v2(db, INSERT_RESULT_POST_SQL, -1, &insert_result_post_stmt,NULL);
+  sqlite3_prepare_v2(db, DELETE_RESULT_POST_SQL, -1, &delete_result_post_stmt,NULL);
   sqlite3_prepare_v2(db, INSERT_DIR_LINK_SQL, -1, &insert_dir_link_stmt,NULL);
   sqlite3_prepare_v2(db, UPDATE_DIR_LINK_SQL, -1, &update_dir_link_stmt,NULL);
   sqlite3_prepare_v2(db, GET_DIR_LINKS_SQL, -1, &get_dir_links_stmt,NULL);
@@ -334,11 +337,18 @@ void save_successes(){
 void save_success(struct http_request *req, struct http_response *res){
   int content_length=0;
   if(GET_HDR((unsigned char *) "content-length", &res->hdr)) content_length=atoi(GET_HDR((unsigned char *) "content-length", &res->hdr));
+  
+  sqlite3_reset(delete_result_post_stmt);
+  sqlite3_bind_text(delete_result_post_stmt, 1 , serialize_path(req,1,0), -1, SQLITE_TRANSIENT);
+  
+  if(sqlite3_step(delete_result_post_stmt)!=SQLITE_DONE){
+    fatal("SOME KIND OF FAIL IN RESULT POST DELETE %s\n",sqlite3_errmsg(db));
+  }
   sqlite3_reset(insert_result_stmt);
   sqlite3_bind_int(insert_result_stmt,1,res->code);
   sqlite3_bind_int(insert_result_stmt,2,time(NULL));
   sqlite3_bind_text(insert_result_stmt,3, serialize_path(req,1,0), -1, SQLITE_TRANSIENT);
-  sqlite3_bind_text(insert_result_stmt,4, res->header_mime, -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(insert_result_stmt,4, (res->header_mime==NULL ? (char *) res->header_mime : (char *) "(null)"), -1, SQLITE_TRANSIENT);
   sqlite3_bind_int(insert_result_stmt,5, (req->test ? req->test->flags : 0));
   sqlite3_bind_int(insert_result_stmt,6, content_length);
   if(sqlite3_step(insert_result_stmt)!=SQLITE_DONE){
