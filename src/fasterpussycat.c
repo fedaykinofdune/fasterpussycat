@@ -126,6 +126,9 @@ printf(
 "      --skip-other-probes       skips probes for specific extentions\n"
 "      --skip-blacklist-success  don't blacklist pages on success to prevent\n" 
 "                                   duplicates\n"
+"      --skip-sig                skip sites/extensions that require signature\n"
+"                                   detection (this will greatly lower bandwidth\n"
+"                                   requirements)\n"
 "      --force-save              save training results even though training mode\n"
 "                                   is off\n"
 "\n"
@@ -333,6 +336,7 @@ void parse_opts(int argc, char** argv){
     { "url", required_argument, NULL, URL },
     { "flags", required_argument, NULL, FLAGS },
     { "help", required_argument, NULL, 'h' },
+    { "skip-sig", no_argument, &skip_sig, 1},
     { "skip-other-probes", no_argument, &skip_other_probes, 1},
     { "blacklist-success", no_argument, &blacklist_success, 0},
     { "force-save", no_argument, &force_save, 1},

@@ -26,7 +26,7 @@
 
 extern int blacklist_success;
 extern int skip_other_probes;
-
+extern int skip_sig;
 struct detect_404_cleanup_info;
 
 struct detect_404_cleanup_info {

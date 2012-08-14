@@ -10,6 +10,7 @@
 
 int blacklist_success=1;
 int skip_other_probes=0;
+int skip_sig=0;
 magic_t magic=NULL;
 
 
@@ -18,9 +19,9 @@ unsigned char keep_dir_count(struct http_request *req, struct http_response *res
   if(info->dir_blacklist || !req->test || !(req->test->flags & F_DIRECTORY)) return DETECT_NEXT_RULE;
   if(info->last_dir_code==res->code && (res->code==403 || res->code==401 || res->code==200)){
     info->in_a_row_dir++;
-    if(info->in_a_row_dir>15){
+    if(info->in_a_row_dir>10){
       struct match_rule *r;
-      warn("Over 15 dir %ds in a row, marking directories with this code as unknown for %s",res->code,req->t->host);
+      warn("Over 10 dir %ds in a row, marking directories with this code as unknown for %s",res->code,req->t->host);
       r=new_404_rule(info,&info->rules_general);
       r->test_flags=F_DIRECTORY,
       r->code=res->code;
@@ -444,7 +445,7 @@ u8 process_probe(struct http_request *req,struct http_response *res){
       
       ck_free(pattern);
     }
-    if(detect_method==USE_UNKNOWN){ 
+    if(detect_method==USE_UNKNOWN || (detect_method!=USE_404 && skip_sig)){ 
       http_method=RECOMMEND_SKIP;
     }
     rec_method=detect_404_alloc(req->t->detect_404,sizeof(struct recommended_method));
@@ -456,7 +457,6 @@ u8 process_probe(struct http_request *req,struct http_response *res){
     debug("added request recommendations pattern: %s flags: %d method %s", pattern, flags, http_method); 
   } /* if(detect_method!=USE_404) */
   if(probe->type==PROBE_GENERAL) info("404 detection method for %s: %s", req->t->host, type_str);
-
   if(probe->type==PROBE_GENERAL && !skip_other_probes) enqueue_other_probes(req->t);
   else if(!req->t->detect_404->probes) req->t->after_probes(req->t);
   return 1; 

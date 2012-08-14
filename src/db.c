@@ -13,10 +13,14 @@
 #include "engine.h"
 #include "util.h"
 
+static void profile(void *context, const char *sql, sqlite3_uint64 ns) {
+fprintf(stderr, "Query: %s\n", sql);
+fprintf(stderr, "Execution Time: %llu ms\n", ns / 1000000);}
+
 
 #define INSERT_RESULT_SQL "INSERT OR REPLACE INTO results (code, time, url, mime, flags, content_length) VALUES (?,?,?,?,?,?)"
 
-#define DELETE_RESULT_POST_SQL "DELETE FROM results_post WHERE results_id=(SELECT id FROM results WHERE url='?')"
+#define DELETE_RESULT_POST_SQL "DELETE FROM results_post WHERE result_id=(SELECT id FROM results WHERE url=?)"
 #define INSERT_RESULT_POST_SQL "INSERT INTO results_post (result_id, key, value) VALUES (?,?,?)"
 #define INSERT_DIR_LINK_SQL "INSERT INTO dir_links (parent_id, child_id, count, parent_success, child_success, parent_child_success) VALUES (?,?,?,?,?,?)"
 
@@ -337,9 +341,10 @@ void save_successes(){
 void save_success(struct http_request *req, struct http_response *res){
   int content_length=0;
   if(GET_HDR((unsigned char *) "content-length", &res->hdr)) content_length=atoi(GET_HDR((unsigned char *) "content-length", &res->hdr));
-  
+  char *url=serialize_path(req,1,0);
+  if(url==NULL){return; }
   sqlite3_reset(delete_result_post_stmt);
-  sqlite3_bind_text(delete_result_post_stmt, 1 , serialize_path(req,1,0), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(delete_result_post_stmt, 1 , url, -1, SQLITE_TRANSIENT);
   
   if(sqlite3_step(delete_result_post_stmt)!=SQLITE_DONE){
     fatal("SOME KIND OF FAIL IN RESULT POST DELETE %s\n",sqlite3_errmsg(db));
@@ -347,7 +352,7 @@ void save_success(struct http_request *req, struct http_response *res){
   sqlite3_reset(insert_result_stmt);
   sqlite3_bind_int(insert_result_stmt,1,res->code);
   sqlite3_bind_int(insert_result_stmt,2,time(NULL));
-  sqlite3_bind_text(insert_result_stmt,3, serialize_path(req,1,0), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(insert_result_stmt,3, url, -1, SQLITE_TRANSIENT);
   sqlite3_bind_text(insert_result_stmt,4, (res->header_mime==NULL ? (char *) res->header_mime : (char *) "(null)"), -1, SQLITE_TRANSIENT);
   sqlite3_bind_int(insert_result_stmt,5, (req->test ? req->test->flags : 0));
   sqlite3_bind_int(insert_result_stmt,6, content_length);
