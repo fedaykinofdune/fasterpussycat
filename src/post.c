@@ -42,7 +42,7 @@ unsigned char mysql_syntax_error(struct http_request *req, struct http_response 
 
 
 unsigned char phpinfo(struct http_request *req, struct http_response *res, void *data){
-  if(strstr(res->payload, "alt=\"PHP Logo\"") && strstr(res->payload, "safe_mode_exec_dir")){
+  if((strstr(res->payload, "alt=\"PHP Logo\"") && strstr(res->payload, "safe_mode_exec_dir")) || strstr(res->payload,"<title>phpinfo()</title>")){
     annotate(res,"phpinfo",NULL);
   }
   return DETECT_NEXT_RULE;

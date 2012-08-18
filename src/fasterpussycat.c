@@ -462,6 +462,7 @@ void parse_opts(int argc, char** argv){
               break;
             case 'g':
               flags|=F_CGI;
+              break;
             default:
               fprintf (stderr, "Unknown flag: '%c'",f ); 
               exit(1);
