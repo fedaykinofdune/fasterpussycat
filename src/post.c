@@ -117,9 +117,10 @@ unsigned char server_path_disclosure(struct http_request *req, struct http_respo
   }
   if(regexec(path_r, path, 2, m, 0)) return DETECT_NEXT_RULE;
   s=m[1].rm_eo-m[1].rm_so;
-  new_path=calloc(s,1);
+  if(!s) return DETECT_NEXT_RULE;
+  new_path=calloc(1,s+1);
   memcpy(new_path,path+m[1].rm_so,s);
-  unix_p=calloc(strlen(new_path)+100,1);
+  unix_p=calloc(1,strlen(new_path)+100);
   strcat(unix_p,"/(var|www|usr|tmp|virtual|etc|home|mnt|mount|root|proc)/[a-z0-9_/.-]+");
   strcat(unix_p, new_path+1);
   unix_r=calloc(sizeof(regex_t),1);

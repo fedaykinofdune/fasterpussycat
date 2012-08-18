@@ -56,9 +56,10 @@ struct target {
   struct test_score  *test_scores;
   struct detect_404_info *detect_404;
   UT_hash_handle hh;
-  struct request_responses *results;
+  struct request_response *results;
   struct dir_link_res *link_map;
   int requests;
+  int requests_left;
   char *upload_file;
 };
 
@@ -82,5 +83,5 @@ void maybe_update_dir_link(struct req_pointer *pointer);
 struct http_request *new_request(struct target *t);
 struct http_request *new_request_with_method(struct target *t, unsigned char *method);
 struct http_request *new_request_with_method_and_path(struct target *t, unsigned char *method, unsigned char *path);
-
+void destroy_target(struct target *t);
 #endif

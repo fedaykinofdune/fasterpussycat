@@ -49,6 +49,10 @@ void do_feature_selection(){
       for(i=0;i<9;i++){
         highest=0;
         for(f=get_features();f!=NULL;f=f->hh.next){
+          if(!f->ftr_loaded){
+            load_ftr_by_feature_id(f->id);
+            f->ftr_loaded=1;
+          }
           gain=expected_change(&score,f);
           if(gain>highest && gain<current_highest){
             highest=gain;

@@ -47,6 +47,7 @@ struct feature {
   char *label;
   int count;
   int dirty;
+  int ftr_loaded;
   UT_hash_handle hh;
 
   UT_hash_handle hhl;

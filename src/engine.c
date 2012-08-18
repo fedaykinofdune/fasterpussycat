@@ -112,6 +112,55 @@ void add_feature_to_target(struct feature *f, struct target *t){
   DL_APPEND(t->features,fn);
 }
 
+void destroy_target(struct target *t){
+  struct feature_node *fn,*ftmp;
+  struct dir_link_res *dn,*dtmp;
+  struct test_score *tn,*ttmp;
+  struct req_pointer *rn,*rtmp;
+  struct request_response *rrn,*rrtmp;
+
+  if(t->prototype_request) destroy_request(t->prototype_request);
+  LL_FOREACH_SAFE(t->features,fn,ftmp){
+    LL_DELETE(t->features,fn);
+    ck_free(fn);
+  }
+  
+  if(!store_successes){
+    LL_FOREACH_SAFE(t->results,rrn,rrtmp){
+      LL_DELETE(t->results,rrn);
+      destroy_request(rrn->req);
+      destroy_response(rrn->res);
+      ck_free(rrn);
+    }
+  }
+  
+  dn=t->link_map;
+  
+  while(dn){
+    dtmp=dn->hh.next;
+    HASH_DEL(t->link_map,dn);
+    
+    LL_FOREACH_SAFE(dn->children,rn,rtmp){
+      LL_DELETE(dn->children,rn);
+      ck_free(rn);
+    }
+
+    ck_free(dn);
+    dn=dtmp;
+  }
+
+  LL_FOREACH_SAFE(t->test_scores,tn,ttmp){
+    LL_DELETE(t->test_scores,tn);
+    ck_free(tn);
+  }
+  destroy_detect_404_info(t->detect_404);
+  if(t->host) ck_free(t->host);
+  if(t->full_host) ck_free(t->full_host);
+  
+  HASH_DEL(targets,t); 
+  ck_free(t);
+}
+
 void process_features(struct http_response *res, struct target *t){
   unsigned char *server=GET_HDR((unsigned char *) "server",&res->hdr);
   unsigned char *powered=GET_HDR((unsigned char *) "x-powered-by",&res->hdr);
@@ -237,7 +286,7 @@ struct target *add_target(u8 *host){
   trim((char *) host);
   if(strlen((char *) host)==0) fatal("host is empty");
   
-  url=calloc(strlen((char *) host)+10,1);
+  url=ck_alloc(strlen((char *) host)+10);
   if(strstr((char *) host,"http")!=(char *) host) strcat((char *) url,"http://");
   strcat((char *) url,(char *) host);
   if(host[strlen((char *) host)-1]!='/') strcat((char *) url,"/");

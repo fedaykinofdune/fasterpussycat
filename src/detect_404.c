@@ -38,8 +38,6 @@ unsigned char keep_dir_count(struct http_request *req, struct http_response *res
 
 }
 
-
-
 unsigned char keep_hash_count(struct http_request *req, struct http_response *res, void *data){
   struct detect_404_info *info=(struct detect_404_info *) data;
   struct hash_count *h_count;
@@ -204,11 +202,38 @@ void *detect_404_alloc(struct detect_404_info *info, size_t size){
   void *mem=ck_alloc(size);
   struct detect_404_cleanup_info *new=ck_alloc(sizeof(struct detect_404_cleanup_info));
   new->data=mem;
-  new->cleanup_func=free;
+  new->cleanup_func=ck_free;
   new->next=info->cleanup;
   info->cleanup=new;
   return mem;
 }
+
+void req_clean(void *m){
+  destroy_request((struct http_request *) m);
+}
+
+
+
+void res_clean(void *m){
+  destroy_response((struct http_response *) m);
+}
+
+void schedule_req_res_cleanup(struct detect_404_info *info, struct http_request *req, struct http_response *res){
+  struct detect_404_cleanup_info *new;
+  new=ck_alloc(sizeof(struct detect_404_cleanup_info));
+  new->data=req;
+  new->cleanup_func=req_clean;
+  new->next=info->cleanup;
+  info->cleanup=new;
+
+  new=ck_alloc(sizeof(struct detect_404_cleanup_info));
+  new->data=res;
+  new->cleanup_func=res_clean;
+  new->next=info->cleanup;
+  info->cleanup=new;
+}
+
+
 void detect_404_cleanup(struct detect_404_info *info){
    struct detect_404_cleanup_info *c=info->cleanup;
    struct detect_404_cleanup_info *next=info->cleanup;
@@ -371,7 +396,7 @@ void enqueue_other_probes(struct target *t){
 
 u8 process_probe(struct http_request *req,struct http_response *res){
   struct probe *probe=(struct probe *) req->data;
-  struct request_response *response=ck_alloc(sizeof(struct request_response));
+  struct request_response *response=detect_404_alloc(req->t->detect_404,sizeof(struct request_response));
   char *pattern=NULL;
   struct recommended_method *rec_method;
   regex_t *regex=NULL;
@@ -385,7 +410,7 @@ u8 process_probe(struct http_request *req,struct http_response *res){
   response->next=probe->responses;
   probe->responses=response;
   probe->count--;
-
+  schedule_req_res_cleanup(req->t->detect_404, req, res);
   if(probe->count){
     return 1;
   }
@@ -466,7 +491,7 @@ void launch_404_probes(struct target *t){
   int i;
   struct http_request *req;
   char *path=malloc(9);
-  struct probe *probe=malloc(sizeof(struct probe));
+  struct probe *probe=detect_404_alloc(t->detect_404, sizeof(struct probe));
   info("launching probes for %s",t->host);
   probe->count=3;
   probe->type=PROBE_GENERAL;
@@ -482,6 +507,7 @@ void launch_404_probes(struct target *t){
     req->data=probe;
     async_request(req);
   }
+  free(path);
 }
 
 void destroy_detect_404_info(struct detect_404_info *info){

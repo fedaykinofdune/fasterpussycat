@@ -208,7 +208,7 @@ void maybe_queue_more_hosts(){
     char buffer[255];
     while(fgets(buffer,255,file) && c<100){
       
-      tl=calloc(sizeof(target_list),1);
+      tl=calloc(1,sizeof(struct t_list));
       tl->host=(unsigned char *) strdup(buffer);
       if(tl->host[strlen((char *) tl->host)-1]=='\n') tl->host[strlen((char *) tl->host)-1]=0; /* chomp */
       if(!strlen((char *) tl->host)){

@@ -123,6 +123,10 @@ static u8 tear_down_idle;
 
 static struct dns *adns=NULL;
 
+void maybe_destroy_target(struct target *t){
+  if(!t->requests_left) destroy_target(t);
+}
+
 /* Extracts parameter value from param_array. Name is matched if
    non-NULL. Returns pointer to value data, not a duplicate string;
    NULL if no match found. */
@@ -1755,6 +1759,8 @@ void destroy_response(struct http_response* res) {
    underlying request / response pair. */
 
 static void destroy_unlink_queue(struct queue_entry* q, u8 keep) {
+  
+  struct target *t=q->req->t;
   if (!keep) {
     if (q->req) destroy_request(q->req);
     if (q->res) destroy_response(q->res);
@@ -1762,6 +1768,11 @@ static void destroy_unlink_queue(struct queue_entry* q, u8 keep) {
   if (!q->prev) q->h->q_head = q->next; else q->prev->next = q->next;
   if (!q->next) q->h->q_tail = q->prev;
   if (q->next) q->next->prev = q->prev;
+  if(t){
+    t->requests_left--;
+    maybe_destroy_target(t);
+  } 
+
   ck_free(q);
   queue_cur--;
 
@@ -1781,8 +1792,8 @@ static void destroy_unlink_conn(struct conn_entry* c, u8 keep) {
   ck_free(c->write_buf);
   ck_free(c->read_buf);
   close(c->fd);
-  ck_free(c);
   c->h->connections--;
+  ck_free(c);
   conn_cur--;
 }
 
@@ -1875,6 +1886,8 @@ void async_dns_callback(struct dns_cb_data *d){
 
 void async_request(struct http_request* req) {
   struct dns_q *t;
+  if(req->t) req->t->requests_left++;
+  
   if(req->addr){
     real_async_request(req);
     return;
@@ -1911,7 +1924,7 @@ void real_async_request(struct http_request* req) {
   struct http_response *res;
   struct host_entry *h;
   struct host_entry *new;
-
+  struct target *t=req->t;
   debug("enqueing request %s %s",req->method,serialize_path(req,1,0));
 
   if (req->proto == PROTO_NONE || !req->callback)
@@ -1927,10 +1940,12 @@ void real_async_request(struct http_request* req) {
   if (req_errors_cur > max_fail) {
     DEBUG("!!! Too many subsequent request failures!\n");
     res->state = STATE_SUPPRESS;
+    if(t) t->requests_left--;
     if (!req->callback(req, res)) {
       destroy_request(req);
       destroy_response(res);
     }
+    maybe_destroy_target(t);
     req_dropped++;
     return;
   }
@@ -1944,7 +1959,9 @@ void real_async_request(struct http_request* req) {
       destroy_request(req);
       destroy_response(res);
     }
-
+    
+    if(t) t->requests_left--;
+    maybe_destroy_target(t);
     queue_cur--;
     req_errors_net++;
     conn_count++;
@@ -2107,7 +2124,6 @@ connect_error:
       destroy_unlink_queue(q, q->req->callback(q->req, q->res));
       req_errors_net++;
       req_errors_cur++;
-
       ck_free(c);
       conn_failed++;
       return;
@@ -2274,11 +2290,13 @@ network_error:
                                c->read_len, 0) != 2) {
               c->q->res->state = STATE_OK;
               keep = c->q->req->callback(c->q->req, c->q->res);
+              
               if (req_errors_cur <= max_fail)
                 req_errors_cur = 0;
             } else {
               c->q->res->state = STATE_CONNERR;
               keep = c->q->req->callback(c->q->req, c->q->res);
+              
               req_errors_net++;
               req_errors_cur++;
             }
@@ -2354,7 +2372,7 @@ SSL_read_more:
 
             c->q->res->state = STATE_OK;
             keep = c->q->req->callback(c->q->req, c->q->res);
-
+            
             /* If we got all data without hitting the limit, and if
                "Connection: close" is not indicated, we might want
                to keep the connection for future use. */

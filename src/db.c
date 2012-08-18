@@ -305,6 +305,10 @@ struct feature *find_or_create_feature_by_label(const char *label){
   }
   HASH_FIND(hhl, feature_map, l_label, strlen(l_label), result);
   if(result!=NULL){
+    if(!result->ftr_loaded){
+      load_ftr_by_feature_id(result->id);
+      result->ftr_loaded=1;
+    }
     free(l_label);
     return result;
   }
@@ -317,6 +321,10 @@ struct feature *find_or_create_feature_by_label(const char *label){
   HASH_ADD_KEYPTR( hhl, feature_map, result->label, strlen(result->label), result);
 
   HASH_ADD_INT( feature_map_by_id, id, result);
+  if(!result->ftr_loaded){
+    load_ftr_by_feature_id(result->id);
+    result->ftr_loaded=1;
+  }
   return result; 
 }
 
@@ -331,6 +339,8 @@ void save_successes(){
   while(r){
     n=r->next;
     save_success(r->req, r->res);
+    destroy_response(r->res);
+    destroy_request(r->req);
     ck_free(r);
     r=n;
   }
@@ -571,9 +581,11 @@ int load_feature(){
   feat->id=sqlite3_column_int(get_features_stmt,0);
   feat->label=(char *) strdup((const char *) sqlite3_column_text(get_features_stmt,1));
   feat->count=sqlite3_column_int(get_features_stmt,2);
+  feat->ftr_loaded=0;
   HASH_ADD_KEYPTR( hhl, feature_map, feat->label, strlen(feat->label), feat );
   HASH_ADD_INT( feature_map_by_id, id, feat );
   load_ftr_by_feature_id(feat->id);
+  feat->ftr_loaded=1;
   return 0;
 }
 
