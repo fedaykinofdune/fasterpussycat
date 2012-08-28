@@ -326,7 +326,15 @@ void blacklist_hash(struct detect_404_info *info, unsigned char *hash){
   rule->code=200;
   rule->hash=detect_404_alloc(info,MD5_DIGEST_LENGTH);
   rule->evaluate=detected_fail;
+  
   memcpy(rule->hash,hash,MD5_DIGEST_LENGTH);
+  
+  rule=new_404_rule(info,&info->rules_general);
+  rule->code=500;
+  rule->hash=detect_404_alloc(info,MD5_DIGEST_LENGTH);
+  rule->evaluate=detected_fail;
+  memcpy(rule->hash,hash,MD5_DIGEST_LENGTH);
+
 }
 
 
@@ -334,6 +342,11 @@ void blacklist_hash(struct detect_404_info *info, unsigned char *hash){
 void blacklist_sig(struct detect_404_info *info, struct http_sig *sig){
   struct match_rule *rule=new_404_rule(info,&info->rules_general);
   rule->code=200;
+  rule->sig=detect_404_alloc(info,sizeof(struct http_sig));
+  rule->mime_type="text/html";
+  rule->evaluate=detected_fail;
+  memcpy(rule->sig,sig,sizeof(struct http_sig));
+  rule->code=500;
   rule->sig=detect_404_alloc(info,sizeof(struct http_sig));
   rule->mime_type="text/html";
   rule->evaluate=detected_fail;
