@@ -33,7 +33,6 @@
 #include <sys/stat.h>
 #include <termios.h>
 #include <fcntl.h>
-#include <gmp.h>
 #include "types.h"
 #include "alloc-inl.h"
 #include "string-inl.h"

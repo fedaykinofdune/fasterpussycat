@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <gmp.h>
 #include <string.h>
 #include <sys/types.h>
 #include "db.h"
