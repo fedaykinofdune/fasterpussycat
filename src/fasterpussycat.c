@@ -76,7 +76,7 @@ u32 __AD_trk_cnt[ALLOC_BUCKETS];
 #define POST_KEY 19
 #define RECENT 20
 #define MIME 21
-
+#define MAX_TIME 22
 
 struct t_list;
 
@@ -86,7 +86,7 @@ struct t_list {
 };
 
 struct t_list *target_list=NULL;
-
+int max_time=0;
 FILE *file=NULL;
 
 void usage(){
@@ -105,6 +105,7 @@ printf(
 "      --request-timeout TIMEOUT total request timeout\n" 
 "      --rw-timeout TIMEOUT      rw timeout\n" 
 "      --conn-timeout TIMEOUT    connection teardown timeout\n" 
+"      --max-time MINUTES        max time to run in minutes\n"    
 "\n"
 "Attack mode:\n"
 "\n"
@@ -269,6 +270,10 @@ void do_scan(){
     end_time = tv_tmp.tv_sec * 1000LL + tv_tmp.tv_usec / 1000;
 
     run_time = end_time - st_time;
+    if(max_time && run_time>(max_time * 1000LL * 60LL)){
+      warn("Max time reached!");
+      stop_soon=1;
+    }
     if(progress && ((end_time-last_time)>(1000*progress))){
       req_sec = ((req_count - queue_cur)-last_req) * 1000.0 / ((end_time-last_time) + 1);
       last_time=end_time;
@@ -327,6 +332,7 @@ void parse_opts(int argc, char** argv){
     { "conn-timeout", required_argument,NULL, CONN_TIMEOUT},
     { "max-connections", required_argument,NULL, 'c'},
     { "max-requests", required_argument,NULL, 'r'},
+    { "max-time", required_argument,NULL, MAX_TIME},
     { "progress", required_argument, NULL, 'P' },
     { "file", required_argument, NULL, 'f' },
     { "statistics", no_argument, NULL, STATISTICS },
@@ -367,6 +373,9 @@ void parse_opts(int argc, char** argv){
         break;
       case RW_TIMEOUT:
         rw_tmout=atoi(optarg);
+        break;
+      case MAX_TIME:
+        max_time=atoi(optarg);
         break;
       case CONN_TIMEOUT:
         idle_tmout=atoi(optarg);
