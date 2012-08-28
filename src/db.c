@@ -363,7 +363,7 @@ void save_success(struct http_request *req, struct http_response *res){
   sqlite3_bind_int(insert_result_stmt,1,res->code);
   sqlite3_bind_int(insert_result_stmt,2,time(NULL));
   sqlite3_bind_text(insert_result_stmt,3, url, -1, SQLITE_TRANSIENT);
-  sqlite3_bind_text(insert_result_stmt,4, (res->header_mime==NULL ? (char *) res->header_mime : (char *) "(null)"), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(insert_result_stmt,4, (res->header_mime!=NULL ? (char *) res->header_mime : (char *) "(null)"), -1, SQLITE_TRANSIENT);
   sqlite3_bind_int(insert_result_stmt,5, (req->test ? req->test->flags : 0));
   sqlite3_bind_int(insert_result_stmt,6, content_length);
   if(sqlite3_step(insert_result_stmt)!=SQLITE_DONE){
