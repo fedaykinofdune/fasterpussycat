@@ -93,6 +93,14 @@ void add_default_rules(struct detect_404_info *info){
   rule->code=200;
   rule->evaluate=detected_success;
 
+
+
+  /* and success for 500 */
+
+  rule=new_404_rule(info,&info->rules_final);
+  rule->code=500;
+  rule->evaluate=detected_success;
+
   /* and for 401 and 403 for directories */
 
   rule=new_404_rule(info,&info->rules_final);
@@ -114,6 +122,11 @@ void add_default_rules(struct detect_404_info *info){
 
   rule=new_404_rule(info,&info->rules_final);
   rule->code=200;
+  rule->evaluate=keep_hash_count;
+  rule->data=info;
+
+  rule=new_404_rule(info,&info->rules_final);
+  rule->code=500;
   rule->evaluate=keep_hash_count;
   rule->data=info;
 
