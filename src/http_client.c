@@ -1266,8 +1266,14 @@ void fprint_response(struct http_response* res) {
 
   for (i=0;i<res->pay_len;i++)
 
-    if (res->payload[i] <= 0x20 || strchr("<>\"'&:\\", (char)res->payload[i])) {
-
+    if (res->payload[i] <= 0x20 || 
+      res->payload[i]=='<' ||
+      res->payload[i]=='>' ||
+      res->payload[i]=='"' ||
+      res->payload[i]=='\'' ||
+      res->payload[i]=='\\' ||
+      res->payload[i]=='&' ||
+      res->payload[i]==':') {
       if (!in_space) {
 
         in_space = 1;
@@ -1279,7 +1285,7 @@ void fprint_response(struct http_response* res) {
 
       if (res->payload[i] == '&')
         do { i++; } while (i < res->pay_len &&
-                           (isalnum(res->payload[i]) || strchr("#;", (char)res->payload[i])));
+                           (isalnum(res->payload[i]) || res->payload[i]=='#' || res->payload[i]==';'));
 
 
     } else {
