@@ -1285,7 +1285,7 @@ void fprint_response(struct http_response* res) {
 
       if (res->payload[i] == '&')
         do { i++; } while (i < res->pay_len &&
-                           ((res->payload>=48 && res->payload<=57) || (res->payload>=65 && res->payload<=90) || (res->payload>=97 || res->payload<=122) || res->payload[i]=='#' || res->payload[i]==';'));
+                           ((res->payload[i]>=48 && res->payload[i]<=57) || (res->payload[i]>=65 && res->payload[i]<=90) || (res->payload[i]>=97 || res->payload[i]<=122) || res->payload[i]=='#' || res->payload[i]==';'));
 
 
     } else {
