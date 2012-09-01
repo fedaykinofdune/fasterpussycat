@@ -25,7 +25,7 @@ unsigned char php_error(struct http_request *req, struct http_response *res, voi
     regex=ck_alloc(sizeof(regex_t));
     regcomp(regex," <b>(Warning|Fatal error)</b>: .* in <b>([^<]+)</b> on line",REG_EXTENDED | REG_ICASE);
   }
-  if(!regexec(regex, res->payload, 0, 0, 0)){
+  if(strstr(res->payload,"on line") && !regexec(regex, res->payload, 0, 0, 0)){
     annotate(res,"php-error",NULL);
   }
   return DETECT_NEXT_RULE;
@@ -120,7 +120,7 @@ unsigned char server_path_disclosure(struct http_request *req, struct http_respo
   new_path=calloc(1,s+1);
   memcpy(new_path,path+m[1].rm_so,s);
   unix_p=calloc(1,strlen(new_path)+100);
-  strcat(unix_p,"/(var|www|usr|tmp|virtual|etc|home|mnt|mount|root|proc)/[a-z0-9_/.-]+");
+  strcat(unix_p,"/[a-z][a-z]([a-z]|rtual|me|unt|ot|oc)/[a-z0-9_/.-]+");
   strcat(unix_p, new_path+1);
   unix_r=calloc(sizeof(regex_t),1);
   if(regcomp(unix_r, unix_p, REG_EXTENDED | REG_ICASE)) {
@@ -143,6 +143,11 @@ unsigned char server_path_disclosure(struct http_request *req, struct http_respo
     free(new_path);
     regfree(unix_r);
     annotate(res,"server-path", ret);
+    return DETECT_NEXT_RULE;
+  }
+
+
+  if(!strchr(res->payload,':')){
     return DETECT_NEXT_RULE;
   }
 
@@ -220,38 +225,19 @@ unsigned char index_of(struct http_request *req, struct http_response *res, void
 							            	"Last modified</a>",	
 						             		"<TITLE>Folder Listing",
 							             	"<table summary=\"Directory Listing\"",
+                            "<HTML><HEAD><TITLE>Directory:",
+                            "<body><h1>Directory Listing For",
+                            "?C=[NMSD];O=[AD]\">Name</a>",
+                            "<title>Index of",
+                            "[To Parent Directory]</A>",
                             0
                             };
 
-	static char * patterns[]={
-                                "<A\\sHREF=\"[^\"]*\">\\[To\\sParent\\sDirectory]</A>",
-								                "<body><h1>Directory\\sListing\\sFor\\s.*</h1>",
-								                "<HTML><HEAD><TITLE>Directory:.*?</TITLE></HEAD><BODY>",
-								                "<a href=\"\\?C=[NMSD];O=[AD]\">Name</a>",
-								                "<title>Index\\sof\\s.*?</title>",
-                                0
-                                };
 
   int i=0;
-  int regex_c=0;
-  for(regex_c=0;patterns[regex_c];regex_c++); /* count */
-  static regex_t ** regex=NULL; 
-  if(!regex) regex=calloc(sizeof(regex_t *),regex_c+1);
-  if(!regex[0]){
-    for(i=0;i<regex_c;i++){
-      regex[i]=calloc(sizeof(regex_t),1);
-      if(regcomp(regex[i], patterns[i], REG_EXTENDED | REG_ICASE | REG_NOSUB)) fatal("Could not compile regex");
-    }
-  }
   for(i=0;text[i];i++){
     if(strstr((char *) res->payload, (char *) text[i])){
     goto success;
-    }
-  }
-  for(i=0;regex[i];i++){
-    if(!regexec(regex[i],(char *) res->payload,0,NULL,0)){
-      
-      goto success;
     }
   }
   return DETECT_NEXT_RULE;
