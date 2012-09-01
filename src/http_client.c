@@ -1243,7 +1243,7 @@ static u8* grab_line(u8* data, u32* cur_pos, u32 data_len) {
 
   *cur_pos += cur_ptr - start_ptr;
 
-  while (cur_ptr > start_ptr && strchr("\r\n", *(cur_ptr-1))) cur_ptr--;
+  while (cur_ptr > start_ptr && (*(cur_ptr-1)=='\r' || *(cur_ptr-1)=='\n')) cur_ptr--;
 
   ret = ck_alloc(cur_ptr - start_ptr + 1);
   memcpy(ret, start_ptr, cur_ptr - start_ptr);
@@ -1707,9 +1707,11 @@ u8 parse_response(struct http_request* req, struct http_response* res,
 
 #undef NEXT_LINE
 
-  if(res->code==200 || res->code==500) fprint_response(res);
-  res->md5_digest=ck_alloc(MD5_DIGEST_LENGTH);
-  MD5(res->payload, res->pay_len, res->md5_digest);
+  if((res->code==200 || res->code==500) && res->pay_len>0) { 
+    fprint_response(res);
+    res->md5_digest=ck_alloc(MD5_DIGEST_LENGTH);
+    MD5(res->payload, res->pay_len, res->md5_digest);
+  }
   return must_close ? 3 : 0;
 }
 
