@@ -173,7 +173,7 @@ void set_value(u8 type, u8* name, u8* val,
 
     /* No offset or no match - append to the end of list. */
     if(par->c >= par->s){
-      par->s=(par->c+1)*2
+      par->s=(par->c+1)*2;
       par->t = ck_realloc(par->t, par->s * sizeof(u8));
       par->n = ck_realloc(par->n, par->s * sizeof(u8*));
       par->v = ck_realloc(par->v, par->s * sizeof(u8*));
@@ -456,9 +456,9 @@ u8* url_decode_token(const u8* str, u32 len, u8 plus) {
   }
 
   *(dst++) = 0;
-
+  /* don't realloc 
   ret = ck_realloc(ret, dst - ret);
-
+  */
   return ret;
 }
 
@@ -477,8 +477,18 @@ u8* url_encode_token(u8* str, u32 len, u8 also_slash) {
   while (len--) {
     u8 c = *(src++);
 
-    if (c <= 0x20 || c >= 0x80 || strchr("#%&=+;,!$?", c) ||
-        (also_slash && c == '/')) {
+    if (c <= 0x20 || c >= 0x80 
+        || c=='#'
+        || c=='%'
+        || c=='&'
+        || c=='='
+        || c=='+'
+        || c==';'
+        || c==','
+        || c=='!'
+        || c=='$'
+        || c=='?'
+        || (also_slash && c == '/')) {
       if (c == 0xFF) c = 0;
       sprintf((char*)dst, "%%%02X", c);
       dst += 3;
@@ -488,8 +498,9 @@ u8* url_encode_token(u8* str, u32 len, u8 also_slash) {
 
   *(dst++) = 0;
 
+  /* don't realloc to save time and lose memory
   ret = ck_realloc(ret, dst - ret);
-
+  */
   return ret;
 
 }
@@ -508,7 +519,7 @@ void tokenize_path(const u8* str, struct http_request* req, u8 add_slash) {
 
   /* Parse path elements first. */
 
-  while (*cur && !strchr("?#", *cur)) {
+  while (*cur && (*cur)!='?' && (*cur)!='#') {
 
     u32 next_seg, next_eq;
 
@@ -911,15 +922,25 @@ void fake_host(u8* name, u32 addr) {
 
 u8* build_request_data(struct http_request* req) {
 
-  u8 *ret_buf, *ck_buf, *pay_buf, *path;
-  u32 ret_pos, ck_pos, pay_pos, i;
+  u8 *ret_buf=NULL;
+  static u8 *ck_buf=NULL;
+  static u8 *pay_buf=NULL;
+  static u8 *path=NULL;
+  u8 ret_pos=0, ck_pos=0, pay_pos=0, i;
   u8  req_type = PARAM_NONE;
+  
+  if(ck_buf==NULL) NEW_STR(ck_buf, ck_pos);
+
+  if(pay_buf==NULL) NEW_STR(pay_buf, pay_pos);
+  
+  ck_buf[0]=0;
+  pay_buf[0]=0;
 
   if (req->proto == PROTO_NONE)
     FATAL("uninitialized http_request");
-
+  
   NEW_STR(ret_buf, ret_pos);
-
+  
   path = serialize_path(req, 0, 0);
 
 #define ASD(_p3) ADD_STR_DATA(ret_buf, ret_pos, _p3)
@@ -1070,9 +1091,6 @@ u8* build_request_data(struct http_request* req) {
   }
 
   /* Append any other requested headers and cookies. */
-
-  NEW_STR(ck_buf, ck_pos);
-
   for (i=0;i<req->par.c;i++) {
     if (req->par.t[i] == PARAM_HEADER) {
       ASD(req->par.n[i]);
@@ -1111,7 +1129,6 @@ u8* build_request_data(struct http_request* req) {
     ASD("\r\n");
   }
 
-  ck_free(ck_buf);
 
   /* Now, let's serialize the payload, if necessary. */
 
@@ -1126,8 +1143,6 @@ u8* build_request_data(struct http_request* req) {
         break;
     }
   }
-
-  NEW_STR(pay_buf, pay_pos);
 
   if (req_type == PARAM_POST) {
 
@@ -1218,8 +1233,6 @@ u8* build_request_data(struct http_request* req) {
     ASD(cl);
     ASD(pay_buf);
   }
-
-  ck_free(pay_buf);
 
 #undef ASD
 

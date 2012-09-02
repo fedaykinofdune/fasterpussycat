@@ -537,11 +537,11 @@ void save_url_test(struct url_test *f){
 struct feature_test_result *find_or_create_ftr(int url_test_id, int feature_id){
   struct feature_test_result *result;
   int keylen = offsetof(struct feature_test_result, feature_id) + sizeof(int) - offsetof(struct feature_test_result, url_test_id);
-  struct ftr_lookup_key *lookup_key=ck_alloc(sizeof(struct ftr_lookup_key));
+  static struct ftr_lookup_key *lookup_key=NULL; /* statically assign */
+  if(lookup_key==NULL) lookup_key=ck_alloc(sizeof(struct ftr_lookup_key));
   lookup_key->url_test_id=url_test_id;
   lookup_key->feature_id=feature_id;
   HASH_FIND(hh, result_map, &lookup_key->url_test_id, keylen, result);
-  ck_free(lookup_key);
   if(result!=NULL){
     return result;
   }
