@@ -346,6 +346,7 @@ void blacklist_sig(struct detect_404_info *info, struct http_sig *sig){
   rule->mime_type="text/html";
   rule->evaluate=detected_fail;
   memcpy(rule->sig,sig,sizeof(struct http_sig));
+  rule=new_404_rule(info,&info->rules_general);
   rule->code=500;
   rule->sig=detect_404_alloc(info,sizeof(struct http_sig));
   rule->mime_type="text/html";

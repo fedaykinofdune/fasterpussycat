@@ -21,14 +21,19 @@ unsigned char detected_fail(struct http_request *req, struct http_response *res,
   return DETECT_FAIL;
 }
 
-
+void dump_sig(struct http_sig* sig){
+  printf("SIG:\n");
+  int i;
+  for (i=0;i<FP_SIZE;i++) {
+    printf("bucket %d: %d\n", i, sig->data[i]);
+  }
+}
 
 
 int same_page(struct http_sig* sig1, struct http_sig* sig2) {
   u32 i, bucket_fail = 0;
   s32 total_diff  = 0;
   u32 total_scale = 0;
-
   /* Different response codes: different page */
   if (sig1->code != sig2->code)
     return 0;
@@ -52,7 +57,6 @@ int same_page(struct http_sig* sig1, struct http_sig* sig2) {
 
   if (abs(total_diff) > 1 + (total_scale * FP_T_REL / 100))
     return 0;
-
   return 1;
 }
 
