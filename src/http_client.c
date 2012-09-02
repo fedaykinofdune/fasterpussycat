@@ -1255,7 +1255,7 @@ static u8* grab_line(u8* data, u32* cur_pos, u32 data_len, u8** buf) {
   *cur_pos += cur_ptr - start_ptr;
 
   while (cur_ptr > start_ptr && (*(cur_ptr-1)=='\r' || *(cur_ptr-1)=='\n')) cur_ptr--;
-  if(ALLOC_S(buf)<(cur_ptr-start_ptr+1)){
+  if(ALLOC_S(*buf)<(cur_ptr-start_ptr+1)){
     *buf=ck_realloc(*buf,(cur_ptr-start_ptr+1)*4);
   }
   ret = *buf;
