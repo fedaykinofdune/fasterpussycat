@@ -61,6 +61,7 @@ unsigned char input_fields(struct http_request *req, struct http_response *res, 
   char input[200];
   int i, copy, seen_upload=0, seen_password=0;
   regmatch_t m[1];
+  if(!strcasestr(res->payload,"<input")) return DETECT_NEXT_RULE; 
   if(regex==NULL){
     regex=ck_alloc(sizeof(regex_t));
     regcomp(regex,"<input[^>]+",REG_EXTENDED | REG_ICASE);
