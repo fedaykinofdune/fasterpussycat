@@ -1329,9 +1329,10 @@ void fprint_response(struct http_response* res) {
 u8 parse_response(struct http_request* req, struct http_response* res,
                   u8* data, u32 data_len, u8 more) {
   u8** buf;  
-  *buf=ck_alloc(128);
   
-  u8* cur_line = *buf;
+  u8* cur_line = ck_alloc(128);
+  buf=&cur_line;
+  
   s32 pay_len  = -1;
   u32 cur_data_off = 0,
       total_chunk = 0,
