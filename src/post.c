@@ -109,16 +109,14 @@ unsigned char server_path_disclosure(struct http_request *req, struct http_respo
   int s=0;
   int i=0;
   char *path=(char *) serialize_path(req,0,0);
-  static regex_t *path_r=NULL;
-  if(!path_r){
-    path_r=calloc(sizeof(regex_t),1);
-    if(regcomp(path_r, "^(.*?)($|[#?])", REG_EXTENDED | REG_ICASE)) fatal("Could not compile regex");
+  for(i=0;path[i];i++){
+    if(path[i]=='#' || path[i]=='?'){
+      path[i]=0;
+      break;
+    }
   }
-  if(regexec(path_r, path, 2, m, 0)) return DETECT_NEXT_RULE;
-  s=m[1].rm_eo-m[1].rm_so;
-  if(!s) return DETECT_NEXT_RULE;
-  new_path=calloc(1,s+1);
-  memcpy(new_path,path+m[1].rm_so,s);
+  if(!strstr(res->payload,path)) return DETECT_NEXT_RULE;
+  new_path=path;
   unix_p=calloc(1,strlen(new_path)+100);
   strcat(unix_p,"/[a-z][a-z]([a-z]|rtual|me|unt|ot|oc)/[a-z0-9_/.-]+");
   strcat(unix_p, new_path+1);
