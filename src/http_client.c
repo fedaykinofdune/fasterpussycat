@@ -1242,7 +1242,7 @@ u8* build_request_data(struct http_request* req) {
 
 /* Internal helper for parsing lines for parse_response(), etc. */
 
-static u8* grab_line(u8* data, u32* cur_pos, u32 data_len, u8** buf) {
+static u8* grab_line(u8* data, u32* cur_pos, u32 data_len) {
   u8 *cur_ptr   = data + *cur_pos,
      *start_ptr = cur_ptr,
      *end_ptr   = data + data_len,
@@ -1255,10 +1255,8 @@ static u8* grab_line(u8* data, u32* cur_pos, u32 data_len, u8** buf) {
   *cur_pos += cur_ptr - start_ptr;
 
   while (cur_ptr > start_ptr && (*(cur_ptr-1)=='\r' || *(cur_ptr-1)=='\n')) cur_ptr--;
-  if(ALLOC_S(*buf)<(cur_ptr-start_ptr+1)){
-    *buf=ck_realloc(*buf,(cur_ptr-start_ptr+1)*4);
-  }
-  ret = *buf;
+
+  ret = ck_alloc(cur_ptr - start_ptr + 1);
   memcpy(ret, start_ptr, cur_ptr - start_ptr);
   ret[cur_ptr - start_ptr] = 0;
 
@@ -1328,11 +1326,7 @@ void fprint_response(struct http_response* res) {
 
 u8 parse_response(struct http_request* req, struct http_response* res,
                   u8* data, u32 data_len, u8 more) {
-  u8** buf;  
-  
-  u8* cur_line = ck_alloc(128);
-  buf=&cur_line;
-  
+  u8* cur_line = 0;
   s32 pay_len  = -1;
   u32 cur_data_off = 0,
       total_chunk = 0,
@@ -1345,7 +1339,8 @@ u8 parse_response(struct http_request* req, struct http_response* res,
     FATAL("struct http_response reused! Original code '%u'.", res->code);
 
 #define NEXT_LINE() do { \
-    cur_line = grab_line(data, &cur_data_off, data_len, buf); \
+    if (cur_line) ck_free(cur_line); \
+    cur_line = grab_line(data, &cur_data_off, data_len); \
   } while (0)
 
   /* First, let's do a superficial request completeness check. Be
@@ -1353,17 +1348,15 @@ u8 parse_response(struct http_request* req, struct http_response* res,
 
   NEXT_LINE(); /* HTTP/1.x xxx ... */
 
-  if (!cur_line){
-    ck_free(*buf);
-    return more ? 1 : 2;
-  }
+  if (!cur_line) return more ? 1 : 2;
+
   if (strlen((char*)cur_line) < 7 && more) {
-    ck_free(*buf);
+    ck_free(cur_line);
     return 1;
   }
 
   if (prefix(cur_line, "HTTP/1.")) {
-    ck_free(*buf);
+    ck_free(cur_line);
     return 2;
   }
 
@@ -1396,7 +1389,7 @@ u8 parse_response(struct http_request* req, struct http_response* res,
       }
       else if (sscanf((char*)cur_line + 15, "%d", &pay_len) == 1) {
         if (pay_len < 0 || pay_len > 1000000000 /* 1 GB */) {
-          ck_free(*buf);
+          ck_free(cur_line);
           return 2;
         }
       } else pay_len = -1;
@@ -1444,13 +1437,13 @@ u8 parse_response(struct http_request* req, struct http_response* res,
       NEXT_LINE(); /* Should be chunk size, hex. */
 
       if (!cur_line || sscanf((char*)cur_line, "%x", &chunk_len) != 1) {
-        if (more) { ck_free(*buf); return 1; }
+        if (more) { ck_free(cur_line); return 1; }
         res->warn |= WARN_PARTIAL;
         break;
       }
 
       if (chunk_len > 1000000000 || total_chunk > 1000000000 /* 1 GB */) {
-        ck_free(*buf);
+        ck_free(cur_line);
         return 2;
       }
 
@@ -1460,7 +1453,7 @@ u8 parse_response(struct http_request* req, struct http_response* res,
 
       if (cur_data_off + chunk_len > data_len) {
 
-        if (more) { ck_free(*buf); return 1; }
+        if (more) { ck_free(cur_line); return 1; }
         chunk_len = data_len - cur_data_off;
         total_chunk += chunk_len;
 
@@ -1493,7 +1486,7 @@ u8 parse_response(struct http_request* req, struct http_response* res,
     /* If in a mode other than 'chunked', and C-L not received, but more
        data might be available - try to request it. */
 
-    ck_free(*buf);
+    ck_free(cur_line);
     return 1;
 
   } else if (pay_len != 1) {
@@ -1503,7 +1496,7 @@ u8 parse_response(struct http_request* req, struct http_response* res,
       /* If C-L seen, but not nough data in the buffer, try to request more
          if possible, otherwise tag the response as partial. */
 
-      if (more) { ck_free(*buf); return 1; }
+      if (more) { ck_free(cur_line); return 1; }
       res->warn |= WARN_PARTIAL;
 
     } else if (cur_data_off + pay_len < data_len) res->warn |= WARN_TRAIL;
@@ -1519,7 +1512,7 @@ u8 parse_response(struct http_request* req, struct http_response* res,
   if (strlen((char*)cur_line) < 13 ||
       sscanf((char*)cur_line, "HTTP/1.%u %u ", &http_ver, &res->code) != 2 ||
       res->code < 100 || res->code > 999) {
-    ck_free(*buf);
+    ck_free(cur_line);
     return 2;
   }
 
@@ -1545,7 +1538,7 @@ u8 parse_response(struct http_request* req, struct http_response* res,
     /* Split field name and value */
 
     val = (u8*) strchr((char*)cur_line, ':');
-    if (!val) { ck_free(*buf); return 2; }
+    if (!val) { ck_free(cur_line); return 2; }
 
     *val = 0;
     while (isspace(*(++val)));
@@ -1672,7 +1665,7 @@ u8 parse_response(struct http_request* req, struct http_response* res,
 
   }
 
-  ck_free(*buf);
+  ck_free(cur_line);
 
   if (compressed) {
 

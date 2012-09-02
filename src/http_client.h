@@ -434,6 +434,9 @@ extern u32 max_connections,
            conn_failed,
            hosts,
            queue_cur;
+           socks_port;
+
+extern u8 *socks_host;
 
 extern float req_sec,
              max_requests_sec;

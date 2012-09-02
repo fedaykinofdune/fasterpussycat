@@ -76,6 +76,7 @@ u32 __AD_trk_cnt[ALLOC_BUCKETS];
 #define RECENT 20
 #define MIME 21
 #define MAX_TIME 22
+#define SOCKS 23
 
 struct t_list;
 
@@ -105,6 +106,7 @@ printf(
 "      --rw-timeout TIMEOUT      rw timeout\n" 
 "      --conn-timeout TIMEOUT    connection teardown timeout\n" 
 "      --max-time MINUTES        max time to run in minutes\n"    
+"      --socks HOST:PORT         use socks4 proxy at HOST:PORT\n"
 "\n"
 "Attack mode:\n"
 "\n"
@@ -338,6 +340,7 @@ void parse_opts(int argc, char** argv){
     { "browser", required_argument, NULL, 'B' },
     { "train",  optional_argument, NULL, 'T' },
     { "feature", required_argument,NULL, FEATURE},
+    { "socks", required_argument,NULL, SOCKS},
     { "url", required_argument, NULL, URL },
     { "flags", required_argument, NULL, FLAGS },
     { "help", required_argument, NULL, 'h' },
@@ -423,6 +426,11 @@ void parse_opts(int argc, char** argv){
         break;
       case 'P':
         progress=atoi(optarg);
+        break;
+      case SOCKS:
+        if(!strchr(optarg,":")) error("no port specified");
+        socks_host=strtok(optarg,":");
+        socks_port=atoi(strtok(NULL,":"));
         break;
       case STATISTICS:
         load_tests();
