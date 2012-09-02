@@ -139,7 +139,7 @@ unsigned char server_path_disclosure(struct http_request *req, struct http_respo
       *strstr(ret,new_path)='/';
       *strstr(ret,new_path+1)=0;
     }
-    free(new_path);
+    ck_free(new_path);
     regfree(unix_r);
     annotate(res,"server-path", ret);
     return DETECT_NEXT_RULE;
