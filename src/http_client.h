@@ -37,6 +37,7 @@ struct param_array {
   u8** n;                       /* Name  */
   u8** v;                       /* Value */
   u32  c;                       /* Count */
+  u32  s;                       /* Storage */
 };
 
 /* Flags for http_request protocol: */

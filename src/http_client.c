@@ -172,10 +172,12 @@ void set_value(u8 type, u8* name, u8* val,
   if (matched == -1) {
 
     /* No offset or no match - append to the end of list. */
-
-    par->t = ck_realloc(par->t, (par->c + 1) * sizeof(u8));
-    par->n = ck_realloc(par->n, (par->c + 1) * sizeof(u8*));
-    par->v = ck_realloc(par->v, (par->c + 1) * sizeof(u8*));
+    if(par->c >= par->s){
+      par->s=(par->c+1)*2
+      par->t = ck_realloc(par->t, par->s * sizeof(u8));
+      par->n = ck_realloc(par->n, par->s * sizeof(u8*));
+      par->v = ck_realloc(par->v, par->s * sizeof(u8*));
+    }
     par->t[par->c] = type;
     par->n[par->c] = ck_strdup(name);
     par->v[par->c] = ck_strdup(val);
