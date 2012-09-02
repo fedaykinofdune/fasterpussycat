@@ -1718,7 +1718,7 @@ u8 parse_response(struct http_request* req, struct http_response* res,
 
 #undef NEXT_LINE
 
-  if(1==1 || ((res->code==200 || res->code==500) && res->pay_len>0)) { 
+  if ((res->code==200 || res->code==500) && res->pay_len>0) { 
     fprint_response(res);
     res->md5_digest=ck_alloc(MD5_DIGEST_LENGTH);
     MD5(res->payload, res->pay_len, res->md5_digest);
