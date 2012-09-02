@@ -157,6 +157,7 @@ static inline u8* inl_findstr(const u8* haystack, const u8* needle, u32 max_len)
   } while (0)
 
 #define TRIM_STR(_buf_ptr, _buf_len) do { \
+    (_buf_ptr) = ck_realloc(_buf_ptr, _buf_len + 1); \
     (_buf_ptr)[_buf_len] = 0; \
   } while (0)
 
