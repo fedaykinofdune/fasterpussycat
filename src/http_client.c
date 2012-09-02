@@ -173,7 +173,7 @@ void set_value(u8 type, u8* name, u8* val,
 
     /* No offset or no match - append to the end of list. */
     if(par->c >= par->s){
-      par->s=(par->c+1)*2;
+      par->s=(par->c+1)*4;
       par->t = ck_realloc(par->t, par->s * sizeof(u8));
       par->n = ck_realloc(par->n, par->s * sizeof(u8*));
       par->v = ck_realloc(par->v, par->s * sizeof(u8*));
@@ -456,9 +456,7 @@ u8* url_decode_token(const u8* str, u32 len, u8 plus) {
   }
 
   *(dst++) = 0;
-  /* don't realloc 
   ret = ck_realloc(ret, dst - ret);
-  */
   return ret;
 }
 
@@ -498,9 +496,7 @@ u8* url_encode_token(u8* str, u32 len, u8 also_slash) {
 
   *(dst++) = 0;
 
-  /* don't realloc to save time and lose memory
   ret = ck_realloc(ret, dst - ret);
-  */
   return ret;
 
 }
