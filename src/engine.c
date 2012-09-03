@@ -274,6 +274,8 @@ u8 process_test_result(struct http_request *req, struct http_response *res){
     ftr->dirty=1;
     if(success) ftr->success++;
   }
+  ck_free(res->payload);
+  res->payload=0;
   return success;
 }
 

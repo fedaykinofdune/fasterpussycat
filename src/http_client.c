@@ -468,13 +468,15 @@ u8* url_decode_token(const u8* str, u32 len, u8 plus) {
    may help with the exploitation of certain vulnerabilities. */
 
 u8* url_encode_token(u8* str, u32 len, u8 also_slash) {
-
-  u8 *ret = ck_alloc(len * 3 + 1);
-  u8 *src = str, *dst = ret;
-
+  static u8 *dst_p=NULL;
+  if(!dst_p) dst_p=ck_alloc(1024);
+  u8 *dst=dst_p;
+  u8 *max_dst=dst+1020;
+  u8 *src = str;
+  u8 *ret;
   while (len--) {
     u8 c = *(src++);
-
+    if(dst>max_dst) break;
     if (c <= 0x20 || c >= 0x80 
         || c=='#'
         || c=='%'
@@ -495,9 +497,7 @@ u8* url_encode_token(u8* str, u32 len, u8 also_slash) {
   }
 
   *(dst++) = 0;
-
-  ret = ck_realloc(ret, dst - ret);
-  return ret;
+  return dst_p;
 
 }
 
@@ -721,13 +721,11 @@ u8* serialize_path(struct http_request* req, u8 with_host, u8 with_post) {
         u32 len = strlen((char*)req->par.n[i]);
         u8* str = url_encode_token(req->par.n[i], len, 1);
         ASD(str); ASD("=");
-        ck_free(str);
       }
       if (req->par.v[i]) {
         u32 len = strlen((char*)req->par.v[i]);
         u8* str = url_encode_token(req->par.v[i], len, 1);
         ASD(str);
-        ck_free(str);
       }
 
     }
@@ -754,13 +752,11 @@ u8* serialize_path(struct http_request* req, u8 with_host, u8 with_post) {
         u32 len = strlen((char*)req->par.n[i]);
         u8* str = url_encode_token(req->par.n[i], len, 0);
         ASD(str); ASD("=");
-        ck_free(str);
       }
       if (req->par.v[i]) {
         u32 len = strlen((char*)req->par.v[i]);
         u8* str = url_encode_token(req->par.v[i], len, 0);
         ASD(str);
-        ck_free(str);
       }
 
     }
@@ -780,13 +776,11 @@ u8* serialize_path(struct http_request* req, u8 with_host, u8 with_post) {
         u32 len = strlen((char*)req->par.n[i]);
         u8* str = url_encode_token(req->par.n[i], len, 0);
         ASD(str); ASD("=");
-        ck_free(str);
       }
       if (req->par.v[i]) {
         u32 len = strlen((char*)req->par.v[i]);
         u8* str = url_encode_token(req->par.v[i], len, 0);
         ASD(str);
-        ck_free(str);
       }
 
     }
@@ -1152,13 +1146,11 @@ u8* build_request_data(struct http_request* req) {
           u8* str = url_encode_token(req->par.n[i], len, 0);
           ADD_STR_DATA(pay_buf, pay_pos, str);
           ADD_STR_DATA(pay_buf, pay_pos, "=");
-          ck_free(str);
         }
         if (req->par.v[i]) {
           u32 len = strlen((char*)req->par.v[i]);
           u8* str = url_encode_token(req->par.v[i], len, 0);
           ADD_STR_DATA(pay_buf, pay_pos, str);
-          ck_free(str);
         }
       }
 
