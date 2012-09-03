@@ -162,6 +162,7 @@ void create_magic_rules(struct detect_404_info *info){
   create_magic_rule(info, "gz",   "application/x-gzip");
   create_magic_rule(info, "tgz",  "application/x-gzip");
   create_magic_rule(info, "zip",  "application/zip");
+  create_magic_rule(info, "bz2",  "application/x-bzip2");
 }
 
 void create_magic_rule(struct detect_404_info *info, char *ext, char *mime_type){
