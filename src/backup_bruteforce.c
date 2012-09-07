@@ -22,7 +22,7 @@ void backup_bruteforce(struct target *t, unsigned char *full_url){
   struct http_request *r;
   unsigned char *full_url2;
   static char *patterns[] = {"%Y%m%d.sql","%Y%m%d.tgz", "%Y%m%d.zip", "%Y%m%d.tar.gz", 
-                           "%Y-%m-%d.sql","%Y-%m-%d.tgz", "%Y-%m-%d.zip", "%Y-%m-%d.tar.gz", 
+                           "%Y-%m-%d.sql","%Y-%m-%d.tgz", "%Y-%m-%d.zip", "%Y-%m-%d.tar.gz", "mysql_backup_%Y-%m-%d.tar",  
                            "%BIGDOMAIN%-%Y-%m-%d.sql","%BIGDOMAIN%-%Y-%m-%d.tgz", "%BIGDOMAIN%-%Y-%m-%d.zip", "%BIGDOMAIN%-%Y-%m-%d.tar.gz",
                            "%BIGDOMAIN%-%Y%m%d.sql","%BIGDOMAIN%-%Y%m%d.tgz", "%BIGDOMAIN%-%Y%m%d.zip", "%BIGDOMAIN%-%Y%m%d.tar.gz",
                            "%BIGDOMAIN%%Y%m%d.sql","%BIGDOMAIN%%Y%m%d.tgz", "%BIGDOMAIN%%Y%m%d.zip", "%BIGDOMAIN%%Y%m%d.tar.gz"
