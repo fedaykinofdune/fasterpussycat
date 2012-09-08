@@ -259,11 +259,12 @@ void do_scan(){
   
   enable_trap=1;
   maybe_queue_more_hosts();
+
+  u64 run_time;
  while ((next_from_queue() && !stop_soon)) {
 
 
     u64 end_time;
-    u64 run_time;
     struct timeval tv_tmp;
 
     gettimeofday(&tv_tmp, NULL);
@@ -285,6 +286,7 @@ void do_scan(){
       maybe_queue_more_hosts();
     }
   }
+  printf("FINISHED (avg req/s = %f)\n", ((req_count - queue_cur) * 1000.0) / (run_time + 1));
   if(train || force_save) save_all();
   if(store_successes) save_successes();
 
@@ -344,7 +346,7 @@ void parse_opts(int argc, char** argv){
     { "help", required_argument, NULL, 'h' },
     { "skip-sig", no_argument, &skip_sig, 1},
     { "skip-other-probes", no_argument, &skip_other_probes, 1},
-    { "blacklist-success", no_argument, &blacklist_success, 0},
+    { "skip-blacklist-success", no_argument, &blacklist_success, 0},
     { "force-save", no_argument, &force_save, 1},
     { "analyze", no_argument, &mode, MODE_ANALYZE},
     { "find-uploaded-file", required_argument, NULL, MODE_FIND_UPLOAD },

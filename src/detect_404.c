@@ -552,7 +552,7 @@ int is_404(struct detect_404_info *info, struct http_request *req, struct http_r
     info->in_a_row_dir=0;
     info->last_dir_code=404;
   }
-  
+   
   if(rc==DETECT_SUCCESS && blacklist_success && res->pay_len>50 && not_head_method(req)) blacklist_sig(info,&res->sig);
   if(rc==DETECT_SUCCESS && !not_head_method(req) && (res->code==200 || res->code==500) && req->test && req->t){
     /* reschedule with get */

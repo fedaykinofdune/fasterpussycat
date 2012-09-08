@@ -102,13 +102,14 @@ int rule_matches(struct match_rule *rule, struct http_request *req, struct http_
     && memcmp(res->md5_digest,rule->hash,MD5_DIGEST_LENGTH)) return 0; 
 
   
-/*  if(rule->hash!=DETECT_ANY 
+  if(rule->hash!=DETECT_ANY 
     && res
-    && not_head_method(req) 
+    && (!not_head_method(req) ||
+    (not_head_method(req) 
     && res->md5_digest
-    && memcmp(res->md5_digest,rule->hash,MD5_DIGEST_LENGTH)) return 0; */
+    && memcmp(res->md5_digest,rule->hash,MD5_DIGEST_LENGTH)))) return 0; 
 
   if(rule->pattern!=DETECT_ANY && regexec(rule->pattern, (char *) serialize_path(req,0,0), 0, NULL, 0)) return 0;
-  if(rule->sig!=DETECT_ANY && res && not_head_method(req) && !same_page(rule->sig,&res->sig)) return 0;
+  if(rule->sig!=DETECT_ANY && res && (!not_head_method(req) || (not_head_method(req) && (res->pay_len<50 || !same_page(rule->sig,&res->sig))))) return 0; 
   return 1;
 }

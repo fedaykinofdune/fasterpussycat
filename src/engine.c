@@ -230,7 +230,6 @@ u8 process_test_result(struct http_request *req, struct http_response *res){
   }
   if(!test) fatal("We should never be here without a test");
   success=(rc==DETECT_SUCCESS);
-
   /* parent dir */
 
   if(test->children){
@@ -473,7 +472,7 @@ void enqueue_tests(struct target *t){
   LL_FOREACH(t->test_scores,score) {
 
     method=(unsigned char*) recommend_method(t->detect_404, score->test);
-    if(method==RECOMMEND_SKIP) continue;
+    if(method==RECOMMEND_SKIP) continue; 
     request=new_request(t);
     before_expansion=target_and_test_to_url(t,score->test);
     url_cpy=macro_expansion(before_expansion);
