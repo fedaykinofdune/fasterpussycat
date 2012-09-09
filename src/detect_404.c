@@ -158,6 +158,9 @@ void create_magic_rules(struct detect_404_info *info){
     }
     magic_load(magic,NULL);
   }
+
+  create_magic_rule(info, "wsdl", "application/xml");
+  create_magic_rule(info, "xml",  "application/xml");
   create_magic_rule(info, "sql",  "text/plain");
   create_magic_rule(info, "tar",  "application/x-tar");
   create_magic_rule(info, "mdb",  "application/x-msaccess");
