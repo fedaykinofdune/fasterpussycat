@@ -351,6 +351,7 @@ void save_successes(){
 void save_success(struct http_request *req, struct http_response *res){
   int content_length=0;
   if(GET_HDR((unsigned char *) "content-length", &res->hdr)) content_length=atoi(GET_HDR((unsigned char *) "content-length", &res->hdr));
+  if(!content_length) content_length=res->pay_len;
   char *url=serialize_path(req,1,0);
   if(url==NULL){return; }
   sqlite3_reset(delete_result_post_stmt);
