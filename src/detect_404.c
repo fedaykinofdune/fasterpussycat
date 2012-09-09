@@ -159,15 +159,16 @@ void create_magic_rules(struct detect_404_info *info){
     magic_load(magic,NULL);
   }
 
-  create_magic_rule(info, "wsdl", "application/xml");
-  create_magic_rule(info, "xml",  "application/xml");
-  create_magic_rule(info, "sql",  "text/plain");
-  create_magic_rule(info, "tar",  "application/x-tar");
-  create_magic_rule(info, "mdb",  "application/x-msaccess");
-  create_magic_rule(info, "gz",   "application/x-gzip");
-  create_magic_rule(info, "tgz",  "application/x-gzip");
-  create_magic_rule(info, "zip",  "application/zip");
-  create_magic_rule(info, "bz2",  "application/x-bzip2");
+  create_magic_rule(info, "\\?WSDL", "application/xml");
+  create_magic_rule(info, "\\.wsdl", "application/xml");
+  create_magic_rule(info, "\\.xml",  "application/xml");
+  create_magic_rule(info, "\\.sql",  "text/plain");
+  create_magic_rule(info, "\\.tar",  "application/x-tar");
+  create_magic_rule(info, "\\.mdb",  "application/x-msaccess");
+  create_magic_rule(info, "\\.gz",   "application/x-gzip");
+  create_magic_rule(info, "\\.tgz",  "application/x-gzip");
+  create_magic_rule(info, "\\.zip",  "application/zip");
+  create_magic_rule(info, "\\.bz2",  "application/x-bzip2");
 }
 
 void create_magic_rule(struct detect_404_info *info, char *ext, char *mime_type){
@@ -175,7 +176,6 @@ void create_magic_rule(struct detect_404_info *info, char *ext, char *mime_type)
   char *pattern=ck_alloc(strlen(ext)+6);
   regex_t *regex=detect_404_alloc(info,sizeof(regex_t));
   pattern[0]=0;
-  strcat(pattern,"\\.");
   strcat(pattern,ext);
   strcat(pattern,"$");
   
