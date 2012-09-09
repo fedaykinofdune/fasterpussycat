@@ -185,6 +185,11 @@ void create_magic_rule(struct detect_404_info *info, char *ext, char *mime_type)
   rule->pattern=regex;
   rule->data=mime_type;
   rule->evaluate=enforce_magic_rule;
+
+  rule=new_404_rule(info,&info->rules_preprocess);
+  rule->code=500;
+  rule->pattern=regex;
+  rule->evaluate=detected_fail;
   ck_free(pattern);
 }
 
