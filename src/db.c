@@ -170,7 +170,7 @@ void create_dir_links(){
 
 void do_query(struct query *q){
   static int day=60*60*24;
-  char *sql=strdup("SELECT results.id, results.code, results.url, results.mime, results.time, results.flags, results_post.key, results_post.value FROM results LEFT JOIN results_post ON results_post.result_id=results.id WHERE 1=1 ");
+  char *sql=strdup("SELECT results.id, results.code, results.url, results.mime, results.time, results.flags, results.content_length, results_post.key, results_post.value FROM results LEFT JOIN results_post ON results_post.result_id=results.id WHERE 1=1 ");
   if(q->url) r_strcat(&sql, sqlite3_mprintf(" AND url LIKE '%%%q%%'",q->url));
   if(q->recent) r_strcat(&sql, sqlite3_mprintf(" AND time>%d",time(NULL)-(day*q->recent)));
   if(q->code) r_strcat(&sql, sqlite3_mprintf(" AND code=%d",q->code));
@@ -198,11 +198,12 @@ void do_query(struct query *q){
           res->header_mime=strdup(sqlite3_column_text(s,3));
           int time=sqlite3_column_int(s,4);
           int flags=sqlite3_column_int(s,5);
+          res->pay_len=sqlite3_column_int(s,6);
         }
-        if(sqlite3_column_type(s,6)!=SQLITE_NULL){
-          char *key=strdup(sqlite3_column_text(s,6));
+        if(sqlite3_column_type(s,7)!=SQLITE_NULL){
+          char *key=strdup(sqlite3_column_text(s,7));
           char *value=NULL;
-          if(sqlite3_column_type(s,7)!=SQLITE_NULL) value=strdup(sqlite3_column_text(s,7));
+          if(sqlite3_column_type(s,8)!=SQLITE_NULL) value=strdup(sqlite3_column_text(s,7));
           annotate(res,key,value);
         }
 
