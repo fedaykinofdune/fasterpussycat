@@ -144,10 +144,11 @@ void add_default_rules(struct detect_404_info *info){
 
 unsigned char enforce_magic_rule(struct http_request *req, struct http_response *res, void *data){
   const char *mime=magic_buffer(magic, res->payload,res->pay_len);
+  printf("code %d\n",res->code);
   if(res->pay_len==0 || !mime || strcmp(mime,(char *) data)){
     return DETECT_FAIL;
   }
-  return DETECT_SUCCESS;
+  return DETECT_NEXT_RULE;
 }
 
 void create_magic_rules(struct detect_404_info *info){
