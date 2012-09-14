@@ -180,7 +180,7 @@ void create_magic_rule(struct detect_404_info *info, char *ext, char *mime_type)
   strcat(pattern,ext);
   strcat(pattern,"$");
   
-  if(regcomp(regex, pattern, REG_EXTENDED | REG_NOSUB) ) fatal("Could not compile regex '%s'",pattern);
+  if(regcomp(regex, pattern, REG_EXTENDED | REG_NOSUB | REG_ICASE) ) fatal("Could not compile regex '%s'",pattern);
   rule->code=200;
   rule->method=(unsigned char *) "GET";
   rule->pattern=regex;
