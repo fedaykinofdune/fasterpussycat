@@ -95,12 +95,6 @@ int rule_matches(struct match_rule *rule, struct http_request *req, struct http_
     && atoi((char *) GET_HDR((unsigned char *) "content-length", &res->hdr))!=rule->size) return 0;
   if(rule->mime_type!=DETECT_ANY && res->header_mime && strcmp(rule->mime_type, (char *) res->header_mime)) return 0;
   if(rule->test_flags!=DETECT_ANY && req->test && !(req->test->flags & rule->test_flags)) return 0;
-  if(rule->hash!=DETECT_ANY 
-    && res
-    && not_head_method(req) 
-    && res->md5_digest
-    && memcmp(res->md5_digest,rule->hash,MD5_DIGEST_LENGTH)) return 0; 
-
   
   if(rule->hash!=DETECT_ANY 
     && res
