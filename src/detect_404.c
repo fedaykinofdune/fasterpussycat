@@ -222,6 +222,7 @@ void create_magic_rules(struct detect_404_info *info){
   create_magic_rule(info, "\\.zip",  "application/zip");
   create_magic_rule(info, "\\.bz2",  "application/x-bzip2");
   create_magic_rule(info, "\\.sh",   "text/x-shellscript");
+  create_magic_rule(info, "\\.gpg",  "application/octet-stream");
 
   ext_must_contain(info,  "\\.pem",  "-----BEGIN");
   
