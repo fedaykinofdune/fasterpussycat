@@ -99,4 +99,6 @@ void create_magic_rules(struct detect_404_info *info);
 void create_magic_rule(struct detect_404_info *info, char *ext, char *mime_type);
 void destroy_detect_404_info(struct detect_404_info *info);
 void schedule_req_res_cleanup(struct detect_404_info *info, struct http_request *req, struct http_response *res);
+unsigned char if_grep_fail(struct http_request *req, struct http_response *res, void *data);
+unsigned char if_nodir_grep_fail(struct http_request *req, struct http_response *res, void *data);
 #endif

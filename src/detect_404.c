@@ -139,8 +139,36 @@ void add_default_rules(struct detect_404_info *info){
 
   create_magic_rules(info);
 
+
+
+  rule=new_404_rule(info,&info->rules_general);
+  rule->method="GET";
+  rule->code=200;
+  rule->evaluate=if_nodir_grep_fail;
+  rule->data="<html><body></body></html>";
+
+
+  rule=new_404_rule(info,&info->rules_general);
+  rule->method="GET";
+  rule->code=200;
+  rule->evaluate=if_grep_fail;
+  rule->data="This Web page is parked free";
+
 }
 
+
+
+unsigned char if_nodir_grep_fail(struct http_request *req, struct http_response *res, void *data){
+  if(req->test && (req->test->flags & F_DIRECTORY)) return DETECT_NEXT_RULE; 
+  return if_grep_fail(req,res,data); 
+}
+
+unsigned char if_grep_fail(struct http_request *req, struct http_response *res, void *data){
+  if(strstr(res->payload,(char *) data)){
+     return DETECT_FAIL;
+  }
+  return DETECT_NEXT_RULE;  
+}
 
 unsigned char enforce_magic_rule(struct http_request *req, struct http_response *res, void *data){
   const char *mime=magic_buffer(magic, res->payload,res->pay_len);
