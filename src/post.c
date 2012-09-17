@@ -155,7 +155,7 @@ unsigned char server_path_disclosure(struct http_request *req, struct http_respo
     }
     ck_free(new_path);
     regfree(unix_r);
-    annotate(res,"server-path", ret);
+    if(strlen(ret)>0) annotate(res,"server-path", ret);
     return DETECT_NEXT_RULE;
   }
 
@@ -206,7 +206,7 @@ unsigned char server_path_disclosure(struct http_request *req, struct http_respo
       *strstr(ret,new_newpath+1)=0;
     }
     free(new_newpath);
-    annotate(res,"server-path", ret);
+    if(strlen(ret)>0) annotate(res,"server-path", ret);
     return DETECT_NEXT_RULE;
   }
   return DETECT_NEXT_RULE;
