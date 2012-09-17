@@ -167,6 +167,13 @@ void add_default_rules(struct detect_404_info *info){
   rule->evaluate=must_not_contain;
   rule->data="This Web page is parked free";
 
+
+  rule=new_404_rule(info,&info->rules_general);
+  rule->method="GET";
+  rule->code=200;
+  rule->evaluate=must_not_contain;
+  rule->data="- BlueHost.com";
+
 }
 
 
