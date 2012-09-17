@@ -42,10 +42,10 @@ unsigned char html_title(struct http_request *req, struct http_response *res, vo
     regex=ck_alloc(sizeof(regex_t));
     if(regcomp(regex,"<title>(.*)</title>",REG_EXTENDED | REG_ICASE)) warn("Could not compile title regex");
   }
-  if(regexec(regex, (char *) res->payload, 2, m, 0)){
+  if(!regexec(regex, (char *) res->payload, 2, m, 0)){
     s=m[1].rm_eo-m[1].rm_so;
     ret=calloc(s+1,1);
-    memcpy(ret,res->payload+m[0].rm_so,s);
+    memcpy(ret,res->payload+m[1].rm_so,s);
     if(strlen(ret)>0) annotate(res,"title",ret);
   }
   return DETECT_NEXT_RULE;
