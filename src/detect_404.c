@@ -113,6 +113,19 @@ void add_default_rules(struct detect_404_info *info){
   rule->test_flags=F_DIRECTORY;
   rule->evaluate=detected_success;
 
+
+
+  rule=new_404_rule(info,&info->rules_final);
+  rule->code=301;
+  rule->evaluate=detected_fail;
+
+
+
+  rule=new_404_rule(info,&info->rules_final);
+  rule->code=302;
+  rule->evaluate=detected_fail;
+
+
   /* response code of 0 means something went wrong */
 
   rule=new_404_rule(info,&info->rules_final);
@@ -144,31 +157,41 @@ void add_default_rules(struct detect_404_info *info){
   rule=new_404_rule(info,&info->rules_general);
   rule->method="GET";
   rule->code=200;
-  rule->evaluate=if_grep_fail;
+  rule->evaluate=must_not_contain;
   rule->data="<html><body></body></html>";
 
 
   rule=new_404_rule(info,&info->rules_general);
   rule->method="GET";
   rule->code=200;
-  rule->evaluate=if_grep_fail;
+  rule->evaluate=must_not_contain;
   rule->data="This Web page is parked free";
 
 }
 
 
 
-unsigned char if_nodir_grep_fail(struct http_request *req, struct http_response *res, void *data){
+unsigned char nodir_must_not_contain(struct http_request *req, struct http_response *res, void *data){
   if(req->test && (req->test->flags & F_DIRECTORY)) return DETECT_NEXT_RULE; 
-  return if_grep_fail(req,res,data); 
+  return must_not_contain(req,res,data); 
 }
 
-unsigned char if_grep_fail(struct http_request *req, struct http_response *res, void *data){
+unsigned char must_not_contain(struct http_request *req, struct http_response *res, void *data){
   if(strstr(res->payload,(char *) data)){
      return DETECT_FAIL;
   }
   return DETECT_NEXT_RULE;  
 }
+
+
+
+unsigned char must_contain(struct http_request *req, struct http_response *res, void *data){
+  if(!strstr(res->payload,(char *) data)){
+     return DETECT_FAIL;
+  }
+  return DETECT_NEXT_RULE;  
+}
+
 
 unsigned char enforce_magic_rule(struct http_request *req, struct http_response *res, void *data){
   const char *mime=magic_buffer(magic, res->payload,res->pay_len);
@@ -198,6 +221,34 @@ void create_magic_rules(struct detect_404_info *info){
   create_magic_rule(info, "\\.tgz",  "application/x-gzip");
   create_magic_rule(info, "\\.zip",  "application/zip");
   create_magic_rule(info, "\\.bz2",  "application/x-bzip2");
+  create_magic_rule(info, "\\.sh",   "text/x-shellscript");
+
+  ext_must_contain(info,  "\\.pem",  "-----BEGIN");
+  
+}
+
+
+void ext_must_contain(struct detect_404_info *info, char *ext, char *data){
+
+  struct match_rule *rule=new_404_rule(info,&info->rules_preprocess);
+  char *pattern=ck_alloc(strlen(ext)+6);
+  regex_t *regex=detect_404_alloc(info,sizeof(regex_t));
+  pattern[0]=0;
+  strcat(pattern,ext);
+  strcat(pattern,"$");
+  
+  if(regcomp(regex, pattern, REG_EXTENDED | REG_NOSUB | REG_ICASE) ) fatal("Could not compile regex '%s'",pattern);
+  rule->code=200;
+  rule->method=(unsigned char *) "GET";
+  rule->pattern=regex;
+  rule->data=data;
+  rule->evaluate=must_contain;
+
+  rule=new_404_rule(info,&info->rules_preprocess);
+  rule->code=500;
+  rule->pattern=regex;
+  rule->evaluate=detected_fail;
+  ck_free(pattern);
 }
 
 void create_magic_rule(struct detect_404_info *info, char *ext, char *mime_type){
