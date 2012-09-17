@@ -40,7 +40,7 @@ unsigned char html_title(struct http_request *req, struct http_response *res, vo
   regmatch_t m[2];
   if(regex==NULL){
     regex=ck_alloc(sizeof(regex_t));
-    if(regcomp(regex,"<title>(.*)</title>",REG_EXTENDED | REG_ICASE)) warn("Could not compile title regex");
+    if(regcomp(regex,"<title>(.*)</title>",REG_EXTENDED | REG_ICASE |  REG_NEWLINE)) warn("Could not compile title regex");
   }
   if(!regexec(regex, (char *) res->payload, 2, m, 0)){
     s=m[1].rm_eo-m[1].rm_so;
