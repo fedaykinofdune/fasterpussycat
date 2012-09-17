@@ -33,6 +33,25 @@ unsigned char php_error(struct http_request *req, struct http_response *res, voi
 
 
 
+unsigned char html_title(struct http_request *req, struct http_response *res, void *data){
+  static regex_t *regex=NULL;
+  int s;
+  char *ret; 
+  regmatch_t m[2];
+  if(regex==NULL){
+    regex=ck_alloc(sizeof(regex_t));
+    if(regcomp(regex,"<title>(.*)</title>",REG_EXTENDED | REG_ICASE)) warn("Could not compile title regex");
+  }
+  if(regexec(regex, (char *) res->payload, 2, m, 0)){
+    s=m[1].rm_eo-m[1].rm_so;
+    ret=calloc(s+1,1);
+    memcpy(ret,res->payload+m[0].rm_so,s);
+    if(strlen(ret)>0) annotate(res,"title",ret);
+  }
+  return DETECT_NEXT_RULE;
+}
+
+
 unsigned char webshell(struct http_request *req, struct http_response *res, void *data){
   static regex_t *regex=NULL;
   if(regex==NULL){
@@ -274,13 +293,6 @@ void add_post_rules(){
   rule->evaluate=index_of;
 
   rule=new_rule(&post_rules);
-  rule->code=200;
-  rule->evaluate=server_path_disclosure;
-
-
-
-  rule=new_rule(&post_rules);
-  rule->code=500;
   rule->evaluate=server_path_disclosure;
 
   rule=new_rule(&post_rules);
@@ -288,31 +300,17 @@ void add_post_rules(){
   rule->evaluate=input_fields;
 
   rule=new_rule(&post_rules);
-  rule->code=200;
   rule->evaluate=php_error;
 
   rule=new_rule(&post_rules);
-  rule->code=200;
   rule->evaluate=mysql_syntax_error;
 
   rule=new_rule(&post_rules);
-  rule->code=200;
+  rule->mime_type="text/html";
+  rule->evaluate=html_title;
+
+  rule=new_rule(&post_rules);
   rule->evaluate=postgres_error;
-
-
-
-  rule=new_rule(&post_rules);
-  rule->code=500;
-  rule->evaluate=php_error;
-
-  rule=new_rule(&post_rules);
-  rule->code=500;
-  rule->evaluate=mysql_syntax_error;
-
-  rule=new_rule(&post_rules);
-  rule->code=500;
-  rule->evaluate=postgres_error;
-
 
   rule=new_rule(&post_rules);
   rule->code=200;
