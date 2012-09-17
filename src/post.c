@@ -33,6 +33,15 @@ unsigned char php_error(struct http_request *req, struct http_response *res, voi
 
 
 
+unsigned char cfm_error(struct http_request *req, struct http_response *res, void *data){
+  if(strstr(res->payload,"Error Occurred While Processing Request")){
+    annotate(res,"cfm-error",NULL);
+  }
+  return DETECT_NEXT_RULE;
+}
+
+
+
 unsigned char html_title(struct http_request *req, struct http_response *res, void *data){
   static regex_t *regex=NULL;
   int s;
@@ -308,6 +317,11 @@ void add_post_rules(){
   rule=new_rule(&post_rules);
   rule->mime_type="text/html";
   rule->evaluate=html_title;
+
+  
+
+  rule=new_rule(&post_rules);
+  rule->evaluate=cfm_error;
 
   rule=new_rule(&post_rules);
   rule->evaluate=postgres_error;
