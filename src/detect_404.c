@@ -144,7 +144,7 @@ void add_default_rules(struct detect_404_info *info){
   rule=new_404_rule(info,&info->rules_general);
   rule->method="GET";
   rule->code=200;
-  rule->evaluate=if_nodir_grep_fail;
+  rule->evaluate=if_grep_fail;
   rule->data="<html><body></body></html>";
 
 
