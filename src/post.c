@@ -23,7 +23,7 @@ unsigned char php_error(struct http_request *req, struct http_response *res, voi
   static regex_t *regex=NULL;
   if(regex==NULL){
     regex=ck_alloc(sizeof(regex_t));
-    regcomp(regex," <b>(Warning|Fatal error)</b>: .* in <b>([^<]+)</b> on line",REG_EXTENDED | REG_ICASE);
+    if(regcomp(regex,"<b>(Warning|Fatal error)</b>: .* in <b>([^<]+)</b> on line",REG_EXTENDED | REG_ICASE)) warn("Could not compile php error regex");
   }
   if(strstr(res->payload,"on line") && !regexec(regex, res->payload, 0, 0, 0)){
     annotate(res,"php-error",NULL);
@@ -31,8 +31,22 @@ unsigned char php_error(struct http_request *req, struct http_response *res, voi
   return DETECT_NEXT_RULE;
 }
 
+
+
+unsigned char webshell(struct http_request *req, struct http_response *res, void *data){
+  static regex_t *regex=NULL;
+  if(regex==NULL){
+    regex=ck_alloc(sizeof(regex_t));
+    if(regcomp(regex,"uid=\\d+\\([a-z0-9_-]+\\)",REG_EXTENDED | REG_ICASE)) warn("Could not compile webshell regex");
+  }
+  if(!regexec(regex, res->payload, 0, 0, 0)){
+    annotate(res,"webshell",NULL);
+  }
+  return DETECT_NEXT_RULE;
+}
+
 unsigned char mysql_syntax_error(struct http_request *req, struct http_response *res, void *data){
-  if(strstr(res->payload, "You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version")){
+  if(strstr(res->payload, "You have an error in your SQL syntax")){
     annotate(res,"mysql-syntax-error",NULL);
   }
   return DETECT_NEXT_RULE;
@@ -263,6 +277,12 @@ void add_post_rules(){
   rule->code=200;
   rule->evaluate=server_path_disclosure;
 
+
+
+  rule=new_rule(&post_rules);
+  rule->code=500;
+  rule->evaluate=server_path_disclosure;
+
   rule=new_rule(&post_rules);
   rule->code=200;
   rule->evaluate=input_fields;
@@ -278,6 +298,25 @@ void add_post_rules(){
   rule=new_rule(&post_rules);
   rule->code=200;
   rule->evaluate=postgres_error;
+
+
+
+  rule=new_rule(&post_rules);
+  rule->code=500;
+  rule->evaluate=php_error;
+
+  rule=new_rule(&post_rules);
+  rule->code=500;
+  rule->evaluate=mysql_syntax_error;
+
+  rule=new_rule(&post_rules);
+  rule->code=500;
+  rule->evaluate=postgres_error;
+
+
+  rule=new_rule(&post_rules);
+  rule->code=200;
+  rule->evaluate=webshell;
 
   rule=new_rule(&post_rules);
   rule->code=200;
