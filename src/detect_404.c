@@ -172,7 +172,7 @@ void add_default_rules(struct detect_404_info *info){
   rule->method="GET";
   rule->code=200;
   rule->evaluate=must_not_contain;
-  rule->data="- BlueHost.com";
+  rule->data="http://cdn.dsultra.com/js/registrar.js";
 
 }
 
