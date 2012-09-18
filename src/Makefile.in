@@ -54,7 +54,8 @@ am__DEPENDENCIES_1 =
 fasterpussycat_DEPENDENCIES = $(am__DEPENDENCIES_1) \
 	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
 	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
-	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1)
+	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
+	$(am__DEPENDENCIES_1)
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -101,6 +102,7 @@ LDFLAGS = @LDFLAGS@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LTLIBOBJS = @LTLIBOBJS@
+LUA_LIBS = @LUA_LIBS@
 MAGIC_LIBS = @MAGIC_LIBS@
 MAKEINFO = @MAKEINFO@
 MKDIR_P = @MKDIR_P@
@@ -167,13 +169,13 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-AM_CXXFLAGS = $(IDN_CFLAGS) $(CRYPTO_CFLAGS) $(M_CFLAGS) $(MAGIC_CFLAGS) $(SQLITE3_CFLAGS) $(SSL_CFLAGS) $(Z_CFLAGS)
+AM_CXXFLAGS = $(IDN_CFLAGS) $(CRYPTO_CFLAGS) $(M_CFLAGS) $(MAGIC_CFLAGS) $(SQLITE3_CFLAGS) $(LUA_CFLAGS) $(SSL_CFLAGS) $(Z_CFLAGS)
 fasterpussycat_SOURCES = fasterpussycat.c engine.c engine.h bayes.c bayes.h post.c post.h tadns.c tadns.h \
   http_client.c http_client.h match_rule.c match_rule.h id3.c id3.h ac.c ac.h db.c db.h string-inl.h alloc-inl.h \
   util.c util.h detect_404.h detect_404.c backup_bruteforce.c backup_bruteforce.h find_uploaded_file.c \
   find_uploaded_file.h
 
-fasterpussycat_LDADD = $(IDN_LIBS)  $(CRYPTO_LIBS) $(M_LIBS) $(MAGIC_LIBS) $(SQLITE3_LIBS) $(SSL_LIBS) $(Z_LIBS)
+fasterpussycat_LDADD = $(IDN_LIBS)  $(CRYPTO_LIBS) $(M_LIBS) $(MAGIC_LIBS) $(SQLITE3_LIBS) $(SSL_LIBS) $(Z_LIBS) $(LUA_LIBS)
 all: all-am
 
 .SUFFIXES:

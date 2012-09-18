@@ -9,10 +9,16 @@ IDN_REQUIRED_VERSION=1
 CRYPTO_REQUIRED_VERSION=0.9
 SSL_REQUIRED_VERSION=0.9
 MAGIC_REQUIRED_VERSION=1
+LUA_REQUIRED_VERSION=5.1
 PKG_CHECK_MODULES(IDN, libidn >= $IDN_REQUIRED_VERSION)
 AC_CHECK_HEADER(idna.h,[],AC_MSG_ERROR([failed to find the required header file idna.h]))
 PKG_CHECK_MODULES(CRYPTO, libcrypto >= $CRYPTO_REQUIRED_VERSION)
 PKG_CHECK_MODULES(SSL, libssl >= $SSL_REQUIRED_VERSION)
+
+AC_SEARCH_LIBS([sqlite3_open16], [sqlite3])
+AC_CHECK_HEADER(lua5.1/lua.h,[],AC_MSG_ERROR([failed to find the required header file lua.h]))
+AC_SEARCH_LIBS( [lua_pcall], [lua lua5.1])
+AC_SUBST([LUA_LIBS])
 AC_CHECK_HEADER(openssl/ssl.h,[],AC_MSG_ERROR([failed to find the required header file openssl/ssl.h]))
 AC_CHECK_HEADER(openssl/err.h,[],AC_MSG_ERROR([failed to find the required header file openssl/err.h]))
 AC_CHECK_HEADER(openssl/md5.h,[],AC_MSG_ERROR([failed to find the required header file openssl/md5.h]))
