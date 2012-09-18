@@ -21,7 +21,7 @@ extern unsigned int max_requests;
 extern int train;
 extern unsigned int max_train_count;
 extern int force_save;
-
+extern int scan_flags;
 
 
 struct feature_node {

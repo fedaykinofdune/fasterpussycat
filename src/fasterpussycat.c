@@ -124,6 +124,7 @@ printf(
 "                                   upload bandwith is constrained\n"
 "  -T  --train[=M]               enable training of all tests, or only tests with\n"
 "                                   a sample size of at most M\n"
+"      --flags FLAGS             flags to scan for\n"                   
 "      --skip-other-probes       skips probes for specific extentions\n"
 "      --skip-blacklist-success  don't blacklist pages on success to prevent\n" 
 "                                   duplicates\n"
@@ -417,9 +418,9 @@ void parse_opts(int argc, char** argv){
           }
         }
         int fd = fileno(file);
-        int flags = fcntl(fd, F_GETFL, 0);
-        flags |= O_NONBLOCK;
-        fcntl(fd, F_SETFL, flags);
+        int fflags = fcntl(fd, F_GETFL, 0);
+        fflags |= O_NONBLOCK;
+        fcntl(fd, F_SETFL, fflags);
         t++;
       case 'r':
         max_requests=atoi(optarg);
@@ -528,6 +529,7 @@ void parse_opts(int argc, char** argv){
         exit(0);
       }
       max_connections=max_hosts * max_conn_host;
+      scan_flags=flags;
       do_scan();
       exit(0);
       break;

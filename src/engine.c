@@ -16,6 +16,7 @@ int check_cgi_bin=1;
 int check_404_size=0;
 int check_200_size=1;
 unsigned int max_requests=0;
+int scan_flags=0;
 int train=0;
 int force_save=0;
 unsigned int max_train_count=0;
@@ -431,6 +432,9 @@ void enqueue_tests(struct target *t){
     if(train && max_train_count && test->count>max_train_count){
       continue;
     }
+    if(scan_flags && !(scan_flags & test->flags)){
+      continue;
+    }
     if(test->children){
       dir_res=ck_alloc(sizeof(struct dir_link_res));
       dir_res->parent_id=test->id;
@@ -447,7 +451,7 @@ void enqueue_tests(struct target *t){
 
   /* for only partial training, add parent dirs as well */
 
-  if(train && max_train_count) {
+  if(train && (max_train_count || scan_flags)) {
      LL_FOREACH(t->test_scores,score) {
       if(score->test->parent){
         parent_res=NULL;
