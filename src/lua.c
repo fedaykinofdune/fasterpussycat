@@ -17,16 +17,13 @@ void setup_lua(){
 
   /* register target */
 
-  static const struct luaL_reg target_f [] = {
-    {"new", newarray},
-    {NULL, NULL}
-  };
 
   static const struct luaL_reg target_m [] = {
     {"host", l_target_host},
     {"port", l_target_port},
     {"path", l_target_path},
     {"ssl", l_target_ssl},
+    {"queue", l_target_request},
     {NULL, NULL}
   };
 
