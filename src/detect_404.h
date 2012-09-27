@@ -30,7 +30,7 @@ extern int blacklist_success;
 extern int skip_other_probes;
 extern int skip_sig;
 struct detect_404_cleanup_info;
-
+extern struct match_ruleset *default_ruleset;
 struct detect_404_cleanup_info {
   void (*cleanup_func) (void *data);
   void *data;

@@ -1,4 +1,3 @@
-
 #ifndef FASTERPUSSYCAT_MATCH_RULE_H
 #define FASTERPUSSYCAT_MATCH_RULE_H
 
@@ -11,6 +10,13 @@
 #define DETECT_UNKNOWN 3
 
 #define DETECT_ANY 0
+#define MATCH_200 (1 << 0)
+#define MATCH_404 (1 << 1)
+#define MATCH_403 (1 << 2)
+#define MATCH_401 (1 << 3)
+#define MATCH_500 (1 << 4)
+#define MATCH_301 (1 << 5)
+#define MATCH_302 (1 << 6)
 
 #include <sys/types.h>
 #include <regex.h>
@@ -32,6 +38,11 @@ struct match_rule {
   unsigned char (*evaluate) (struct http_request *req, struct http_response *rep, void *data);
   struct match_rule *next;
 };
+
+struct match_ruleset {
+  struct match_rule *head;
+}
+
 /* match_rule.c */
 unsigned char detected_success(struct http_request *req, struct http_response *res, void *data);
 

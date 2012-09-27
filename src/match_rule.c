@@ -30,6 +30,30 @@ void dump_sig(struct http_sig* sig){
 }
 
 
+void register_matching(){
+  static const struct luaL_reg ruleset_m [] = {
+    {"new", l_new_ruleset},
+    {"new_rule", l_new_rule},
+    {NULL, NULL}
+  };
+  register_faster_funcs("ruleset", ruleset_m);
+}
+
+int l_new_ruleset(luaState *L){
+  struct match_ruleset *m=(struct match_ruleset *) lua_newuserdata(L, sizeof(struct match_ruleset));
+  get_faster_value(L, "ruleset");
+  lua_setmetatable(L, -2);
+  return 1;
+}
+
+
+
+static struct target *check_ruleset(lua_State *L){
+   void *ud = luaL_checkudata(L, 1, "faster.ruleset");
+   luaL_argcheck(L, ud != NULL, 1, "`faster.ruleset' expected");
+   return ((struct target *) ud);
+}
+
 int same_page(struct http_sig* sig1, struct http_sig* sig2) {
   u32 i, bucket_fail = 0;
   s32 total_diff  = 0;
@@ -61,20 +85,21 @@ int same_page(struct http_sig* sig1, struct http_sig* sig2) {
 }
 
 
-struct match_rule *new_rule(struct match_rule **list){
+
+struct match_rule *new_rule(struct match_ruleset *ruleset){
   struct match_rule *rule;
   rule=calloc(sizeof(struct match_rule),1);
-  rule->next=*list;
-  
+  rule->size=-1;
+  rule->next=ruleset->head;
+  ruleset->head=rule;
   rule->evaluate=next_rule;
-  *list=rule;
   return rule;
 }
 
-int run_rules(struct match_rule *list, struct http_request *req, struct http_response *res){
+int run_rules(struct match_ruleset *ruleset, struct http_request *req, struct http_response *res){
   struct match_rule *rule;
   int rc=DETECT_NEXT_RULE;
-  for(rule=list;rule!=NULL;rule=rule->next){
+  for(rule=ruleset->head;rule!=NULL;rule=rule->next){
     if(rule_matches(rule,req,res)) rc=rule->evaluate(req,res,rule->data);
     if(rc!=DETECT_NEXT_RULE) return rc;
   }

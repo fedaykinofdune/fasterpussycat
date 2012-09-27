@@ -114,6 +114,8 @@ struct http_request {
   int no_url_save;              /* don't save url statistics    */
   u32 user_val;                 /* Can be used freely           */
   void *data;                   /* Can also be used freely ;-)  */
+  struct lua_callback *l_on_success;
+  struct lua_callback *l_on_complete;
   struct url_test *test;
   struct req_pointer *pointer;
   struct dir_link *link;

@@ -1731,7 +1731,7 @@ void destroy_request(struct http_request* req) {
   ck_free(req->par.t);
   ck_free(req->par.n);
   ck_free(req->par.v);
-
+  free_lua_callback(req->l_on_success);
   ck_free(req->method);
   ck_free(req->host);
   ck_free(req->orig_url);
