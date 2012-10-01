@@ -1,6 +1,8 @@
 #include "match_rule.h"
 
-
+static char *to_compile=NULL;
+extern struct ast_node *parsed_ast;
+int globalReadOffset=0;
 unsigned char detected_success(struct http_request *req, struct http_response *res, void *data){
   return DETECT_SUCCESS;
 }
@@ -20,6 +22,29 @@ unsigned char next_rule(struct http_request *req, struct http_response *res, voi
 unsigned char detected_fail(struct http_request *req, struct http_response *res, void *data){
   return DETECT_FAIL;
 }
+
+
+struct ast_node *compile(char *string){
+  parsed_ast=NULL;
+  to_compile=string;
+  globalReadOffset=0;
+  yyparse();
+  return parsed_ast;
+}
+
+int readInputForLexer( char *buffer, int *numBytesRead, int maxBytesToRead ) {
+  int numBytesToRead = maxBytesToRead;
+  int bytesRemaining = strlen(to_compile)-globalReadOffset;
+  int i;
+  if ( numBytesToRead > bytesRemaining ) { numBytesToRead = bytesRemaining; }
+  for ( i = 0; i < numBytesToRead; i++ ) {
+    buffer[i] = to_compile[globalReadOffset+i];
+  }
+  *numBytesRead = numBytesToRead;
+  globalReadOffset += numBytesToRead;
+  return 0;
+}
+
 
 void dump_sig(struct http_sig* sig){
   printf("SIG:\n");

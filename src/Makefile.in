@@ -34,7 +34,8 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 bin_PROGRAMS = fasterpussycat$(EXEEXT)
 subdir = src
-DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
+DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in parser.c \
+	parser.h rule.c
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.in
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
@@ -48,7 +49,8 @@ am_fasterpussycat_OBJECTS = fasterpussycat.$(OBJEXT) engine.$(OBJEXT) \
 	bayes.$(OBJEXT) post.$(OBJEXT) tadns.$(OBJEXT) \
 	http_client.$(OBJEXT) match_rule.$(OBJEXT) id3.$(OBJEXT) \
 	ac.$(OBJEXT) db.$(OBJEXT) util.$(OBJEXT) detect_404.$(OBJEXT) \
-	backup_bruteforce.$(OBJEXT) find_uploaded_file.$(OBJEXT)
+	backup_bruteforce.$(OBJEXT) find_uploaded_file.$(OBJEXT) \
+	parser.$(OBJEXT) rule.$(OBJEXT) ast.$(OBJEXT)
 fasterpussycat_OBJECTS = $(am_fasterpussycat_OBJECTS)
 am__DEPENDENCIES_1 =
 fasterpussycat_DEPENDENCIES = $(am__DEPENDENCIES_1) \
@@ -64,6 +66,9 @@ COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 CCLD = $(CC)
 LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
+LEXCOMPILE = $(LEX) $(AM_LFLAGS) $(LFLAGS)
+YLWRAP = $(top_srcdir)/ylwrap
+YACCCOMPILE = $(YACC) $(AM_YFLAGS) $(YFLAGS)
 SOURCES = $(fasterpussycat_SOURCES)
 DIST_SOURCES = $(fasterpussycat_SOURCES)
 ETAGS = etags
@@ -99,6 +104,9 @@ INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 LDFLAGS = @LDFLAGS@
+LEX = @LEX@
+LEXLIB = @LEXLIB@
+LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LTLIBOBJS = @LTLIBOBJS@
@@ -126,6 +134,8 @@ SSL_CFLAGS = @SSL_CFLAGS@
 SSL_LIBS = @SSL_LIBS@
 STRIP = @STRIP@
 VERSION = @VERSION@
+YACC = @YACC@
+YFLAGS = @YFLAGS@
 Z_LIBS = @Z_LIBS@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
@@ -170,16 +180,19 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CXXFLAGS = $(IDN_CFLAGS) $(CRYPTO_CFLAGS) $(M_CFLAGS) $(MAGIC_CFLAGS) $(SQLITE3_CFLAGS) $(LUA_CFLAGS) $(SSL_CFLAGS) $(Z_CFLAGS)
+BUILT_SOURCES = parser.h
+AM_YFLAGS = -d
 fasterpussycat_SOURCES = fasterpussycat.c engine.c engine.h bayes.c bayes.h post.c post.h tadns.c tadns.h \
   http_client.c http_client.h match_rule.c match_rule.h id3.c id3.h ac.c ac.h db.c db.h string-inl.h alloc-inl.h \
   util.c util.h detect_404.h detect_404.c backup_bruteforce.c backup_bruteforce.h find_uploaded_file.c \
-  find_uploaded_file.h
+  find_uploaded_file.h parser.y rule.l ast.c ast.h
 
 fasterpussycat_LDADD = $(IDN_LIBS)  $(CRYPTO_LIBS) $(M_LIBS) $(MAGIC_LIBS) $(SQLITE3_LIBS) $(SSL_LIBS) $(Z_LIBS) $(LUA_LIBS)
-all: all-am
+all: $(BUILT_SOURCES)
+	$(MAKE) $(AM_MAKEFLAGS) all-am
 
 .SUFFIXES:
-.SUFFIXES: .c .o .obj
+.SUFFIXES: .c .l .o .obj .y
 $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
@@ -247,6 +260,9 @@ uninstall-binPROGRAMS:
 
 clean-binPROGRAMS:
 	-test -z "$(bin_PROGRAMS)" || rm -f $(bin_PROGRAMS)
+parser.h: parser.c
+	@if test ! -f $@; then rm -f parser.c; else :; fi
+	@if test ! -f $@; then $(MAKE) $(AM_MAKEFLAGS) parser.c; else :; fi
 fasterpussycat$(EXEEXT): $(fasterpussycat_OBJECTS) $(fasterpussycat_DEPENDENCIES) $(EXTRA_fasterpussycat_DEPENDENCIES) 
 	@rm -f fasterpussycat$(EXEEXT)
 	$(LINK) $(fasterpussycat_OBJECTS) $(fasterpussycat_LDADD) $(LIBS)
@@ -258,6 +274,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ac.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ast.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/backup_bruteforce.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/bayes.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/db.Po@am__quote@
@@ -268,7 +285,9 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/http_client.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/id3.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/match_rule.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/parser.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/post.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rule.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tadns.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/util.Po@am__quote@
 
@@ -285,6 +304,12 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(COMPILE) -c `$(CYGPATH_W) '$<'`
+
+.l.c:
+	$(am__skiplex) $(SHELL) $(YLWRAP) $< $(LEX_OUTPUT_ROOT).c $@ -- $(LEXCOMPILE)
+
+.y.c:
+	$(am__skipyacc) $(SHELL) $(YLWRAP) $< y.tab.c $@ y.tab.h $*.h y.output $*.output -- $(YACCCOMPILE)
 
 ID: $(HEADERS) $(SOURCES) $(LISP) $(TAGS_FILES)
 	list='$(SOURCES) $(HEADERS) $(LISP) $(TAGS_FILES)'; \
@@ -369,13 +394,15 @@ distdir: $(DISTFILES)
 	  fi; \
 	done
 check-am: all-am
-check: check-am
+check: $(BUILT_SOURCES)
+	$(MAKE) $(AM_MAKEFLAGS) check-am
 all-am: Makefile $(PROGRAMS)
 installdirs:
 	for dir in "$(DESTDIR)$(bindir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
-install: install-am
+install: $(BUILT_SOURCES)
+	$(MAKE) $(AM_MAKEFLAGS) install-am
 install-exec: install-exec-am
 install-data: install-data-am
 uninstall: uninstall-am
@@ -405,6 +432,10 @@ distclean-generic:
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
+	-rm -f parser.c
+	-rm -f parser.h
+	-rm -f rule.c
+	-test -z "$(BUILT_SOURCES)" || rm -f $(BUILT_SOURCES)
 clean: clean-am
 
 clean-am: clean-binPROGRAMS clean-generic mostlyclean-am
@@ -474,7 +505,7 @@ ps-am:
 
 uninstall-am: uninstall-binPROGRAMS
 
-.MAKE: install-am install-strip
+.MAKE: all check install install-am install-strip
 
 .PHONY: CTAGS GTAGS all all-am check check-am clean clean-binPROGRAMS \
 	clean-generic ctags distclean distclean-compile \

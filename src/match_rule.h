@@ -3,6 +3,7 @@
 
 #include "http_client.h"
 #include "db.h"
+#include "ast.h"
 
 #define DETECT_FAIL 0
 #define DETECT_SUCCESS 1
@@ -26,14 +27,7 @@ struct match_rule;
 
 
 struct match_rule {
-  regex_t *pattern;
-  unsigned char *method;
-  struct http_sig *sig;
-  unsigned int code;
-  unsigned int size;
-  unsigned int test_flags;
-  char *hash;
-  char *mime_type;
+  struct ast_node *ast;
   void *data;
   unsigned char (*evaluate) (struct http_request *req, struct http_response *rep, void *data);
   struct match_rule *next;
