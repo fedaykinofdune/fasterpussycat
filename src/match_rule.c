@@ -24,11 +24,11 @@ unsigned char detected_fail(struct http_request *req, struct http_response *res,
 }
 
 
-struct ast_node *compile(char *string){
+struct ast_node *compile_ast(char *string){
   parsed_ast=NULL;
   to_compile=string;
   globalReadOffset=0;
-  yyparse();
+  if(!yyparse()) return NULL;
   return parsed_ast;
 }
 
@@ -58,16 +58,26 @@ void dump_sig(struct http_sig* sig){
 void register_matching(){
   static const struct luaL_reg ruleset_m [] = {
     {"new", l_new_ruleset},
-    {"new_rule", l_new_rule},
+    {"add_rule", l_new_rule},
+    {"__index", l_arb_getprop},
+    {"__newindex", l_arb_setprop},
     {NULL, NULL}
   };
   register_faster_funcs("ruleset", ruleset_m);
+
+  static const struct luaL_reg rule_m [] = {
+    {"__tostring", l_rule_tostring},
+    {NULL, NULL}
+  };
+  register_faster_funcs("rule", rule_m);
+
 }
 
 int l_new_ruleset(luaState *L){
   struct match_ruleset *m=(struct match_ruleset *) lua_newuserdata(L, sizeof(struct match_ruleset));
   get_faster_value(L, "ruleset");
   lua_setmetatable(L, -2);
+  setup_obj_env();
   return 1;
 }
 
@@ -76,7 +86,7 @@ int l_new_ruleset(luaState *L){
 static struct target *check_ruleset(lua_State *L){
    void *ud = luaL_checkudata(L, 1, "faster.ruleset");
    luaL_argcheck(L, ud != NULL, 1, "`faster.ruleset' expected");
-   return ((struct target *) ud);
+   return ((struct match_ruleset *) ud);
 }
 
 int same_page(struct http_sig* sig1, struct http_sig* sig2) {
@@ -111,6 +121,65 @@ int same_page(struct http_sig* sig1, struct http_sig* sig2) {
 
 
 
+static int l_new_rule(lua_State *L){
+  struct match_ruleset *ruleset=check_ruleset(L,1);
+  char *rule_code=luaL_checkstring(L,2);
+  struct ast_node *compiled=compile_ast(rule_code);
+  struct match_rule *match=NULL;
+  if(!compiled){
+    error="Error compiling rule";
+    goto l_new_rule_error;
+  }
+  match=malloc(sizeof(struct match_rule));
+  get_faster_value(L, "rule");
+  lua_setmetatable(L, -2);
+  match->ast=compiled;
+  if(lua_isstring(L, 3)){
+    func_s=lua_tostring(L,3);
+    if(strcmp(func_s,"SUCC")){
+      match->evaluate=detect_success;
+    }
+    else if(strcmp(func_s,"FAIL")){
+      match->evaluate=detect_fail;
+    }
+    else{
+      error="func must be SUCC, FAIL or callback";
+      goto l_new_rule_error;
+    }
+
+  }
+  else if(lua_isfunction(L,3)){
+    callback=ck_malloc(sizeof(struct l_callback));
+    lua_push(L,3);
+    callback->callback_ref=luaL_ref(L, LUA_REGISTRYINDEX);
+    callback->data_ref=LUA_NILREF;
+    match->data=callback;
+    match->evaluate=lua_callback_evaluate;
+  }
+
+  else{
+    error="func must be SUCC, FAIL or callback";
+    goto l_new_rule_error;
+  }
+
+
+  if(callback && !lua_isnil(4)) {
+    lua_push(4,L);
+    callback->data_ref=luaL_ref(L, LUA_REGISTRYINDEX);
+  }
+  match->rule_code=strdup(rule_code);
+  match->next=ruleset->head;
+  ruleset->head=match;
+  lua_pushboolean(L,1);
+  return 1;
+l_new_rule_error:
+  free(match);
+  lua_pushnil();
+  lua_pushstring(error);
+  return 2;
+}
+
+
 struct match_rule *new_rule(struct match_ruleset *ruleset){
   struct match_rule *rule;
   rule=calloc(sizeof(struct match_rule),1);
@@ -137,23 +206,5 @@ int not_head_method(struct http_request *req){
 }
 
 int rule_matches(struct match_rule *rule, struct http_request *req, struct http_response *res){
-  if(rule->method!=DETECT_ANY && strcmp((char *) req->method,(char *) rule->method)) return 0;
-  if(rule->code!=DETECT_ANY && res && res->code!=rule->code) return 0;
-  if(rule->size!=DETECT_ANY 
-    && res
-    && GET_HDR((unsigned char *) "content-length", &res->hdr) 
-    && atoi((char *) GET_HDR((unsigned char *) "content-length", &res->hdr))!=rule->size) return 0;
-  if(rule->mime_type!=DETECT_ANY && res->header_mime && strcmp(rule->mime_type, (char *) res->header_mime)) return 0;
-  if(rule->test_flags!=DETECT_ANY && req->test && !(req->test->flags & rule->test_flags)) return 0;
-  
-  if(rule->hash!=DETECT_ANY 
-    && res
-    && (!not_head_method(req) ||
-    (not_head_method(req) 
-    && res->md5_digest
-    && memcmp(res->md5_digest,rule->hash,MD5_DIGEST_LENGTH)))) return 0; 
-
-  if(rule->pattern!=DETECT_ANY && regexec(rule->pattern, (char *) serialize_path(req,0,0), 0, NULL, 0)) return 0;
-  if(rule->sig!=DETECT_ANY && res && (!not_head_method(req) || (not_head_method(req) && (res->pay_len<50 || !same_page(rule->sig,&res->sig))))) return 0; 
-  return 1;
+  return ast_eval(rule->ast,req,res);;
 }

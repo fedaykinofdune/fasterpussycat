@@ -28,6 +28,7 @@ struct match_rule;
 
 struct match_rule {
   struct ast_node *ast;
+  char *code;
   void *data;
   unsigned char (*evaluate) (struct http_request *req, struct http_response *rep, void *data);
   struct match_rule *next;

@@ -2,7 +2,7 @@
 #include "engine.h"
 lua_State *L;
 
-void register_faster_func(char *name, const luaL_reg[] funcs){
+void register_faster_funcs(char *name, const luaL_reg[] funcs){
   char *newtable=malloc(strlen(name)+8);
   strcat(newtable,"faster.");
   strcat(newtable, name);
@@ -15,6 +15,12 @@ void register_faster_func(char *name, const luaL_reg[] funcs){
   lua_settable(L, -3);  /* metatable.__index = metatable */
   luaL_openlib(L, NULL, funcs, 0);
   lua_settable(L,-3);
+}
+
+
+void setup_obj_env(){
+  lua_newtable(L);
+  lua_fsetenv(L,-2);
 }
 
 void setup_lua(){
@@ -98,13 +104,23 @@ static int l_targets (lua_State *L) {
   return 1;
 }
 
-void get_faster_value(luaState *l char *n){
+void get_faster_value(luaState *L, char *n){
   lua_getglobal(L, "faster");
   lua_pushstring(L,n);
   lua_gettable(L,-2);
   lua_remove(L,-2);
 }
 
+
+
+void set_faster_value(luaState *L, char *n){
+  lua_getglobal(L, "faster");
+  lua_pushstring(L,n);
+  lua_push(L,-3);
+  lua_settable(L,-3);
+  lua_pop();
+  lua_pop();
+}
 
 static void target2lua(lua_State *L, struct target *t) {
   struct target **ptrptr=(struct target **) lua_newuserdata(L, sizeof(struct target *));
@@ -113,37 +129,26 @@ static void target2lua(lua_State *L, struct target *t) {
   lua_setmetatable(L, -2);
 }
 
+
 int lua_callback_evaluate(struct http_request *req, struct http_response *rep, void *data){
+  int rc;
   struct l_callback *callback= (struct l_callback*) data;
   lua_rawgeti(L, LUA_REGISTRYINDEX, callback->callback_ref);
   lua_rawgeti(L, LUA_REGISTRYINDEX, callback->data_ref);
   l_req_rep_2_lua(req,rep);
   lua_call(L, 2, 1);
   if(lua_isnil(L,-1)){
+    lua_pop(L);
     return DETECT_NEXT_RULE;
   }
-
-  return (lua_toboolean(L,-1) ? DETECT_SUCCESS : DETECT_FAIL);
+  rc=lua_toboolean(L,-1);
+  lua_pop(L);
+  return (rc ? DETECT_SUCCESS : DETECT_FAIL);
   
 }
 
-static struct l_new_rule(lua_State *L){
-
-
-}
-
-
 
 static struct match_rule *lua2match(lua_State *L) {
-  char *error="";
-  struct match_rule *match=NULL;
-  struct l_callback callback=NULL;
-  char *func_s;
-  if(!lua_istable(L,1)){
-    error="table expected";
-    goto lua2match_error;
-  }
-  match=ck_alloc(sizeof(struct match_rule));
   match->size=-1;
   lua_getfield(L, 1, "code");
   if(!lua_isnil(L,-1)){
@@ -177,33 +182,6 @@ static struct match_rule *lua2match(lua_State *L) {
       error="func is required";
       goto lua2match_error;
   }
-    if(lua_isstring(L,-1)){
-      func_s=lua_tostring(L,-1);
-      if(strcmp(func_s,"SUCC")){
-        match->evaluate=detect_success;
-      }
-      else if(strcmp(func_s,"FAIL")){
-        match->evaluate=detect_fail;
-      }
-      else{
-        error="func must be SUCC, FAIL or callback";
-        goto lua2match_error;
-      }
-
-    }
-    else if(lua_isfunction(L,-1)){
-      callback=ck_malloc(sizeof(struct l_callback));
-      callback->callback_ref=luaL_ref(L, LUA_REGISTRYINDEX);
-      callback->data_ref=LUA_NILREF;
-      match->data=callback;
-      match->evaluate=lua_callback_evaluate;
-      lua_pop();
-    }
-
-      else{
-        error="func must be SUCC, FAIL or callback";
-        goto lua2match_error;
-      }
 
   lua_getfield(L, 1, "func_data");
   if(callback) callback->data_ref=luaL_ref(L, LUA_REGISTRYINDEX);
@@ -213,13 +191,6 @@ static struct match_rule *lua2match(lua_State *L) {
 
 
 
-
-lua2match_error:
-  lua_pop();
-  free(match);
-  lua_pushnil();
-  lua_pushstring(error);
-  return NULL;
 }
 
 int l_arb_setprop(luaState *L){
