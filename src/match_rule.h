@@ -36,7 +36,7 @@ struct match_rule {
 
 struct match_ruleset {
   struct match_rule *head;
-}
+};
 
 /* match_rule.c */
 unsigned char detected_success(struct http_request *req, struct http_response *res, void *data);

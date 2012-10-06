@@ -109,6 +109,8 @@ struct http_request {
   u16 port;                     /* Port number to connect to    */
   u8  soon;                     /* run this request sooner rather than later */
   u8* orig_url;                 /* Copy of the original URL     */
+  u8* path_only;                /* path_only */
+  u8* serialized_without_host;  /* etc */
   struct param_array par;       /* Parameters, headers, cookies */
   struct target *t; 
   int no_url_save;              /* don't save url statistics    */
@@ -295,6 +297,8 @@ struct dns_entry {
     ck_free((_ar)->v); \
   } while (0)
 
+
+u8* path_only(struct http_request *req);
 void remove_host_from_queue_with_callback(u8 *full_host, u8 (*callback)(struct http_request*, struct http_response*));
 void remove_host_from_queue(u8 *full_host);
 

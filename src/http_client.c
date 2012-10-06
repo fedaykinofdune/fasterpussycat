@@ -673,6 +673,52 @@ void tokenize_path(const u8* str, struct http_request* req, u8 add_slash) {
 }
 
 
+u8* path_only(struct http_request *req){
+  
+  u32 i, cur_pos;
+  u8 got_search = 0;
+  u8* ret;
+
+ if(req->path_only){
+     return req->path_only;
+  }
+
+
+  NEW_STR(ret, cur_pos);
+
+  int i;
+  /* First print path... */
+
+  for (i=0;i<req->par.c;i++)
+    if (PATH_SUBTYPE(req->par.t[i])) {
+
+      switch (req->par.t[i]) {
+
+        case PARAM_PATH_S: ASD(";"); break;
+        case PARAM_PATH_C: ASD(","); break;
+        case PARAM_PATH_E: ASD("!"); break;
+        case PARAM_PATH_D: ASD("$"); break;
+        default: ASD("/");
+
+      }
+
+      if (req->par.n[i]) {
+        u32 len = strlen((char*)req->par.n[i]);
+        u8* str = url_encode_token(req->par.n[i], len, 1);
+        ASD(str); ASD("=");
+      }
+      if (req->par.v[i]) {
+        u32 len = strlen((char*)req->par.v[i]);
+        u8* str = url_encode_token(req->par.v[i], len, 1);
+        ASD(str);
+      }
+
+    }
+    req->path_only=str;
+    return req->path_only;
+
+}
+
 /* Reconstructs URI from http_request data. Includes protocol and host
    if with_host is non-zero. */
 
@@ -680,6 +726,9 @@ u8* serialize_path(struct http_request* req, u8 with_host, u8 with_post) {
   u32 i, cur_pos;
   u8 got_search = 0;
   u8* ret;
+  if(serialized_without_host && !with_host && !with_post){
+    return serialized_without_host;
+  }
 
   NEW_STR(ret, cur_pos);
 
@@ -1735,6 +1784,8 @@ void destroy_request(struct http_request* req) {
   ck_free(req->method);
   ck_free(req->host);
   ck_free(req->orig_url);
+  ck_free(req->path_only);
+  ck_free(req->serialize_without_host);
   ck_free(req);
 
 }

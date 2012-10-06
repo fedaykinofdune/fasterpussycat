@@ -16,6 +16,7 @@ struct ast_node {
   struct ast_node *lhs;
   struct ast_node *rhs;
   union ast_value val;
+  struct ast_node *next;
   int val_type;
   int id;
 };

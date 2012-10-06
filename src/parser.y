@@ -9,6 +9,15 @@ struct ast_node *number_value(int val);
 struct ast_node *id(int id);
 struct ast_node *parsed_ast;
 void yyerror(char *s, ...);
+
+
+
+
+struct number_l {
+  struct number_l *next;
+  char *number;
+}
+
 %}
 
 %start ROOT
@@ -33,6 +42,8 @@ void yyerror(char *s, ...);
 %token CONTAINS
 %token ENDSWITH
 %token PATH
+%token COMMA
+%token IN
 %token BODY
 %token CODE
 %token SIZE
@@ -40,8 +51,13 @@ void yyerror(char *s, ...);
 %token STRING_LITERAL
 %token NUMBER_LITERAL
 %token METHOD
+%token MAGICMIME
+%token PATHONLY
+%token ISDIR
 %type <string> STRING_LITERAL
 %type <number> NUMBER_LITERAL
+%type <node> number_list
+%type <node> string_list
 %type <node> ROOT primary_expr expr expr2 string number
 %%
 
@@ -63,6 +79,7 @@ expr:
 
 expr2:
   string CONTAINS string { $$ = oper(CONTAINS,$1,$3);}
+  | isdir { $$ = oper(ISDIR,NULL,NULL);}
   | string ENDSWITH string { $$ = oper(ENDSWITH,$1,$3);}
   | number EQ number { $$ = oper(EQ,$1,$3);}
   | string EQ string { $$ = oper(EQ,$1,$3); }
@@ -72,7 +89,19 @@ expr2:
   | number LE number { $$ = oper(LE,$1,$3); }
   | number GT number { $$ = oper(GT,$1,$3); }
   | number GE number { $$ = oper(GE,$1,$3); }
+  | string IN LPAREN string_list RPAREN { $$ = oper(IN, $1,$4); }
+  | number IN LPAREN number_list RPAREN { $$ = oper(IN $1,$4); }
 ;
+
+string_list:
+  string { $$ = make_list($1, NULL) }
+  | string COMMA string_list { $$ = make_list('s',$1, $3); }
+
+
+
+number_list:
+  number { $$ =  make_list($1, NULL) }
+  | number COMMA number_list { $$ = make_list('n', $1, $3); }
 
 string:
   BODY { $$ = id(BODY); }
@@ -126,7 +155,20 @@ struct ast_node *id(int id){
   return node;
 }
 
+struct ast_list *make_list(char type, struct ast_node *item, struct ast_node *list){
+  item->next=list; 
+  item->val_type=(type=='s' ? STRING_LITERAL : NUMBER_LITERAL);
+  return item;
+}
 
+
+
+struct string_l *number_list(char *string, struct string_l *list){
+   struct *string_l new_list=malloc(sizeof(struct string_l));
+   new_list->next=list;
+   new_list->string=string;
+   return new_list;
+}
 
 char *string_eval(struct ast_node *node, struct http_request *req, struct http_response *res){
   if(node->id){
@@ -135,10 +177,13 @@ char *string_eval(struct ast_node *node, struct http_request *req, struct http_r
         return res->payload;
         break;
       case PATH:
-        return serialize_path(req,0,0);
+        return (char *) serialize_path(req,0,0);
         break;
       case METHOD:
         return req->method;
+        break;
+      case PATHONLY:
+        return (char *) pathonly(req->method);
         break;
       case HTMLMIME:
         return ((res->header_mime!=NULL) ? res->header_mime : "");
@@ -146,6 +191,7 @@ char *string_eval(struct ast_node *node, struct http_request *req, struct http_r
     }
   }
   if(node->val_type==STRING_LITERAL) return node->val.text;
+  return "";
 }
 
 
@@ -169,7 +215,15 @@ int number_eval(struct ast_node *node, struct http_request *req, struct http_res
 int ast_eval(struct ast_node *node, struct http_request *req, struct http_response *res ){
   char *l, *r;
   char *end_l, *end_r;
+  int n;
+  char *s;
+  struct ast_node *current;
   switch(node->oper){
+    case ISDIR:
+      s=path_only(req);
+      if(strlen(s)==0) return 0;
+      if(s[strlen(s)-1])=='/' return 1;
+      break;
     case AND:
       return ast_eval(node->lhs, req, res) && ast_eval(node->rhs, req, res);
       break;
@@ -184,6 +238,19 @@ int ast_eval(struct ast_node *node, struct http_request *req, struct http_respon
     case EQ:
       if(node->lhs->val_type==NUMBER_LITERAL) return number_eval(node->lhs, req, res)==number_eval(node->rhs, req, res);
       else return (strcmp(string_eval(node->lhs, req, res),string_eval(node->rhs, req, res))==0);
+      break;
+    case IN:
+      if(rhs->val_type==STRING_LITERAL){
+        s=string_eval(lhs);
+      }
+      else{
+        n=number_eval(lhs);
+      }
+      for(current=node->rhs;current;current=current->next){
+        if(current->val_type==STRING_LITERAL && strcmp(s,string_eval(current))) return 1; 
+        if(current->val_type==NUMBER_LITERAL && n==number_eval(current)) return 1; 
+      }
+      return 0;
       break;
     case NE:
       if(node->lhs->val_type==NUMBER_LITERAL) return number_eval(node->lhs, req, res)!=number_eval(node->rhs, req, res);

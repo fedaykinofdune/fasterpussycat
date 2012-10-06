@@ -19,10 +19,15 @@
 "contains" { return CONTAINS; }
 "endswith" { return ENDSWITH; }
 "path" { return PATH; }
+"path" { return PATHONLY; }
+"isdir" { return ISDIR; }
 "code" { return CODE; }
 "htmlmime" { return HTMLMIME; }
+"magicmime" { return MAGICMIME; }
 "size" { return SIZE; }
 "body" { return BODY; }
+","    { return COMMA; }
+"in"   { return IN; }
 
 L?\"(\\.|[^\\"])*\" { yylval.string=strdup(yytext); return(STRING_LITERAL); }
 [0-9]+   { yylval.number = atoi(yytext); return NUMBER_LITERAL; }
