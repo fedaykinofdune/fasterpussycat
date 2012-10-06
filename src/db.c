@@ -355,12 +355,6 @@ void save_success(struct http_request *req, struct http_response *res){
   if(!content_length) content_length=res->pay_len;
   char *url=serialize_path(req,1,0);
   if(url==NULL){return; }
-  sqlite3_reset(delete_result_post_stmt);
-  sqlite3_bind_text(delete_result_post_stmt, 1 , url, -1, SQLITE_TRANSIENT);
-  
-  if(sqlite3_step(delete_result_post_stmt)!=SQLITE_DONE){
-    fatal("SOME KIND OF FAIL IN RESULT POST DELETE %s\n",sqlite3_errmsg(db));
-  }
   sqlite3_reset(insert_result_stmt);
   sqlite3_bind_int(insert_result_stmt,1,res->code);
   sqlite3_bind_int(insert_result_stmt,2,time(NULL));
