@@ -1,7 +1,14 @@
 #include "lua.h"
 #include "match_rule.h"
 
+#define SCRIPT_PATH "/home/caleb/src/fasterpussycat/lua/"
+
 lua_State *L;
+
+void l_error_handler(lua_State *L){
+  const char *error=lua_tostring(L, -1);
+  printf("%s\n", error);
+}
 
 void register_faster_funcs(char *name, const luaL_reg *funcs){
   char *newtable=malloc(strlen(name)+8);
@@ -26,16 +33,20 @@ void setup_obj_env(){
 
 void setup_lua(){
   L = lua_open();   /* opens Lua */
-  luaopen_base(L);             /* opens the basic library */
-  luaopen_table(L);            /* opens the table library */
-  luaopen_io(L);               /* opens the I/O library */
-  luaopen_string(L);           /* opens the string lib. */
-  luaopen_math(L);             /* opens the math lib. */
-
+  luaL_openlibs(L);
   lua_newtable(L);
   lua_setglobal(L,"faster");
   register_matching();
   register_http_client();
+  char *s=malloc(strlen(SCRIPT_PATH)+12);
+  s[0]=0;
+  strcat(s,SCRIPT_PATH);
+  strcat(s,"init.lua");
+  printf("%s\n", s);
+  if(luaL_dofile(L,s)){
+    l_error_handler(L);
+  }
+  free(s);
 }
 
 

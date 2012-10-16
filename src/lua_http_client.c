@@ -33,6 +33,7 @@ void register_http_client(){
 
   register_faster_funcs("http_client",http_client_m);
   register_faster_funcs("http_request",http_request_m);
+  register_faster_funcs("http_response",http_request_m);
 }
 
 static unsigned char process_lua_request(struct http_request *req, struct http_response *res){
