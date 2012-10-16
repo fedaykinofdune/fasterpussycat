@@ -24,11 +24,14 @@ unsigned char detected_fail(struct http_request *req, struct http_response *res,
 }
 
 
-struct ast_node *compile_ast(char *string){
+struct ast_node *compile_ast(const char *string){
   parsed_ast=NULL;
-  to_compile=string;
+  
+  to_compile=strdup(string);
   globalReadOffset=0;
-  if(!yyparse()) return NULL;
+  int rc=yyparse();
+  free(to_compile);
+  if(!rc) return NULL;
   return parsed_ast;
 }
 
@@ -66,14 +69,13 @@ void register_matching(){
   register_faster_funcs("ruleset", ruleset_m);
 
   static const struct luaL_reg rule_m [] = {
-    {"__tostring", l_rule_tostring},
     {NULL, NULL}
   };
   register_faster_funcs("rule", rule_m);
 
 }
 
-int l_new_ruleset(luaState *L){
+int l_new_ruleset(lua_State *L){
   struct match_ruleset *m=(struct match_ruleset *) lua_newuserdata(L, sizeof(struct match_ruleset));
   get_faster_value(L, "ruleset");
   lua_setmetatable(L, -2);
@@ -83,9 +85,9 @@ int l_new_ruleset(luaState *L){
 
 
 
-static struct target *check_ruleset(lua_State *L){
-   void *ud = luaL_checkudata(L, 1, "faster.ruleset");
-   luaL_argcheck(L, ud != NULL, 1, "`faster.ruleset' expected");
+static struct match_ruleset *check_ruleset(lua_State *L, int n){
+   void *ud = luaL_checkudata(L, n, "faster.ruleset");
+   luaL_argcheck(L, ud != NULL, n, "`faster.ruleset' expected");
    return ((struct match_ruleset *) ud);
 }
 
@@ -121,11 +123,14 @@ int same_page(struct http_sig* sig1, struct http_sig* sig2) {
 
 
 
-static int l_new_rule(lua_State *L){
+int l_new_rule(lua_State *L){
   struct match_ruleset *ruleset=check_ruleset(L,1);
-  char *rule_code=luaL_checkstring(L,2);
+  const char *rule_code=luaL_checkstring(L,2);
+  const char *func_s;
+  char *error;
   struct ast_node *compiled=compile_ast(rule_code);
   struct match_rule *match=NULL;
+  struct lua_callback *callback;
   if(!compiled){
     error="Error compiling rule";
     goto l_new_rule_error;
@@ -137,10 +142,10 @@ static int l_new_rule(lua_State *L){
   if(lua_isstring(L, 3)){
     func_s=lua_tostring(L,3);
     if(strcmp(func_s,"SUCC")){
-      match->evaluate=detect_success;
+      match->evaluate=detected_success;
     }
     else if(strcmp(func_s,"FAIL")){
-      match->evaluate=detect_fail;
+      match->evaluate=detected_fail;
     }
     else{
       error="func must be SUCC, FAIL or callback";
@@ -149,10 +154,10 @@ static int l_new_rule(lua_State *L){
 
   }
   else if(lua_isfunction(L,3)){
-    callback=ck_malloc(sizeof(struct l_callback));
-    lua_push(L,3);
+    callback=ck_alloc(sizeof(struct lua_callback));
+    lua_pushvalue(L,3);
     callback->callback_ref=luaL_ref(L, LUA_REGISTRYINDEX);
-    callback->data_ref=LUA_NILREF;
+    callback->data_ref=LUA_REFNIL;
     match->data=callback;
     match->evaluate=lua_callback_evaluate;
   }
@@ -163,19 +168,19 @@ static int l_new_rule(lua_State *L){
   }
 
 
-  if(callback && !lua_isnil(4)) {
-    lua_push(4,L);
+  if(callback && !lua_isnil(L,4)) {
+    lua_pushvalue(L, 4);
     callback->data_ref=luaL_ref(L, LUA_REGISTRYINDEX);
   }
-  match->rule_code=strdup(rule_code);
+  match->code=strdup(rule_code);
   match->next=ruleset->head;
   ruleset->head=match;
   lua_pushboolean(L,1);
   return 1;
 l_new_rule_error:
   free(match);
-  lua_pushnil();
-  lua_pushstring(error);
+  lua_pushnil(L);
+  lua_pushstring(L,error);
   return 2;
 }
 
@@ -183,7 +188,6 @@ l_new_rule_error:
 struct match_rule *new_rule(struct match_ruleset *ruleset){
   struct match_rule *rule;
   rule=calloc(sizeof(struct match_rule),1);
-  rule->size=-1;
   rule->next=ruleset->head;
   ruleset->head=rule;
   rule->evaluate=next_rule;

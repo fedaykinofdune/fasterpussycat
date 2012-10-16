@@ -7,7 +7,6 @@
 #include "util.h"
 #include "match_rule.h"
 #include "detect_404.h"
-#include "post.h"
 #include "utlist.h"
 
 static struct target *targets=NULL;

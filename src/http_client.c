@@ -48,9 +48,8 @@
 #include "utlist.h"
 #include "uthash.h"
 #include "http_client.h"
-#include "engine.h"
 #include "util.h"
-
+#include "lua_http_client.h"
 /* Assorted exported settings: */
 
 
@@ -72,7 +71,7 @@ u8 auth_type         = AUTH_NONE;
 float max_requests_sec = MAX_REQUESTS_SEC;
 
 struct dns_q *to_dns=NULL;
-
+u32 max_requests=0;
 struct param_array global_http_par;
 
 /* Counters: */
@@ -122,10 +121,6 @@ static struct dns_entry*   dns;
 static u8 tear_down_idle;
 
 static struct dns *adns=NULL;
-
-void maybe_destroy_target(struct target *t){
-  if(!t->requests_left) destroy_target(t);
-}
 
 /* Extracts parameter value from param_array. Name is matched if
    non-NULL. Returns pointer to value data, not a duplicate string;
@@ -673,6 +668,8 @@ void tokenize_path(const u8* str, struct http_request* req, u8 add_slash) {
 }
 
 
+#define ASD(_p3) ADD_STR_DATA(ret, cur_pos, _p3)
+
 u8* path_only(struct http_request *req){
   
   u32 i, cur_pos;
@@ -686,7 +683,6 @@ u8* path_only(struct http_request *req){
 
   NEW_STR(ret, cur_pos);
 
-  int i;
   /* First print path... */
 
   for (i=0;i<req->par.c;i++)
@@ -714,7 +710,7 @@ u8* path_only(struct http_request *req){
       }
 
     }
-    req->path_only=str;
+    req->path_only=ret;
     return req->path_only;
 
 }
@@ -726,13 +722,11 @@ u8* serialize_path(struct http_request* req, u8 with_host, u8 with_post) {
   u32 i, cur_pos;
   u8 got_search = 0;
   u8* ret;
-  if(serialized_without_host && !with_host && !with_post){
-    return serialized_without_host;
+  if(req->serialize_without_host && !with_host && !with_post){
+    return req->serialize_without_host;
   }
 
   NEW_STR(ret, cur_pos);
-
-#define ASD(_p3) ADD_STR_DATA(ret, cur_pos, _p3)
 
   /* For human-readable uses... */
 
@@ -1780,7 +1774,6 @@ void destroy_request(struct http_request* req) {
   ck_free(req->par.t);
   ck_free(req->par.n);
   ck_free(req->par.v);
-  free_lua_callback(req->l_on_success);
   ck_free(req->method);
   ck_free(req->host);
   ck_free(req->orig_url);
@@ -1822,7 +1815,6 @@ void destroy_response(struct http_response* res) {
 
 static void destroy_unlink_queue(struct queue_entry* q, u8 keep) {
   
-  struct target *t=q->req->t;
   if (!keep) {
     if (q->req) destroy_request(q->req);
     if (q->res) destroy_response(q->res);
@@ -1830,10 +1822,6 @@ static void destroy_unlink_queue(struct queue_entry* q, u8 keep) {
   if (!q->prev) q->h->q_head = q->next; else q->prev->next = q->next;
   if (!q->next) q->h->q_tail = q->prev;
   if (q->next) q->next->prev = q->prev;
-  if(t){
-    t->requests_left--;
-    maybe_destroy_target(t);
-  } 
 
   ck_free(q);
   queue_cur--;
@@ -1898,42 +1886,6 @@ struct host_entry  *find_host_queue(u8 *host){
   return NULL;
 }
 
-void remove_host_from_queue_with_callback(u8 *full_host, u8 (*callback)(struct http_request*, struct http_response*)){
-
-  struct http_request *r=ck_alloc(sizeof(struct http_request));
-  parse_url(full_host,r,0);
-  struct queue_entry *q;
-  struct queue_entry *n;
-  struct host_entry *e=find_host_queue(r->host);
-  ck_free(r);
-  if(!e) return;
-  q=e->q_head;
-  while(q){
-    n=q->next;
-    if(!q->c && q->req->callback==callback && !strcmp((char *) full_host, (char *) q->req->t->full_host)) destroy_unlink_queue(q,0);
-    q=n;
-  }
-}
-
-void remove_host_from_queue(u8 *full_host) {
-  struct host_entry *e;
-  struct queue_entry *q;
-  struct queue_entry *n;
-  struct http_request *r=ck_alloc(sizeof(struct http_request));
-  parse_url(full_host,r,0);
-  e=find_host_queue(r->host);
-  ck_free(r);
-  if (!e) return;
-  q=e->q_head;
-  while(q){
-    n=q->next;
-    if(!strcmp((char *) q->req->t->full_host,(char *) full_host) && !q->c){
-      destroy_unlink_queue(q,0);
-    }
-    q=n;
-  }
-}
-
 
 void async_dns_callback(struct dns_cb_data *d){
   struct http_request *req=(struct http_request *) d->context;
@@ -1948,7 +1900,6 @@ void async_dns_callback(struct dns_cb_data *d){
 
 void async_request(struct http_request* req) {
   struct dns_q *t;
-  if(req->t) req->t->requests_left++;
   
   if(req->addr){
     real_async_request(req);
@@ -1986,14 +1937,13 @@ void real_async_request(struct http_request* req) {
   struct http_response *res;
   struct host_entry *h;
   struct host_entry *new;
-  struct target *t=req->t;
   debug("enqueing request %s %s",req->method,serialize_path(req,1,0));
 
   if (req->proto == PROTO_NONE || !req->callback)
     FATAL("uninitialized http_request");
 
-  res = ck_alloc(sizeof(struct http_response));
-
+  res = raw_new_http_response(L);
+  res->lua_ref=luaL_ref(L, LUA_REGISTRYINDEX);
 
   /* Don't try to issue extra requests if max_fail
      consecutive failures exceeded; but still try to
@@ -2002,12 +1952,10 @@ void real_async_request(struct http_request* req) {
   if (req_errors_cur > max_fail) {
     DEBUG("!!! Too many subsequent request failures!\n");
     res->state = STATE_SUPPRESS;
-    if(t) t->requests_left--;
     if (!req->callback(req, res)) {
       destroy_request(req);
       destroy_response(res);
     }
-    maybe_destroy_target(t);
     req_dropped++;
     return;
   }
@@ -2022,8 +1970,6 @@ void real_async_request(struct http_request* req) {
       destroy_response(res);
     }
     
-    if(t) t->requests_left--;
-    maybe_destroy_target(t);
     queue_cur--;
     req_errors_net++;
     conn_count++;
@@ -2244,10 +2190,6 @@ connect_error:
   c->req_start  = c->last_rw = time(0);
   c->write_buf  = build_request_data(q->req);
   c->write_len  = strlen((char*)c->write_buf);
-  q->req->t->requests++;
-  if(q->req->t->requests>=max_requests && max_requests>0){
-     remove_host_from_queue(q->req->t->full_host);
-  }
 }
 
 

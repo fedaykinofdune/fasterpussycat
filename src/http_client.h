@@ -29,6 +29,7 @@
 #include "types.h"
 #include "alloc-inl.h"
 #include "string-inl.h"
+#include "lua.h"
 
 /* Generic type-name-value array, used for HTTP headers, etc: */
 
@@ -110,14 +111,13 @@ struct http_request {
   u8  soon;                     /* run this request sooner rather than later */
   u8* orig_url;                 /* Copy of the original URL     */
   u8* path_only;                /* path_only */
-  u8* serialized_without_host;  /* etc */
+  u8* serialize_without_host;  /* etc */
   struct param_array par;       /* Parameters, headers, cookies */
   struct target *t; 
   int no_url_save;              /* don't save url statistics    */
   u32 user_val;                 /* Can be used freely           */
   void *data;                   /* Can also be used freely ;-)  */
-  struct lua_callback *l_on_success;
-  struct lua_callback *l_on_complete;
+  int lua_ref;
   struct url_test *test;
   struct req_pointer *pointer;
   struct dir_link *link;
@@ -163,21 +163,20 @@ struct http_response {
   u32 code;                     /* HTTP response code           */
   u8* msg;                      /* HTTP response message        */
   u32 warn;                     /* Warning flags                */
-
+  int lua_ref;
   u8  cookies_set;              /* Sets cookies?                */
 
   struct param_array hdr;       /* Server header, cookie list   */
 
   u32 pay_len;                  /* Response payload length      */
   u8* payload;                  /* Response payload data        */
-
+  int fprinted;
   struct http_sig sig;          /* Response signature data      */
 
   /* Various information populated by content checks: */
 
   u8  sniff_mime_id;            /* Sniffed MIME (MIME_*)        */
   u8  decl_mime_id;             /* Declared MIME (MIME_*)       */
-
   u8* meta_charset;             /* META tag charset value       */
   u8* header_charset;           /* Content-Type charset value   */
   u8* header_mime;              /* Content-Type MIME type       */
@@ -497,4 +496,3 @@ void http_req_list(void);
 #endif /* !_HAVE_HTTP_CLIENT_H */
 
 
-void print_queue(struct queue_entry *q);

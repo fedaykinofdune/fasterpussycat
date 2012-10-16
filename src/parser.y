@@ -8,15 +8,8 @@ struct ast_node *string_value(char *val);
 struct ast_node *number_value(int val);
 struct ast_node *id(int id);
 struct ast_node *parsed_ast;
+struct ast_node *make_list(char type, struct ast_node *item, struct ast_node *list);
 void yyerror(char *s, ...);
-
-
-
-
-struct number_l {
-  struct number_l *next;
-  char *number;
-}
 
 %}
 
@@ -79,7 +72,7 @@ expr:
 
 expr2:
   string CONTAINS string { $$ = oper(CONTAINS,$1,$3);}
-  | isdir { $$ = oper(ISDIR,NULL,NULL);}
+  | ISDIR { $$ = oper(ISDIR,NULL,NULL);}
   | string ENDSWITH string { $$ = oper(ENDSWITH,$1,$3);}
   | number EQ number { $$ = oper(EQ,$1,$3);}
   | string EQ string { $$ = oper(EQ,$1,$3); }
@@ -90,17 +83,17 @@ expr2:
   | number GT number { $$ = oper(GT,$1,$3); }
   | number GE number { $$ = oper(GE,$1,$3); }
   | string IN LPAREN string_list RPAREN { $$ = oper(IN, $1,$4); }
-  | number IN LPAREN number_list RPAREN { $$ = oper(IN $1,$4); }
+  | number IN LPAREN number_list RPAREN { $$ = oper(IN, $1,$4); }
 ;
 
 string_list:
-  string { $$ = make_list($1, NULL) }
+  string { $$ = make_list('s', $1, NULL); }
   | string COMMA string_list { $$ = make_list('s',$1, $3); }
 
 
 
 number_list:
-  number { $$ =  make_list($1, NULL) }
+  number { $$ =  make_list('n', $1, NULL); }
   | number COMMA number_list { $$ = make_list('n', $1, $3); }
 
 string:
@@ -155,20 +148,13 @@ struct ast_node *id(int id){
   return node;
 }
 
-struct ast_list *make_list(char type, struct ast_node *item, struct ast_node *list){
+struct ast_node *make_list(char type, struct ast_node *item, struct ast_node *list){
   item->next=list; 
   item->val_type=(type=='s' ? STRING_LITERAL : NUMBER_LITERAL);
   return item;
 }
 
 
-
-struct string_l *number_list(char *string, struct string_l *list){
-   struct *string_l new_list=malloc(sizeof(struct string_l));
-   new_list->next=list;
-   new_list->string=string;
-   return new_list;
-}
 
 char *string_eval(struct ast_node *node, struct http_request *req, struct http_response *res){
   if(node->id){
@@ -183,10 +169,11 @@ char *string_eval(struct ast_node *node, struct http_request *req, struct http_r
         return req->method;
         break;
       case PATHONLY:
-        return (char *) pathonly(req->method);
+        return (char *) path_only(req);
         break;
       case HTMLMIME:
-        return ((res->header_mime!=NULL) ? res->header_mime : "");
+        if (res->header_mime!=NULL) return  res->header_mime;
+        else return "";
         break;
     }
   }
@@ -222,7 +209,7 @@ int ast_eval(struct ast_node *node, struct http_request *req, struct http_respon
     case ISDIR:
       s=path_only(req);
       if(strlen(s)==0) return 0;
-      if(s[strlen(s)-1])=='/' return 1;
+      if(s[strlen(s)-1]=='/') return 1;
       break;
     case AND:
       return ast_eval(node->lhs, req, res) && ast_eval(node->rhs, req, res);
@@ -240,15 +227,15 @@ int ast_eval(struct ast_node *node, struct http_request *req, struct http_respon
       else return (strcmp(string_eval(node->lhs, req, res),string_eval(node->rhs, req, res))==0);
       break;
     case IN:
-      if(rhs->val_type==STRING_LITERAL){
-        s=string_eval(lhs);
+      if(node->rhs->val_type==STRING_LITERAL){
+        s=string_eval(node->lhs, req, res);
       }
       else{
-        n=number_eval(lhs);
+        n=number_eval(node->lhs, req, res);
       }
       for(current=node->rhs;current;current=current->next){
-        if(current->val_type==STRING_LITERAL && strcmp(s,string_eval(current))) return 1; 
-        if(current->val_type==NUMBER_LITERAL && n==number_eval(current)) return 1; 
+        if(current->val_type==STRING_LITERAL && strcmp(s,string_eval(current,req,res))) return 1; 
+        if(current->val_type==NUMBER_LITERAL && n==number_eval(current,req,res)) return 1; 
       }
       return 0;
       break;

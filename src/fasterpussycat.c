@@ -38,15 +38,8 @@
 #include "string-inl.h"
 #include "http_client.h"
 #include "util.h"
-#include "db.h"
-#include "engine.h"
-#include "bayes.h"
-#include "id3.h"
-#include "detect_404.h"
-#include "post.h"
 #include "utlist.h"
-#include "backup_bruteforce.h"
-#include "find_uploaded_file.h"
+#include "lua.h"
 
 #ifdef DEBUG_ALLOCATOR
 struct __AD_trk_obj* __AD_trk[ALLOC_BUCKETS];
@@ -77,8 +70,13 @@ u32 __AD_trk_cnt[ALLOC_BUCKETS];
 #define MIME 21
 #define MAX_TIME 22
 #define SOCKS 23
-
+int skip_sig, skip_other_probes, force_save, store_successes, train, blacklist_success, max_train_count, scan_flags;
+#define F_CRITICAL 1
+#define F_CGI 1
+#define F_DIRECTORY 1
+#define F_INFO 1
 struct t_list;
+
 
 struct t_list {
   unsigned char *host;
@@ -244,11 +242,6 @@ void maybe_queue_more_hosts(){
 }
 
 void do_scan(){
-  load_features();
-  load_tests();
-  load_aho_corasick_triggers();
-  load_feature_selections();
-  add_post_rules();
   struct timeval tv;
   gettimeofday(&tv, NULL);
   u64 st_time;
@@ -288,8 +281,6 @@ void do_scan(){
     }
   }
   printf("FINISHED (avg req/s = %f)\n", ((req_count - queue_cur) * 1000.0) / (run_time + 1));
-  if(train || force_save) save_all();
-  if(store_successes) save_successes();
 
 }
 
@@ -315,11 +306,6 @@ void parse_opts(int argc, char** argv){
   struct option long_options[] = {        /* long options array. Items are all caSe SensiTivE! */
     { "add-url", no_argument, &mode, MODE_ADD_URL   }, 
     { "add-trigger", no_argument, &mode, MODE_ADD_TRIGGER},
-    { "brute-backup", required_argument, NULL, MODE_BRUTE_BACKUP},
-    { "brute-backup-days", required_argument, NULL, BRUTE_BACKUP_DAYS},
-    { "brute-backup-pattern", required_argument, NULL, BRUTE_BACKUP_PATTERN},
-    { "brute-backup-no-stop", no_argument, &backup_bruteforce_stop, 0},
-    { "brute-backup-no-slash", no_argument, &backup_bruteforce_slash, 0},
     { "store-successes", no_argument, NULL, 'S'},
     { "query", no_argument, &mode, MODE_QUERY}, 
     { "all", no_argument, &query_all, 1}, 
@@ -364,13 +350,6 @@ void parse_opts(int argc, char** argv){
         LL_APPEND(target_list,target);
         t++;
         break;
-      case MODE_BRUTE_BACKUP:
-        backup_bruteforce_url=optarg;
-        mode=MODE_BRUTE_BACKUP;
-        break;
-      case BRUTE_BACKUP_DAYS:
-        backup_bruteforce_days_back=atoi(optarg);
-        break;
       case RESP_TIMEOUT:
         resp_tmout=atoi(optarg);
         break;
@@ -382,9 +361,6 @@ void parse_opts(int argc, char** argv){
         break;
       case CONN_TIMEOUT:
         idle_tmout=atoi(optarg);
-        break;
-      case BRUTE_BACKUP_PATTERN:
-        backup_bruteforce_pattern=optarg;
         break;
       case 'B':
         if (!strcasecmp("metal",optarg)) browser_type=BROWSER_METAL;
@@ -429,9 +405,6 @@ void parse_opts(int argc, char** argv){
         progress=atoi(optarg);
         break;
       case STATISTICS:
-        load_tests();
-        load_features();
-        show_feature_predictive_values();
         exit(0);
         break;
       case 'T':
@@ -499,28 +472,7 @@ void parse_opts(int argc, char** argv){
   }
 
   switch(mode){
-    case MODE_FIND_UPLOAD:
-      do {
-        struct target *tar;
-        if(!t){
-          fprintf(stderr, "You must specify a host\n");
-          exit(1);
-        }
-        skip_other_probes=1;
-        tar=add_target(target_list->host) ; /* first target only */
-        no_add_from_queue=1;
-        if(!tar){
-          fprintf(stderr,"Couldn't create target '%s'\n",target_list->host);
-          exit(1);
-        }
-
-        tar->upload_file=upload_file;
-        tar->after_probes=start_find_uploaded_file;
-        do_scan();
-      } while(0);
-      break;
     case MODE_ADD_URL:
-      add_or_update_url(url, description, flags);
       exit(0);
       break;
     case MODE_ATTACK:
@@ -534,43 +486,10 @@ void parse_opts(int argc, char** argv){
       exit(0);
       break;
     case MODE_ADD_TRIGGER:
-      add_aho_corasick_trigger(trigger, feature);
       exit(0);
       break;
-    case MODE_QUERY:
-      do {
-        if(!url && !code && !mime && !flags && !recent && !post_key && !query_all){
-          fprintf(stderr,"You must specify at least one attribute to search on (or --all)\n");
-          exit(1);
-        }
-        struct query *q=ck_alloc(sizeof(struct query));
-        q->url=url;
-        q->code=code;
-        q->mime=mime;
-        q->flags=flags;
-        q->recent=recent;
-        q->post_key=post_key;
-        store_successes=0;
-        do_query(q);
-        exit(0);
-      break;
-      } while(0);
     case MODE_ANALYZE:
-      load_tests();
-      load_features();
-      info("performing feature selection...");
-      do_feature_selection();
       exit(0);
-    case MODE_BRUTE_BACKUP:
-      do {
-      struct target *tar;
-      skip_other_probes=1;
-      tar=add_target(backup_bruteforce_url);
-      if(!tar) exit(1);
-      tar->after_probes=start_bruteforce_backup;
-      do_scan();
-      } while(0);
-      break;
   }
 
 }
@@ -592,8 +511,7 @@ int main(int argc, char** argv) {
 
   if (max_connections < max_conn_host)
     max_connections = max_conn_host;
-  open_database();
-  setup_bayes();
+  setup_lua();
   parse_opts(argc, argv);
   fflush(0);
 
