@@ -23,6 +23,21 @@ void destroy_simple_buffer(simple_buffer *buffer){
   free(buffer);;
 }
 
+void write_packed_string_to_simple_buffer(simple_buffer *buf, char *str, size_t size){
+  char z='\0';
+  write_to_simple_buffer(buf,str,size);
+  write_to_simple_buffer(buf,&z,1);
+}
+
+simple_buffer *dup_simple_buffer(simple_buffer *src){
+  simple_buffer *d=malloc(sizeof(simplebuffer));
+  d->read_pos=src->read_pos;
+  d->write_pos=src->write_pos;
+  d->size=src->size;
+  d->ptr=malloc(d->size);
+  memcpy(d->ptr,src->ptr,d->size);
+  return d;
+}
 
 void set_simple_buffer_from_ptr(simple_buffer *buf, char *ptr, size_t size){
   buf->read_pos=0;

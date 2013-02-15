@@ -79,7 +79,7 @@ void enqueue_request(http_request *req){
 
 /* TODO: handle ipv6 */
 
-static void enqueue_request_step2(resolved_addess_state state, unsigned int addr, void *data){
+static void enqueue_request_step2(resolved_addess_state state, unsigned int addr, prepared_http_request *req){
   static struct sockaddr_in addr_in;
   static server_endpoint *endpoint;
   static prepared_http_request *req;
@@ -103,6 +103,8 @@ prepared_http_request *prepare_http_request(http_request *req){
   prepared_http_request *p=alloc_prepared_http_request();
   p->options=req->options;
   p->port=req->port;
+  p->z_address=dup_simple_buffer(req->z_address);
+  p->handle=req->handle;
   write_http_request_to_simple_buffer(p->payload, req); 
   return p;
 }

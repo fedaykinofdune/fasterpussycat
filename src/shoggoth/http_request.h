@@ -1,3 +1,8 @@
+#ifndef SHOGGOTH_HTTP_REQUEST_H
+#define SHOGGOTH_HTTP_REQUEST_H
+
+#include "simple_buffer.h"
+
 typedef struct {
 
   simple_buffer *headers;
@@ -10,3 +15,5 @@ typedef struct {
   unsigned int options;
   unsigned int handle;
 } http_request;
+
+#endif

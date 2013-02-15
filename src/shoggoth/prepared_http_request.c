@@ -27,5 +27,6 @@ void destroy_prepared_http_request(prepared_http_request *p){
     p->endpoint->next_idle=p;
   }
   destroy_simple_buffer(p->payload);
+  destroy_simple_buffer(p->z_address);
   free(p);
 }

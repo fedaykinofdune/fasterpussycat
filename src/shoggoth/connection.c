@@ -1,9 +1,11 @@
 #include "connection.h"
+#include "simple_buffer.h"
+#include "server_endpoint.h"
 
 connection *alloc_connection(size_t read_buffer_size, size_t write_buffer_size){
   connection *conn=malloc(sizeof(connection));
-  conn->read_buffer=alloc_simple_buffer(read_buffer_size);
-  conn->aux_buffer=alloc_simple_buffer(aux_buffer_size);
+  conn->read_buffer=alloc_simple_buffer(opt.read_buffer_size);
+  conn->aux_buffer=alloc_simple_buffer(opt.aux_buffer_size);
   conn->use_ssl=0;
   conn->state=0;
   conn->fd=-1;
@@ -11,7 +13,7 @@ connection *alloc_connection(size_t read_buffer_size, size_t write_buffer_size){
   conn->retry=0;
   conn->state=NOTINIT;
   conn->done_ssl_handshake=0;
-  conn->response=malloc(sizeof(http_response));
+  conn->response=alloc_http_response();
   conn->next_idle=NULL;
   conn->next_conn=NULL;
   return conn;
@@ -23,6 +25,13 @@ void connection_init(){
 
 }
 
+void reset_connection(connection *conn){
+  reset_http_response(conn->response);
+  reset_simple_buffer(conn->read_buffer);
+  reset_simple_buffer(conn->aux_buffer);
+}
+
+
 void close_connection(conn){
   if(conn->fd!=-1){
     close(conn->fd);
@@ -32,6 +41,8 @@ void close_connection(conn){
   conn_fd[conn->index].fd=-1;
   conn_fd[conn->index].events=0;
 }
+
+
 
 int connect_to_endpoint(connection *conn){
   close_connection(conn);

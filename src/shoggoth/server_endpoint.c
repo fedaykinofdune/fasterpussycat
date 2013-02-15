@@ -5,7 +5,7 @@ server_endpoint *endpoint_queue_tail=NULL;
 server_endpoint *endpoint_working_head=NULL;
 server_endpoint *server_endpoint_map=NULL;
 
-inline server_endpoint *alloc_server_endpoint(struct *sockaddr_in addr){
+inline server_endpoint *alloc_server_endpoint(struct sockaddr_in *addr){
   server_endpoint *endpoint=malloc(sizeof(server_endpoint));
   endpoint->next_conn=NULL;
   endpoint->next_idle=NULL;
@@ -35,7 +35,7 @@ void destroy_server_endpoint(server_endpoint *endpoint){
   free(endpoint);
 }
 
-server_endpoint *find_or_create_server_endpoint(struct *sockaddr_in addr){
+server_endpoint *find_or_create_server_endpoint(struct sockaddr_in *addr){
   server_endpoint *endpoint;
   HASH_FIND(hh, server_endpoint_map, addr, sizeof(addr), endpoint);
   if(endpoint) return endpoint;
