@@ -7,6 +7,7 @@
 
 typedef struct server_endpoint server_endpoint;
 
+#include "uthash.h"
 #include "connection.h"
 #include "prepared_http_request.h"
 
@@ -16,7 +17,7 @@ extern server_endpoint *endpoint_queue_tail;
 extern server_endpoint *endpoint_working_head;
 
 struct server_endpoint {
-  sockaddr_in addr;
+  struct sockaddr_in *addr;
   prepared_http_request *queue_head;
   prepared_http_request *queue_tail;
   unsigned char use_ssl;
@@ -27,10 +28,11 @@ struct server_endpoint {
 
   server_endpoint *next;
   server_endpoint *prev;
-
+  unsigned int errors;
 
   server_endpoint *next_working;
   server_endpoint *prev_working;
+  UT_hash_handle hh;
 };
 
 /* server_endpoint.c */

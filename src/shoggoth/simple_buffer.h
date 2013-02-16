@@ -1,6 +1,6 @@
 #ifndef SHOGGOTH_SIMPLE_BUFFER_H
 #define SHOGGOTH_SIMPLE_BUFFER_H
-
+#include <stdlib.h>
 typedef struct {
   size_t size;
   unsigned int read_pos;

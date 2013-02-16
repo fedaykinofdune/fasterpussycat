@@ -1,8 +1,10 @@
+#include <string.h>
 #include <netdb.h>
 #include <sys/socket.h> 
 #include "address_map.h"
 
-static resolved_address address_map=NULL;
+
+static resolved_address *address_map=NULL;
 
 void lookup_address(char *host, resolved_address_callback callback , prepared_http_request *req){
   resolved_address *r;
@@ -29,14 +31,14 @@ void lookup_address(char *host, resolved_address_callback callback , prepared_ht
   struct hostent *h=gethostbyname(host);
   if(h==NULL){
     /* TODO: handle errors properly */
-    r->state=ADDRESS_NOTEXIST;
+    r->state=ADDRESS_NOTFOUND;
     goto do_callback;
   }
-  r->addr=(unsigned int *) h->h_addr;
-  r->state=ADDRESS_FOUND
+  r->addr=*((unsigned int *) h->h_addr_list[0]);
+  r->state=ADDRESS_RESOLVED;
   free(h);
 
 do_callback:
 
-  callback(r->state,r->addr,data);
+  callback(r->state,r->addr,req);
   }

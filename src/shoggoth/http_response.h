@@ -1,11 +1,13 @@
 #ifndef SHOGGOTH_HTTP_RESPONSE_H
 #define SHOGGOTH_HTTP_RESPONSE_H
+#include <stdint.h>
 
 #include "simple_buffer.h"
 
 
 typedef struct http_response http_response;
-typedef struct connection connection;
+
+
 #include "connection.h"
 
 
@@ -16,12 +18,13 @@ struct http_response {
   uint8_t must_close;
   uint8_t compressed;
   uint8_t chunked;
+  uint8_t expect_crlf;
   int expected_body_len;
   char *body_ptr;
   size_t body_offset;
   size_t body_len;
   simple_buffer *headers;
-  uint32_t chunked_length;
+  uint32_t chunk_length;
 
 };
 

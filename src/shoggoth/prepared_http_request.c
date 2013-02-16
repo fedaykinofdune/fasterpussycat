@@ -8,7 +8,8 @@ prepared_http_request *alloc_prepared_http_request(){
   p->prev=NULL;
   p->endpoint=NULL;
   p->handle=0;
-  p->payload=alloc_simple_buffer(request_buffer_size);
+  p->payload=alloc_simple_buffer(opt.request_buffer_size);
+  return p;
 }
 
 void destroy_prepared_http_request(prepared_http_request *p){
@@ -23,8 +24,8 @@ void destroy_prepared_http_request(prepared_http_request *p){
     p->conn->request=NULL;
   }
   if(p->conn && p->endpoint){
-    p->conn->next_idle=p->endpoint->next_idle;
-    p->endpoint->next_idle=p;
+    p->conn->next_idle=p->endpoint->idle_list;
+    p->endpoint->idle_list=p->conn;
   }
   destroy_simple_buffer(p->payload);
   destroy_simple_buffer(p->z_address);

@@ -1,6 +1,8 @@
 #include <string.h>
+#include <strings.h>
 #include "http_response.h"
 #include "connection.h"
+#include "global_options.h"
 
 #define prefix(_long, _short) \
     strncmp((char*)(_long), (char*)(_short), strlen((char *)(_short)))
@@ -14,6 +16,8 @@ void reset_http_response(http_response *response){
   response->must_close=0;
   response->body_offset=0;
   response->body_len=0;
+  response->chunk_length=0;
+  response->expect_crlf=0;
   response->expected_body_len=0;
   response->chunked=0;
   response->compressed=0;
@@ -25,7 +29,7 @@ void reset_http_response(http_response *response){
 
 http_response *alloc_http_response(){
   http_response *r=malloc(sizeof(http_response));
-  r->simple_buffer=alloc_simple_buffer(header_buffer_size);
+  r->headers=alloc_simple_buffer(opt.header_buffer_size);
   reset_http_response(r);
   return r;
 }
@@ -36,7 +40,8 @@ inline enum parse_response_code parse_chunked(connection *conn){
   char *line;
   int line_size;
 
-  int chunk_len;
+  simple_buffer *buf=conn->read_buffer;
+  unsigned int chunk_len;
   int r_count;
   char *ptr;
   http_response *response=conn->response;
@@ -58,7 +63,7 @@ inline enum parse_response_code parse_chunked(connection *conn){
       }
       if(chunk_len==0) return FINISHED;
 
-      response->chunk_length=chunk_length;
+      response->chunk_length=chunk_len;
     }
     ptr=read_from_simple_buffer(buf,response->chunk_length, &r_count);
     if(r_count==0){
@@ -78,7 +83,7 @@ inline enum parse_response_code parse_result_code(connection *conn){
   int more=(conn->state==READING);
   char *line;
   int line_size;
-  char *h_key, *h_value;
+  unsigned int http_ver;
   http_response *response=conn->response;
   simple_buffer *buf=conn->read_buffer;
   
@@ -87,7 +92,7 @@ inline enum parse_response_code parse_result_code(connection *conn){
   if(!line) return more ? NEED_MORE : INVALID;
     
   *(line+line_size)=0;
-  if(line_size < 13 || sscanf((char*) line, "HTTP/1.%u %u ", &http_ver, &response->code) != 2 || response->code < 100 || response->code > 999) {
+  if(line_size < 13 || sscanf((char*) line, "HTTP/1.%u %hu ", &http_ver, &response->code) != 2 || response->code < 100 || response->code > 999) {
       return INVALID;
   }
 
@@ -132,11 +137,11 @@ inline enum parse_response_code parse_headers(connection *conn){
     h_key=response->headers->ptr+key_wpos;
     h_value=response->headers->ptr+value_wpos;
 
-    response->expected_body_length=-1;
+    response->expected_body_len=-1;
 
     /* deal with particular headers */
 
-    if (!case_prefix(h_key, "Content-Length") && sscanf(h_value, "%d", &response->expected_body_length) == 1 && response->expected_body_length < 0) return INVALID;
+    if (!case_prefix(h_key, "Content-Length") && sscanf(h_value, "%d", &response->expected_body_len) == 1 && response->expected_body_len < 0) return INVALID;
     else if (!case_prefix(h_key, "Transfer-Encoding") && strcasestr(h_value,"chunked")) response->chunked =1; 
     else if (!case_prefix(h_key, "Content-Encoding") && (strcasestr(h_value, "deflate") || strcasestr(h_value, "gzip"))) response->compressed=1;
     else if (!case_prefix(h_key, "Connection" ) && strcasestr(h_value,"close")) response->must_close=1;
@@ -145,31 +150,13 @@ inline enum parse_response_code parse_headers(connection *conn){
   return CONTINUE;
 }
 
-enum parse_response_code parse_connection_response(connection *conn){
-  parse_response_code rc=parse_connection_response2(conn);
-  if(rc!=FINISHED) return rc;
-  http_response *response=conn->response;
-  if(!response->compressed && !response->chunked) { /* the simplest case */
-    response->body_ptr=conn->read_buffer->ptr+response->body_offset;
-    response->body_len=conn->read_buffer-write_pos-response->body_offset;
-    return FINISHED;
-  }
-  else if(!response->compressed && response->chunked) {
-    response->body_ptr=conn->aux_buffer->ptr;
-    response->body_len=conn->aux_buffer->write_pos;
-    return FINISHED;
-  }
-}
 
 
 inline enum parse_response_code parse_connection_response2(connection *conn){
   simple_buffer *buf=conn->read_buffer;
-  http_response response=conn->response;
+  http_response *response=conn->response;
   int more=(conn->state==READING);
   int rc;
-  char *line;
-  int line_size;
-  int http_ver;
 
   /* parse http result code */
 
@@ -183,14 +170,32 @@ inline enum parse_response_code parse_connection_response2(connection *conn){
 
   if(response->chunked && (rc=parse_chunked(conn))!=CONTINUE) return rc;
   
-  else if(response->expected_body_length>0){
+  else if(response->expected_body_len>0){
     int size=buf->write_pos-response->body_offset;
-    if(size>=response->expected_body_length) return FINISHED:
+    if(size>=response->expected_body_len) return FINISHED;
   }
   
   if(more) return NEED_MORE;
     
-  return FINISHED:
+  return FINISHED;
   
 
 }
+
+enum parse_response_code parse_connection_response(connection *conn){
+  enum parse_response_code rc=parse_connection_response2(conn);
+  if(rc!=FINISHED) return rc;
+  http_response *response=conn->response;
+  if(!response->compressed && !response->chunked) { /* the simplest case */
+    response->body_ptr=conn->read_buffer->ptr+response->body_offset;
+    response->body_len=conn->read_buffer->write_pos-response->body_offset;
+    return FINISHED;
+  }
+  else if(!response->compressed && response->chunked) {
+    response->body_ptr=conn->aux_buffer->ptr;
+    response->body_len=conn->aux_buffer->write_pos;
+    return FINISHED;
+  }
+  return FINISHED;
+}
+

@@ -1,5 +1,6 @@
 #include <stddef.h>
 #include <stdio.h>
+#include <string.h>
 #include "simple_buffer.h"
 
 simple_buffer *alloc_simple_buffer(size_t size){
@@ -30,7 +31,7 @@ void write_packed_string_to_simple_buffer(simple_buffer *buf, char *str, size_t 
 }
 
 simple_buffer *dup_simple_buffer(simple_buffer *src){
-  simple_buffer *d=malloc(sizeof(simplebuffer));
+  simple_buffer *d=malloc(sizeof(simple_buffer));
   d->read_pos=src->read_pos;
   d->write_pos=src->write_pos;
   d->size=src->size;
@@ -56,8 +57,8 @@ char *read_line_from_simple_buffer(simple_buffer *buffer, int *retsize){
   int r=buffer->read_pos;
   int s=buffer->read_pos;
   char *p;
-  while(r<buffer->size && buffer[r]!='\n') r++;
-  if(r>=buffer->size){
+  while(r<buffer->write_pos && buffer->ptr[r]!='\n') r++;
+  if(r>=buffer->write_pos){
     *retsize=0;
     return NULL;
   }
@@ -76,18 +77,17 @@ size_t concat_simple_buffer(simple_buffer *dst, simple_buffer *src){
 /* returns number of bytes actually written */
 
 size_t write_to_simple_buffer(simple_buffer *buffer, char *ptr, size_t size){
-  unsigned char trunc=0;
   if((buffer->write_pos+size-1)>=buffer->size){
     buffer->size=(buffer->write_pos+size-1) * 2;
-    buffer->ptr=realloc(buffer->size);
+    buffer->ptr=realloc(buffer->ptr, buffer->size);
   }
-  memcpy(buffer->ptr+write_pos, ptr, size);
+  memcpy(buffer->ptr+buffer->write_pos, ptr, size);
   buffer->write_pos+=size;
   return size;
 }
 
 size_t write_int_to_simple_buffer(simple_buffer *buffer, int i){
-  static char s_buf=NULL;
+  static char *s_buf=NULL;
   if(s_buf==NULL) s_buf=malloc(64);
   snprintf(s_buf,63,"%d",i);
   return write_string_to_simple_buffer(buffer, s_buf);
@@ -107,5 +107,5 @@ char *read_from_simple_buffer(simple_buffer *buffer, size_t size, int *retread){
   size_t r=left < size ? left : size;
   *retread=r;
   buffer->read_pos+=r;
-  return r;
+  return readptr;
 }

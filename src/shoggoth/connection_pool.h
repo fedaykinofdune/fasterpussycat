@@ -4,6 +4,7 @@
 
 extern connection **connection_pool;
 extern struct pollfd* conn_fd;
+extern int n_hosts;
 
 /* connection_pool.c */
 void initialize_connection_pool(void);

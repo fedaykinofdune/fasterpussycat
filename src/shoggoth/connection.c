@@ -1,16 +1,20 @@
+#include <fcntl.h>
+#include <poll.h>
+#include <unistd.h>
 #include "connection.h"
+#include "connection_pool.h"
 #include "simple_buffer.h"
 #include "server_endpoint.h"
+#include "global_options.h"
 
-connection *alloc_connection(size_t read_buffer_size, size_t write_buffer_size){
+connection *alloc_connection(){
   connection *conn=malloc(sizeof(connection));
   conn->read_buffer=alloc_simple_buffer(opt.read_buffer_size);
   conn->aux_buffer=alloc_simple_buffer(opt.aux_buffer_size);
-  conn->use_ssl=0;
   conn->state=0;
   conn->fd=-1;
   conn->reused=0;
-  conn->retry=0;
+  conn->retrying=0;
   conn->state=NOTINIT;
   conn->done_ssl_handshake=0;
   conn->response=alloc_http_response();
@@ -32,7 +36,7 @@ void reset_connection(connection *conn){
 }
 
 
-void close_connection(conn){
+void close_connection(connection *conn){
   if(conn->fd!=-1){
     close(conn->fd);
   }
@@ -59,16 +63,17 @@ int connect_to_endpoint(connection *conn){
   conn->last_rw=time(NULL);
   conn->state=CONNECTING;
   connect(conn->fd, ( struct sockaddr *) conn->endpoint->addr, sizeof(conn->endpoint->addr));    
+  return 1;
 }
 
 int read_connection_to_simple_buffer(connection *conn, simple_buffer *r_buf){
   int r_count;
-  if(!use_ssl){
+  if(1){
     if(r_buf->size-r_buf->write_pos<1) {
       r_buf->size=r_buf->size*2;
-      realloc(r_buf->ptr,size);
+      r_buf->ptr=realloc(r_buf->ptr,r_buf->size);
     }
-    r_count=read(conn->fd, r_buf->ptr+write_pos, r_buf->size-r_buf->write_pos);
+    r_count=read(conn->fd, r_buf->ptr+r_buf->write_pos, r_buf->size-r_buf->write_pos);
     if(r_count==-1){
       /* TODO handle errors */
     }
@@ -85,14 +90,14 @@ void add_connection_to_server_endpoint(connection *conn, server_endpoint *endpoi
   shutdown(conn->fd, SHUT_RDWR);
   conn->next_conn=endpoint->conn_list;
   endpoint->conn_list=conn;
-  conn->next_idle=endpoint->conn_idle;
+  conn->next_idle=endpoint->idle_list;
   endpoint->idle_list=conn;
 }
 
 int write_connection_from_simple_buffer(connection *conn, simple_buffer *w_buf){
   int w_count;
-  if(!use_ssl){
-    w_count=write(conn->fd, w_buf->ptr+read_pos, w_buf->write_pos - w_buf->read_pos);
+  if(1){
+    w_count=write(conn->fd, w_buf->ptr+w_buf->read_pos, w_buf->write_pos - w_buf->read_pos);
     if(w_count==-1){
       /* TODO handle errors */
     }
