@@ -24,9 +24,16 @@ void destroy_simple_buffer(simple_buffer *buffer){
   free(buffer);;
 }
 
-void write_packed_string_to_simple_buffer(simple_buffer *buf, char *str, size_t size){
+void write_packed_string_to_simple_buffer(simple_buffer *buf, const char *str, size_t size){
   char z='\0';
   write_to_simple_buffer(buf,str,size);
+  write_to_simple_buffer(buf,&z,1);
+}
+
+
+void write_packed_string_to_simple_buffer2(simple_buffer *buf, const char *str){
+  char z='\0';
+  write_to_simple_buffer(buf,str,strlen(str));
   write_to_simple_buffer(buf,&z,1);
 }
 
@@ -76,7 +83,7 @@ size_t concat_simple_buffer(simple_buffer *dst, simple_buffer *src){
 
 /* returns number of bytes actually written */
 
-size_t write_to_simple_buffer(simple_buffer *buffer, char *ptr, size_t size){
+size_t write_to_simple_buffer(simple_buffer *buffer, const char *ptr, size_t size){
   if((buffer->write_pos+size-1)>=buffer->size){
     buffer->size=(buffer->write_pos+size-1) * 2;
     buffer->ptr=realloc(buffer->ptr, buffer->size);
@@ -95,7 +102,7 @@ size_t write_int_to_simple_buffer(simple_buffer *buffer, int i){
 
 /* returns number of bytes actually written */
 
-size_t write_string_to_simple_buffer(simple_buffer *buffer, char *string){
+size_t write_string_to_simple_buffer(simple_buffer *buffer, const char *string){
   return write_to_simple_buffer(buffer, string, strlen(string));
 }
 

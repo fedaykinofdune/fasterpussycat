@@ -3,7 +3,7 @@
 #include "address_map.h"
 #include "http_request.h"
 #include "prepared_http_request.h"
-#include "simple_buffer.h"
+#include "common/simple_buffer.h"
 #include "server_endpoint.h"
 
 void write_http_request_headers_to_simple_buffer(simple_buffer *buf, const http_request *req){

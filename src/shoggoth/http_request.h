@@ -1,7 +1,7 @@
 #ifndef SHOGGOTH_HTTP_REQUEST_H
 #define SHOGGOTH_HTTP_REQUEST_H
 
-#include "simple_buffer.h"
+#include "common/simple_buffer.h"
 #include "prepared_http_request.h"
 
 typedef struct {
@@ -14,7 +14,7 @@ typedef struct {
   simple_buffer *z_address;
   unsigned short port;
   unsigned int options;
-  unsigned int handle;
+  int handle;
 } http_request;
 
 /* http_request.c */

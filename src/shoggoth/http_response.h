@@ -2,7 +2,7 @@
 #define SHOGGOTH_HTTP_RESPONSE_H
 #include <stdint.h>
 
-#include "simple_buffer.h"
+#include "common/simple_buffer.h"
 
 
 typedef struct http_response http_response;

@@ -7,7 +7,7 @@
 
 typedef struct server_endpoint server_endpoint;
 
-#include "uthash.h"
+#include "common/uthash.h"
 #include "connection.h"
 #include "prepared_http_request.h"
 

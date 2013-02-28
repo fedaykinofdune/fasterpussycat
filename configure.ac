@@ -26,8 +26,10 @@ AC_CHECK_HEADERS([inttypes.h netdb.h netinet/in.h stddef.h stdint.h stdlib.h str
 AC_CHECK_HEADER(openssl/ssl.h,[],AC_MSG_ERROR([failed to find the required header file openssl/ssl.h]))
 AC_CHECK_HEADER(openssl/err.h,[],AC_MSG_ERROR([failed to find the required header file openssl/err.h]))
 AC_CHECK_HEADER(openssl/md5.h,[],AC_MSG_ERROR([failed to find the required header file openssl/md5.h]))
-
-
+AC_CHECK_HEADER(lua5.1/lua.h,[],AC_MSG_ERROR([failed to find the required header file lua.h]))
+  
+AC_SEARCH_LIBS( [lua_pcall], [lua lua5.1])
+AC_SUBST([LUA_LIBS])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_INLINE
@@ -46,4 +48,4 @@ AC_CHECK_FUNCS([gethostbyname memchr memset socket strcasecmp strdup strncasecmp
 
 
 
-AC_OUTPUT(Makefile src/shoggoth/Makefile)
+AC_OUTPUT(Makefile src/Makefile src/fasterpussycat/Makefile src/shoggoth/Makefile)

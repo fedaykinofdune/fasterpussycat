@@ -23,6 +23,7 @@ inline server_endpoint *alloc_server_endpoint(struct sockaddr_in *addr){
 }
 
 void destroy_server_endpoint(server_endpoint *endpoint){
+  connection *current;
   HASH_DEL(server_endpoint_map, endpoint);
   if(endpoint==endpoint_queue_head) endpoint_queue_head=endpoint->next;
   if(endpoint==endpoint_queue_tail) endpoint_queue_tail=endpoint->prev;
@@ -32,7 +33,7 @@ void destroy_server_endpoint(server_endpoint *endpoint){
   if(endpoint->prev_working) endpoint->prev_working->next_working=endpoint->next_working;
   if(endpoint->next_working) endpoint->next_working->prev_working=endpoint->prev_working;
   if(endpoint->prev_working || endpoint_working_head==endpoint) n_hosts--;
-  for(connection *current=endpoint->conn_list; current; current=current->next_conn){
+  for(current=endpoint->conn_list; current; current=current->next_conn){
     disassociate_connection_from_endpoints(current);
   }
   free(endpoint->addr);

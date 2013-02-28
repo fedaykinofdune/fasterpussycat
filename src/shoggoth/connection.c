@@ -3,7 +3,7 @@
 #include <unistd.h>
 #include "connection.h"
 #include "connection_pool.h"
-#include "simple_buffer.h"
+#include "common/simple_buffer.h"
 #include "server_endpoint.h"
 #include "global_options.h"
 
@@ -18,6 +18,7 @@ connection *alloc_connection(){
   conn->state=NOTINIT;
   conn->done_ssl_handshake=0;
   conn->response=alloc_http_response();
+  conn->request=NULL;
   conn->next_idle=NULL;
   conn->next_conn=NULL;
   return conn;

@@ -8,7 +8,7 @@
 
 typedef struct connection connection;
 
-#include "simple_buffer.h"
+#include "common/simple_buffer.h"
 #include "prepared_http_request.h"
 #include "http_response.h"
 #include "server_endpoint.h"

@@ -1,6 +1,6 @@
 #ifndef SHOGGOTH_ADDRESS_MAP_H
 #define SHOGGOTH_ADRRESS_MAP_H
-#include "uthash.h"
+#include "common/uthash.h"
 #include "prepared_http_request.h"
 
 enum resolved_address_state { ADDRESS_RESOLVED, ADDRESS_NOTFOUND, ADDRESS_INPROGRESS };

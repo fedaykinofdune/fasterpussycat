@@ -7,6 +7,7 @@ struct global_options {
   size_t read_buffer_size;
   size_t header_buffer_size;
   size_t aux_buffer_size;
+  char *bind;
   unsigned int max_endpoints;
   unsigned int max_conn_per_endpoint;
   unsigned int poll_timeout;

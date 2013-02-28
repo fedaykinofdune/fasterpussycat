@@ -9,7 +9,7 @@
 #include "prepared_http_request.h"
 #include "http_response.h"
 #include "zeromq.h"
-#include "../common/zeromq_common.h"
+#include "common/zeromq_common.h"
 
 unsigned int max_total_http_connections;
 unsigned int max_total_connections;
@@ -21,12 +21,13 @@ int zmq_fd;
 int zmq_index;
 
 void initialize_connection_pool(){
+  int i;
   max_total_http_connections=opt.max_endpoints * opt.max_conn_per_endpoint;
   max_total_connections=max_total_http_connections+1;
   zmq_index=max_total_http_connections;
   conn_fd=calloc(sizeof(struct pollfd),max_total_connections);
   connection_pool=malloc(sizeof(connection *) * max_total_http_connections);
-  for(int i=0; i<max_total_http_connections; i++){
+  for(i=0; i<max_total_http_connections; i++){
     connection_pool[i]=alloc_connection();
     connection_pool[i]->index=i;
     conn_fd[i].events=POLLIN | POLLERR | POLLHUP;
@@ -48,6 +49,7 @@ void disassociate_connection_from_endpoints(connection *conn){
 void associate_endpoints(){
   server_endpoint *endpoint;
   connection *conn;
+  int i;
   while(n_hosts<opt.max_endpoints && endpoint_queue_head){
     endpoint=endpoint_queue_head;
     endpoint_queue_head=endpoint->next;
@@ -58,7 +60,7 @@ void associate_endpoints(){
     endpoint_working_head->prev_working=endpoint;
     endpoint_working_head=endpoint;
     n_hosts++;
-    for(int i=0; i<opt.max_conn_per_endpoint; i++){
+    for(i=0; i<opt.max_conn_per_endpoint; i++){
        conn=non_assoc_connections;
        if(!conn){
         error(1,1,"There should be a connection left here!");
@@ -122,11 +124,11 @@ void associate_connection_to_endpoint(connection *conn, server_endpoint *endpoin
 
 void update_connections(){
   connection *conn;
-  int rc;
+  int rc,i;
   time_t current_time=time(NULL);
-  for(int i=0; i<max_total_http_connections;i++){
+  for(i=0; i<max_total_http_connections;i++){
     conn=connection_pool[i];
-    if((conn->state==NOTINIT || conn->state==READY) && conn->request==NULL){
+    if(conn->endpoint==NULL || ((conn->state==NOTINIT || conn->state==READY) && conn->request==NULL)){
       continue;
     }
 

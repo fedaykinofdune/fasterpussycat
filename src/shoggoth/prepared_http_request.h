@@ -14,7 +14,7 @@ typedef struct prepared_http_request prepared_http_request;
 struct prepared_http_request {
   simple_buffer *payload;
   simple_buffer *z_address;
-  unsigned int handle;
+  int handle;
   unsigned int options;
   unsigned short port;
   prepared_http_request *next;
