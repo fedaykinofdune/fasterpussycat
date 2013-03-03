@@ -57,7 +57,7 @@ void associate_endpoints(){
     endpoint->prev=NULL;
     if(endpoint==endpoint_queue_tail) endpoint_queue_tail=NULL;
     endpoint->next_working=endpoint_working_head;
-    endpoint_working_head->prev_working=endpoint;
+    if(endpoint_working_head) endpoint_working_head->prev_working=endpoint;
     endpoint_working_head=endpoint;
     n_hosts++;
     for(i=0; i<opt.max_conn_per_endpoint; i++){

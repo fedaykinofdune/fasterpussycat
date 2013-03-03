@@ -103,6 +103,7 @@ size_t write_int_to_simple_buffer(simple_buffer *buffer, int i){
 /* returns number of bytes actually written */
 
 size_t write_string_to_simple_buffer(simple_buffer *buffer, const char *string){
+  if(string==NULL) return 0;
   return write_to_simple_buffer(buffer, string, strlen(string));
 }
 

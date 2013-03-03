@@ -1,3 +1,4 @@
+#include <netinet/in.h>
 #include "server_endpoint.h"
 #include "connection_pool.h"
 
@@ -17,8 +18,8 @@ inline server_endpoint *alloc_server_endpoint(struct sockaddr_in *addr){
   endpoint->errors=0;  
   endpoint->next_working=NULL;
   endpoint->prev_working=NULL;
-  endpoint->addr=malloc(sizeof(addr));
-  memcpy(&endpoint->addr,addr,sizeof(addr));
+  endpoint->addr=malloc(sizeof(struct sockaddr_in));
+  memcpy(endpoint->addr,addr,sizeof(struct sockaddr_in));
   return endpoint;
 }
 
@@ -46,7 +47,9 @@ server_endpoint *find_or_create_server_endpoint(struct sockaddr_in *addr){
   if(endpoint) return endpoint;
 
   endpoint=alloc_server_endpoint(addr);
-  HASH_ADD_KEYPTR(hh, server_endpoint_map, endpoint->addr, sizeof(addr), endpoint);
+  printf("ednpoint %p\n", endpoint);
+  printf("endpoint addr %p", endpoint->addr);
+  HASH_ADD_KEYPTR(hh, server_endpoint_map, endpoint->addr, sizeof(struct sockaddr_in), endpoint);
   if(!endpoint_queue_head) endpoint_queue_head=endpoint;
   if(endpoint_queue_tail) {
     endpoint_queue_tail->next=endpoint;

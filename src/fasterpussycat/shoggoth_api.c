@@ -35,6 +35,7 @@ void register_shoggoth_api(lua_State *L){
   request->host=alloc_simple_buffer(32);
   request->method=alloc_simple_buffer(8);
   request->path=alloc_simple_buffer(128);
+  request->headers=alloc_simple_buffer(128);
   request->body=alloc_simple_buffer(1024);
   context=zmq_init (1);
 }
@@ -42,8 +43,10 @@ void register_shoggoth_api(lua_State *L){
 int l_connect_endpoint(lua_State *L){
   const char *endpoint=lua_tostring(L,1);
   void *sock;
-  if(zmq_bind (sock, endpoint)){
-     luaL_error(L, strerror(errno));
+  sock = zmq_socket (context, ZMQ_DEALER);
+  if(zmq_connect (sock, endpoint)){
+     printf(":(((( %s\n",strerror(errno));
+      luaL_error(L, strerror(errno));
   }
   sockets[n_pollitems]=sock;
   pollitems[n_pollitems].socket=sock;
@@ -162,12 +165,14 @@ void l_raw_poll(lua_State *L, void *sock){
 
 
 inline void raw_send_http_request(void *socket, http_request *req){
+  zmq_send(socket, 0,0 ,ZMQ_SNDMORE);
   zmq_send(socket, &req->handle,sizeof(uint32_t),ZMQ_SNDMORE);
   zmq_send(socket, req->host->ptr, req->host->write_pos, ZMQ_SNDMORE);
   zmq_send(socket, &req->port, sizeof(uint16_t),ZMQ_SNDMORE);
   zmq_send(socket, &req->options, sizeof(uint32_t),ZMQ_SNDMORE);
   zmq_send(socket, req->method->ptr, req->method->write_pos, ZMQ_SNDMORE);
   zmq_send(socket, req->path->ptr, req->path->write_pos, ZMQ_SNDMORE);
+  zmq_send(socket, req->headers->ptr, req->headers->write_pos, ZMQ_SNDMORE);
   zmq_send(socket, req->body->ptr, req->body->write_pos, 0);
 }
 
@@ -217,19 +222,17 @@ int l_enqueue_http_request(lua_State *L){
   request->options=htons(lua_tointeger (L, -1));
   lua_pop(L,1);
 
+
+  reset_simple_buffer(req->headers);
   lua_getfield (L, 1, "headers");
   lua_pushnil(L);
   int j;
-  while (lua_next(L, -1) != 0) {
+  while (lua_next(L, -2) != 0) {
     /* uses 'key' (at index -2) and 'value' (at index -1) */
     write_packed_string_to_simple_buffer2(request->headers, lua_tostring(L,-2));
     write_packed_string_to_simple_buffer2(request->headers, lua_tostring(L,-1));
     lua_pop(L, 1);
   }
-  lua_pop(L,1);
-
-  reset_simple_buffer(req->body);
-  request->options=htons(lua_tointeger (L, -1));
   lua_pop(L,1);
 
   lua_pushvalue(L,1);

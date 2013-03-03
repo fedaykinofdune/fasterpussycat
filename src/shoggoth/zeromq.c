@@ -13,6 +13,12 @@ static http_request *request;
 int setup_zeromq(){
   int rc;
   request=malloc(sizeof(http_request));
+  request->z_address=alloc_simple_buffer(0);
+  request->method=alloc_simple_buffer(0);
+  request->path=alloc_simple_buffer(0);
+  request->body=alloc_simple_buffer(0);
+  request->host=alloc_simple_buffer(0);
+  request->headers=alloc_simple_buffer(0);
   context = zmq_init (1);
   sock = zmq_socket (context, ZMQ_ROUTER);
   if(zmq_bind (sock, opt.bind)){
@@ -113,7 +119,6 @@ void update_zeromq(){
   zmq_msg_t path;
   zmq_msg_t headers;
   zmq_msg_t body;
-  static http_request *request=NULL; 
   int size;
   size_t zmq_events_size = sizeof (uint32_t);
   uint32_t zmq_events;
@@ -125,7 +130,7 @@ void update_zeromq(){
     if(!(zmq_events & ZMQ_POLLIN)){
       return;
     }
-
+    printf("receiving req!\n");
 
     zmq_msg_init (&z_address);
     zmq_msg_init (&empty);
@@ -139,39 +144,47 @@ void update_zeromq(){
     zmq_msg_init (&headers);
     zmq_msg_init (&body);
      
-    size = zmq_recvmsg (&z_address, sock, 0);
+    size = zmq_recvmsg (sock, &z_address, 0);
+    
+    printf("size: %d\n", size);
+    printf("%p\n", request->z_address);
+    printf("%p\n", zmq_msg_data(&z_address));
     set_simple_buffer_from_ptr(request->z_address, zmq_msg_data (&z_address), size);
 
-    size = zmq_recvmsg (&empty, sock, 0);
+    size = zmq_recvmsg (sock, &empty, 0);
     if(size!=0){
+      printf("size: %d\n", size);
       error(1,1,"Can't find empty delimiter in zeromq msg!");
       abort();
     }
-    size = zmq_recvmsg (&handle, sock, 0);
+    size = zmq_recvmsg (sock, &handle, 0);
 
     request->handle=*((int32_t* ) zmq_msg_data (&handle)); /* handle remains in host byte order */
+    printf("handle\n");
+    size = zmq_recvmsg (sock, &host, 0);
+    set_simple_buffer_from_ptr(request->host, zmq_msg_data (&host), size);
    
-    size = zmq_recvmsg (&host, sock, 0);
-    set_simple_buffer_from_ptr(request->method, zmq_msg_data (&host), size);
-
-    size = zmq_recvmsg (&port, sock, 0);
+    printf("port\n");
+    size = zmq_recvmsg (sock, &port, 0);
     request->port=*((uint16_t* ) zmq_msg_data (&port)); /* port remains in network byte order */
 
-    size = zmq_recvmsg (&options, sock, 0); /* options is sent in network byte order and converted to host */
+    printf("options\n");
+    size = zmq_recvmsg (sock, &options, 0); /* options is sent in network byte order and converted to host */
     request->options=ntohl(*((uint32_t* ) zmq_msg_data (&options)));
    
-    size = zmq_recvmsg (&method, sock, 0);
+    printf("method\n");
+    size = zmq_recvmsg (sock, &method, 0);
     set_simple_buffer_from_ptr(request->method, zmq_msg_data (&method), size);
-   
-    size = zmq_recvmsg (&path, sock, 0);
-    set_simple_buffer_from_ptr(request->method, zmq_msg_data (&path), size);
-
-    size = zmq_recvmsg (&headers, sock, 0);
-    set_simple_buffer_from_ptr(request->path, zmq_msg_data (&headers), size);
-    
-    size = zmq_recvmsg (&body, sock, 0);
-    set_simple_buffer_from_ptr(request->headers, zmq_msg_data (&body), size);
-    
+     printf("path");
+    size = zmq_recvmsg (sock, &path, 0);
+    set_simple_buffer_from_ptr(request->path, zmq_msg_data (&path), size);
+    printf("headers");
+    size = zmq_recvmsg (sock, &headers, 0);
+    set_simple_buffer_from_ptr(request->headers, zmq_msg_data (&headers), size);
+    printf("body\n"); 
+    size = zmq_recvmsg (sock, &body, 0);
+    set_simple_buffer_from_ptr(request->body, zmq_msg_data (&body), size);
+    printf("enquing request\n");    
     enqueue_request(request);
 
     zmq_msg_close (&z_address);
@@ -183,7 +196,7 @@ void update_zeromq(){
     zmq_msg_close (&path);
     zmq_msg_close (&headers);
     zmq_msg_close (&body);
-    
+    printf("fin poll");
   }
 }
 

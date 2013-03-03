@@ -5,7 +5,7 @@
 extern connection **connection_pool;
 extern struct pollfd* conn_fd;
 extern int n_hosts;
-
+extern int zmq_fd;
 /* connection_pool.c */
 void initialize_connection_pool(void);
 void disassociate_connection_from_endpoints(connection *conn);

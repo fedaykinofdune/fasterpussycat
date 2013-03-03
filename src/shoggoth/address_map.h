@@ -1,5 +1,5 @@
 #ifndef SHOGGOTH_ADDRESS_MAP_H
-#define SHOGGOTH_ADRRESS_MAP_H
+#define SHOGGOTH_ADDDESS_MAP_H
 #include "common/uthash.h"
 #include "prepared_http_request.h"
 

@@ -36,7 +36,6 @@ void lookup_address(char *host, resolved_address_callback callback , prepared_ht
   }
   r->addr=*((unsigned int *) h->h_addr_list[0]);
   r->state=ADDRESS_RESOLVED;
-  free(h);
 
 do_callback:
 

@@ -1,3 +1,5 @@
+#ifndef FASTERPUSSYCAT_SHOGGOTH_API_H
+#define FASTERPUSSYCAT_SHOGGOTH_API_H
 #include <stdint.h>
 #include "../common/simple_buffer.h"
 
@@ -18,5 +20,5 @@ int l_connect_endpoint(lua_State *L);
 int l_poll(lua_State *L);
 void l_raw_poll(lua_State *L, void *sock);
 int l_enqueue_http_request(lua_State *L);
-
+#endif
 
