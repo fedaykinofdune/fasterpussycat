@@ -38,6 +38,6 @@ struct server_endpoint {
 /* server_endpoint.c */
 void destroy_server_endpoint(server_endpoint *endpoint);
 server_endpoint *find_or_create_server_endpoint(struct sockaddr_in *addr);
-
-
+void debug_print_endpoint_queue(server_endpoint *endpoint);
+void debug_print_endpoint_queue_length(server_endpoint *endpoint);
 #endif

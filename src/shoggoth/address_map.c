@@ -13,9 +13,6 @@ void lookup_address(char *host, resolved_address_callback callback , prepared_ht
   /* if the host is cached callback immediately */
 
   if(r!=NULL){
-
-
-    callback(r->state,r->addr,req);
     goto do_callback;
   }
 

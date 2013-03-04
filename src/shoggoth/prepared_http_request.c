@@ -1,4 +1,5 @@
 #include "global_options.h"
+#include "server_endpoint.h"
 #include "prepared_http_request.h"
 
 prepared_http_request *alloc_prepared_http_request(){
@@ -15,6 +16,7 @@ prepared_http_request *alloc_prepared_http_request(){
 void destroy_prepared_http_request(prepared_http_request *p){
   if(p->endpoint){
     server_endpoint *endpoint=p->endpoint;
+       
     if(endpoint->queue_head==p) endpoint->queue_head=p->next;
     if(endpoint->queue_tail==p) endpoint->queue_tail=p->prev;
     if(p->prev) p->prev->next=p->next;
@@ -26,7 +28,10 @@ void destroy_prepared_http_request(prepared_http_request *p){
   if(p->conn && p->endpoint){
     p->conn->next_idle=p->endpoint->idle_list;
     p->endpoint->idle_list=p->conn;
+    
   }
+
+  p->conn=NULL;
   destroy_simple_buffer(p->payload);
   destroy_simple_buffer(p->z_address);
   free(p);

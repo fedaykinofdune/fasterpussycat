@@ -65,7 +65,6 @@ int connect_to_endpoint(connection *conn){
   conn->last_rw=time(NULL);
   conn->state=CONNECTING;
   connect(conn->fd, ( struct sockaddr *) conn->endpoint->addr, sizeof(struct sockaddr_in));    
-  printf("connected to endpoint");
   return 1;
 }
 
@@ -81,7 +80,6 @@ int read_connection_to_simple_buffer(connection *conn, simple_buffer *r_buf){
       /* TODO handle errors */
     }
     else{
-      printf("read %d bytes\n", r_count);
       r_buf->write_pos+=r_count;
     }
   }
@@ -101,13 +99,11 @@ void add_connection_to_server_endpoint(connection *conn, server_endpoint *endpoi
 int write_connection_from_simple_buffer(connection *conn, simple_buffer *w_buf){
   int w_count;
   if(1){
-    printf("connection fd %d\n",conn->fd);
     w_count=write(conn->fd, w_buf->ptr+w_buf->read_pos, w_buf->write_pos - w_buf->read_pos);
     if(w_count==-1){
       /* TODO handle errors */
     }
     else{
-      printf("written %d bytes\n", w_count);
       w_buf->read_pos+=w_count;
     }
   }

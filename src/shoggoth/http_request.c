@@ -24,8 +24,8 @@ void write_http_request_headers_to_simple_buffer(simple_buffer *buf, const http_
     write_string_to_simple_buffer(buf,": ");
     write_string_to_simple_buffer(buf,value);
     write_string_to_simple_buffer(buf,"\r\n");
-    if(!seen_host && strcasecmp(key,"Host")) seen_host=1;
-    if(!seen_cl && strcasecmp(key,"Content-Length")) seen_cl=1;
+    if(!seen_host && !strcasecmp(key,"Host")) seen_host=1;
+    if(!seen_cl && !strcasecmp(key,"Content-Length")) seen_cl=1;
   }
   if(!seen_host){
     write_string_to_simple_buffer(buf,"Host: ");
@@ -62,12 +62,13 @@ static void enqueue_request_step2(enum resolved_address_state state, unsigned in
     addr_in.sin_port = req->port;
     unsigned char *c=(unsigned char *) &addr_in.sin_addr.s_addr;
     memcpy(&addr_in.sin_addr.s_addr, &addr, 4);
-    printf("ip is %u.%u.%u.%u port is %d\n", c[0], c[1], c[2], c[3], ntohs(req->port));
     endpoint=find_or_create_server_endpoint(&addr_in);
-    if(endpoint->queue_tail) endpoint->queue_tail->next=req;
-    else endpoint->queue_head=req;
+    if(endpoint->queue_tail){
+      endpoint->queue_tail->next=req;
+      req->prev=endpoint->queue_tail;
+    }
     endpoint->queue_tail=req;
-    req->prev=NULL;
+    if(!endpoint->queue_head) endpoint->queue_head=req;
     req->endpoint=endpoint;
   }
 
@@ -82,7 +83,6 @@ prepared_http_request *prepare_http_request(http_request *req){
   p->z_address=dup_simple_buffer(req->z_address);
   p->handle=req->handle;
   write_http_request_to_simple_buffer(p->payload, req); 
-  print_simple_buffer(p->payload);  
   return p;
 }
 

@@ -45,7 +45,6 @@ int l_connect_endpoint(lua_State *L){
   void *sock;
   sock = zmq_socket (context, ZMQ_DEALER);
   if(zmq_connect (sock, endpoint)){
-     printf(":(((( %s\n",strerror(errno));
       luaL_error(L, strerror(errno));
   }
   sockets[n_pollitems]=sock;
@@ -104,14 +103,11 @@ void l_raw_poll(lua_State *L, void *sock){
       abort();
     }
     if(!(zmq_events & ZMQ_POLLIN)){
-      printf("nothing to poll\n");
       return;
     }
-    printf("receiving\n");
     lua_newtable(L);
     zmq_msg_init(&empty);
     size=zmq_recvmsg (sock, &empty, 0);
-    printf("recved size %d\n", size);
     if(size==-1){
        perror("wut");
     }
@@ -119,7 +115,6 @@ void l_raw_poll(lua_State *L, void *sock){
     zmq_msg_init(&handle);
     
     size=zmq_recvmsg (sock, &handle, 0);
-    printf("recved size %d\n", size);
     if(size==-1){
        perror("wut");
     }
@@ -132,7 +127,6 @@ void l_raw_poll(lua_State *L, void *sock){
     zmq_msg_init(&status);
     size=zmq_recvmsg (sock, &status, 0);
     
-    printf("recved size %d\n", size);
     status_i=*((uint8_t*) zmq_msg_data (&status));
     lua_pushinteger(L,status_i);
     lua_setfield(L, -2, "status");
@@ -142,16 +136,13 @@ void l_raw_poll(lua_State *L, void *sock){
       zmq_msg_init(&error);
       size=zmq_recvmsg (sock, &error, 0);
       
-      printf("recved size %d\n", size);
       error_i=*((uint8_t*) zmq_msg_data (&error));
       lua_pushinteger(L, error_i);
       lua_setfield(L, -2, "error");
       zmq_msg_close(&error);
       lua_rawseti(L, result_table, index);
-      printf("error!\n");  
       zmq_getsockopt (sock, ZMQ_RCVMORE, &more, &more_size);
       if(more){
-        printf("this should never happen :(");
         abort();
       }
       continue;
@@ -177,7 +168,6 @@ void l_raw_poll(lua_State *L, void *sock){
       value=ptr;
       ptr=ptr+strlen(value)+1;
       lua_pushstring(L,value);
-      printf("read header k: %s v: %s", key, value);
       lua_setfield(L, -2, key);
     }
     lua_setfield(L, -2, "headers");

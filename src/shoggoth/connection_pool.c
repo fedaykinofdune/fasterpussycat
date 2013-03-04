@@ -41,6 +41,7 @@ void initialize_connection_pool(){
 void disassociate_connection_from_endpoints(connection *conn){
   conn->next_idle=non_assoc_connections;
   conn->endpoint=NULL;
+  conn->request=NULL;
   non_assoc_connections=conn;
   close_connection(conn);
 }
@@ -75,9 +76,11 @@ void associate_endpoints(){
 
 
 inline void associate_idle_connection_with_next_endpoint_request(connection *idle_conn, server_endpoint *endpoint){
-  printf("assoc with next req\n");  
   prepared_http_request *req=endpoint->queue_head;
   endpoint->queue_head=req->next;
+  if(req==endpoint->queue_tail) endpoint->queue_tail=NULL;
+  if(req->prev) req->prev->next=req->next;
+  if(req->next) req->next->prev=req->prev;
   req->next=NULL;
   req->prev=NULL;
   req->conn=idle_conn;
@@ -98,6 +101,7 @@ void associate_idle_connections(){
     next=working->next_working;
     idle_conn=working->idle_list;
     while(idle_conn){
+      
       next_idle_conn=idle_conn->next_idle;
       if(!working->queue_head){
         idle++;
@@ -119,7 +123,6 @@ void associate_idle_connections(){
      
 
 void associate_connection_to_endpoint(connection *conn, server_endpoint *endpoint){
-  printf("associate_connection_to_endpoint");
   close_connection(conn);
   conn->next_idle=endpoint->idle_list;
   endpoint->idle_list=conn;
@@ -134,7 +137,7 @@ void update_connections(){
   time_t current_time=time(NULL);
   for(i=0; i<max_total_http_connections;i++){
     conn=connection_pool[i];
-    if(conn->endpoint==NULL || ((conn->state==NOTINIT || conn->state==READY) && conn->request==NULL)){
+    if(conn->endpoint==NULL || conn->request==NULL){
       continue;
     }
 
@@ -153,7 +156,6 @@ void update_connections(){
       case CONNECTING:
         if(conn_fd[i].revents & POLLOUT){
           conn->state=WRITING;
-          printf("connected!\n");
         }
         else if((conn_fd[i].revents & (POLLERR | POLLHUP)) || current_time - conn->last_rw > opt.connection_timeout){
           http_response_error(conn,(conn_fd[i].revents & (POLLERR | POLLHUP)) ? Z_ERR_CONNECTION : Z_ERR_TIMEOUT);
@@ -171,7 +173,6 @@ void update_connections(){
           break;
         }
         if(conn_fd[i].revents & POLLOUT){
-          printf("writing\n");
           simple_buffer *payload=conn->request->payload;
           write_connection_from_simple_buffer(conn,payload);
           conn->last_rw=current_time;
@@ -202,31 +203,30 @@ void update_connections(){
 
 
 void http_response_finished(connection *conn){
-  printf("finished!\n");
   send_zeromq_response_ok(conn->request,conn->response);
   destroy_prepared_http_request(conn->request);
   if(conn->response->must_close) close_connection(conn);
   if(conn->state==READING) conn->state=READY;
+  else conn->state=NOTINIT;
   reset_connection(conn);
 }
 
 void http_response_error(connection *conn, uint8_t err){
-  if(err==Z_ERR_CONNECTION){
-    printf("conneciton error\n");
-  }
   send_zeromq_response_error(conn->request, err);
   conn->endpoint->errors++;
   destroy_prepared_http_request(conn->request);
+  conn->state=NOTINIT;
   close_connection(conn);
   reset_connection(conn);
 }
 
 void main_connection_loop(){
   while(1) {  
+  // printf("loop %lld\n", (long long) time(NULL));
   poll(conn_fd,max_total_connections,opt.poll_timeout);
  
   update_connections();
-  if(conn_fd[zmq_index].revents & POLLIN) update_zeromq();
+  if(conn_fd[zmq_index].revents | POLLIN) update_zeromq();
 
   associate_idle_connections();
   associate_endpoints();
