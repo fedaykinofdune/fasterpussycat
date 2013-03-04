@@ -18,7 +18,7 @@ void reset_http_response(http_response *response){
   response->body_len=0;
   response->chunk_length=0;
   response->expect_crlf=0;
-  response->expected_body_len=0;
+  response->expected_body_len=-1;
   response->chunked=0;
   response->compressed=0;
   reset_simple_buffer(response->headers);
@@ -98,6 +98,7 @@ inline enum parse_response_code parse_result_code(connection *conn){
 
   *(line+line_size)='\n';
   if(response->code == 206) response->code=200;
+  printf("parsed code %d\n", response->code);
   return CONTINUE;
 }
 
@@ -115,6 +116,7 @@ inline enum parse_response_code parse_headers(connection *conn){
     if(!line) return more ? NEED_MORE : INVALID;
     if(line_size==0 || (line_size==1 && *line=='\r')){
       /* hit the response body */
+      printf("hit response body\n");
       response->body_offset=buf->read_pos;
       if(conn->request->options & OPT_EXPECT_NO_BODY) return FINISHED;
       break;
@@ -136,8 +138,7 @@ inline enum parse_response_code parse_headers(connection *conn){
     write_packed_string_to_simple_buffer(response->headers, h_value, h_value_size);
     h_key=response->headers->ptr+key_wpos;
     h_value=response->headers->ptr+value_wpos;
-
-    response->expected_body_len=-1;
+    printf("header key: '%s' value: '%s'\n", h_key, h_value);
 
     /* deal with particular headers */
 
@@ -172,6 +173,7 @@ inline enum parse_response_code parse_connection_response2(connection *conn){
   
   else if(response->expected_body_len>0){
     int size=buf->write_pos-response->body_offset;
+    printf("size %d len %d \n", size, response->expected_body_len);
     if(size>=response->expected_body_len) return FINISHED;
   }
   

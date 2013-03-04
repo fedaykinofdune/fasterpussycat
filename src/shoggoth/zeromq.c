@@ -54,16 +54,17 @@ void send_zeromq_response_header(prepared_http_request *req, uint8_t stat){
   /* handle */
 
   zmq_msg_init_size(&handle,sizeof(int32_t));
-  *((uint32_t *) zmq_msg_data(&handle))=req->handle;
+  *((int32_t *) zmq_msg_data(&handle))=req->handle;
   zmq_sendmsg(sock, &handle, ZMQ_SNDMORE);  
   zmq_msg_close(&handle);
 
   /* status */
 
   zmq_msg_init_size(&status,sizeof(uint8_t));
-  *((uint8_t *) zmq_msg_data(&handle))=stat;
-  zmq_sendmsg(sock, &handle, ZMQ_SNDMORE);  
-
+  *((uint8_t *) zmq_msg_data(&status))=stat;
+  zmq_sendmsg(sock, &status, ZMQ_SNDMORE);  
+  zmq_msg_close(&status);
+  printf("send response headers");
 }
 
 
@@ -74,7 +75,7 @@ void send_zeromq_response_error(prepared_http_request *req, uint8_t error_code){
   send_zeromq_response_header(req, Z_STATUS_ERR);  
 
   zmq_msg_init_size(&err,sizeof(uint8_t));
-  *((uint32_t *) zmq_msg_data(&err))=error_code;
+  *((uint8_t *) zmq_msg_data(&err))=error_code;
   zmq_sendmsg(sock, &err, 0);  
   zmq_msg_close(&err);
 }
@@ -86,23 +87,25 @@ void send_zeromq_response_ok(prepared_http_request *req, http_response *res){
   zmq_msg_t code;
   zmq_msg_t headers;
   zmq_msg_t body;
-
+  printf("send ok\n");
   send_zeromq_response_header(req, Z_STATUS_OK); 
 
+  printf("send head\n");
   zmq_msg_init_size(&code,sizeof(uint16_t));
   *((uint16_t *) zmq_msg_data(&code))=htons(res->code);
   zmq_sendmsg(sock, &code, ZMQ_SNDMORE);  
   zmq_msg_close(&code);
 
-  zmq_msg_init_size(&headers,sizeof(res->headers->write_pos));
+  zmq_msg_init_size(&headers,res->headers->write_pos);
   memcpy(zmq_msg_data(&headers),res->headers->ptr, res->headers->write_pos);
   zmq_sendmsg(sock, &headers, ZMQ_SNDMORE);  
   zmq_msg_close(&headers);
 
-  zmq_msg_init_size(&body,sizeof(res->body_len));
-  memcpy(zmq_msg_data(&headers),res->body_ptr, res->body_len);
+  zmq_msg_init_size(&body,res->body_len);
+  memcpy(zmq_msg_data(&body),res->body_ptr, res->body_len);
   zmq_sendmsg(sock, &body, 0);  
   zmq_msg_close(&body);
+  printf("finish msg\n");
 }
 
 

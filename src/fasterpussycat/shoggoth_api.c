@@ -9,7 +9,7 @@
 #include "shoggoth_api.h"
 
 #define MAX_SOCKETS 32
-#define POLL_TIMEOUT 1000
+#define POLL_TIMEOUT 100000
 
 static http_request *request=NULL;
 
@@ -50,6 +50,7 @@ int l_connect_endpoint(lua_State *L){
   }
   sockets[n_pollitems]=sock;
   pollitems[n_pollitems].socket=sock;
+  pollitems[n_pollitems].fd=0;
   pollitems[n_pollitems].events=ZMQ_POLLIN;
   n_pollitems++;
   return 0;
@@ -71,7 +72,7 @@ int l_poll(lua_State *L){
 
 
 inline void *get_zmq_socket_to_use(http_request *req){
-  return sockets[(next_socket++ % n_pollitems)];
+  return sockets[(++next_socket % n_pollitems)];
 }
 
 void l_raw_poll(lua_State *L, void *sock){
@@ -80,8 +81,11 @@ void l_raw_poll(lua_State *L, void *sock){
   zmq_msg_t handle;
   zmq_msg_t code;
   zmq_msg_t headers;
+  zmq_msg_t empty;
   zmq_msg_t body;
   zmq_msg_t error;
+  int64_t more;
+  size_t more_size=sizeof(more);
   int size;
   int result_table=lua_gettop(L);
   luaL_checktype(L, result_table, LUA_TTABLE);
@@ -100,43 +104,68 @@ void l_raw_poll(lua_State *L, void *sock){
       abort();
     }
     if(!(zmq_events & ZMQ_POLLIN)){
+      printf("nothing to poll\n");
       return;
     }
-    
+    printf("receiving\n");
     lua_newtable(L);
+    zmq_msg_init(&empty);
+    size=zmq_recvmsg (sock, &empty, 0);
+    printf("recved size %d\n", size);
+    if(size==-1){
+       perror("wut");
+    }
+    zmq_msg_close(&empty);
     zmq_msg_init(&handle);
     
-    size=zmq_recvmsg (&handle, sock, 0);
+    size=zmq_recvmsg (sock, &handle, 0);
+    printf("recved size %d\n", size);
+    if(size==-1){
+       perror("wut");
+    }
     handle_i=*((int32_t* ) zmq_msg_data (&handle)); /* handle remains in host byte order */
     lua_rawgeti( L, LUA_REGISTRYINDEX, handle_i );
     lua_setfield(L, -2, "request");
     luaL_unref(L, LUA_REGISTRYINDEX, handle_i );
     zmq_msg_close(&handle);
     
-    size=zmq_recvmsg (&status, sock, 0);
+    zmq_msg_init(&status);
+    size=zmq_recvmsg (sock, &status, 0);
+    
+    printf("recved size %d\n", size);
     status_i=*((uint8_t*) zmq_msg_data (&status));
     lua_pushinteger(L,status_i);
     lua_setfield(L, -2, "status");
     zmq_msg_close(&status);
 
     if(status_i==Z_STATUS_ERR){
-      size=zmq_recvmsg (&error, sock, 0);
+      zmq_msg_init(&error);
+      size=zmq_recvmsg (sock, &error, 0);
+      
+      printf("recved size %d\n", size);
       error_i=*((uint8_t*) zmq_msg_data (&error));
       lua_pushinteger(L, error_i);
       lua_setfield(L, -2, "error");
       zmq_msg_close(&error);
       lua_rawseti(L, result_table, index);
+      printf("error!\n");  
+      zmq_getsockopt (sock, ZMQ_RCVMORE, &more, &more_size);
+      if(more){
+        printf("this should never happen :(");
+        abort();
+      }
       continue;
     }
 
     zmq_msg_init(&code);
-    size=zmq_recvmsg (&code, sock, 0);
+    size=zmq_recvmsg (sock, &code, 0);
     code_i=*((uint16_t*) zmq_msg_data (&code));
     lua_pushinteger(L, ntohs(code_i));
     lua_setfield(L, -2, "code");
     zmq_msg_close(&code);
 
-    size=zmq_recvmsg (&headers, sock, 0);
+    zmq_msg_init(&headers);
+    size=zmq_recvmsg (sock, &headers, 0);
     char *ptr=zmq_msg_data(&headers);
     char *end=ptr+size;
     char *key;
@@ -148,13 +177,15 @@ void l_raw_poll(lua_State *L, void *sock){
       value=ptr;
       ptr=ptr+strlen(value)+1;
       lua_pushstring(L,value);
+      printf("read header k: %s v: %s", key, value);
       lua_setfield(L, -2, key);
     }
     lua_setfield(L, -2, "headers");
     zmq_msg_close(&headers);
 
-    size=zmq_recvmsg (&body, sock, 0);
-    lua_pushstring(L, zmq_msg_data(&body));
+    zmq_msg_init(&body);
+    size=zmq_recvmsg (sock, &body, 0);
+    lua_pushlstring(L, zmq_msg_data(&body),size);
     lua_setfield(L, -2, "body");
     zmq_msg_close(&body);
 

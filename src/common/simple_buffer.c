@@ -24,6 +24,15 @@ void destroy_simple_buffer(simple_buffer *buffer){
   free(buffer);;
 }
 
+void print_simple_buffer(simple_buffer *buf){
+  int i;
+  for(i=0;i<buf->write_pos;i++){
+    putc(buf->ptr[i],stdout);
+  }
+  putc('\n',stdout);
+  
+}
+
 void write_packed_string_to_simple_buffer(simple_buffer *buf, const char *str, size_t size){
   char z='\0';
   write_to_simple_buffer(buf,str,size);

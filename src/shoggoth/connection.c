@@ -58,19 +58,21 @@ int connect_to_endpoint(connection *conn){
   if(conn->fd==-1){
     perror("Could not create socket!");
   }
-  fcntl(conn->fd, F_SETFL, O_NONBLOCK);
+  fcntl(conn->fd, F_SETFL, fcntl(conn->fd, F_GETFL) | O_NONBLOCK);
   conn_fd[conn->index].fd=conn->fd; /* update the connection pool list of fds */
-  conn_fd[conn->index].events=POLLIN | POLLOUT | POLLERR | POLLHUP;
+  conn_fd[conn->index].events=POLLOUT | POLLERR | POLLHUP;
+  conn_fd[conn->index].revents=0;
   conn->last_rw=time(NULL);
   conn->state=CONNECTING;
-  connect(conn->fd, ( struct sockaddr *) conn->endpoint->addr, sizeof(conn->endpoint->addr));    
+  connect(conn->fd, ( struct sockaddr *) conn->endpoint->addr, sizeof(struct sockaddr_in));    
+  printf("connected to endpoint");
   return 1;
 }
 
 int read_connection_to_simple_buffer(connection *conn, simple_buffer *r_buf){
   int r_count;
   if(1){
-    if(r_buf->size-r_buf->write_pos<1) {
+    if(r_buf->size-r_buf->write_pos<16) {
       r_buf->size=r_buf->size*2;
       r_buf->ptr=realloc(r_buf->ptr,r_buf->size);
     }
@@ -79,6 +81,7 @@ int read_connection_to_simple_buffer(connection *conn, simple_buffer *r_buf){
       /* TODO handle errors */
     }
     else{
+      printf("read %d bytes\n", r_count);
       r_buf->write_pos+=r_count;
     }
   }
@@ -98,11 +101,13 @@ void add_connection_to_server_endpoint(connection *conn, server_endpoint *endpoi
 int write_connection_from_simple_buffer(connection *conn, simple_buffer *w_buf){
   int w_count;
   if(1){
+    printf("connection fd %d\n",conn->fd);
     w_count=write(conn->fd, w_buf->ptr+w_buf->read_pos, w_buf->write_pos - w_buf->read_pos);
     if(w_count==-1){
       /* TODO handle errors */
     }
     else{
+      printf("written %d bytes\n", w_count);
       w_buf->read_pos+=w_count;
     }
   }

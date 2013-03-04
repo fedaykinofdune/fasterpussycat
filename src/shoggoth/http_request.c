@@ -60,12 +60,15 @@ static void enqueue_request_step2(enum resolved_address_state state, unsigned in
   if(state==ADDRESS_RESOLVED){
     addr_in.sin_family = AF_INET;
     addr_in.sin_port = req->port;
-    memcpy(&addr_in.sin_addr, &addr, 4);
+    unsigned char *c=(unsigned char *) &addr_in.sin_addr.s_addr;
+    memcpy(&addr_in.sin_addr.s_addr, &addr, 4);
+    printf("ip is %u.%u.%u.%u port is %d\n", c[0], c[1], c[2], c[3], ntohs(req->port));
     endpoint=find_or_create_server_endpoint(&addr_in);
     if(endpoint->queue_tail) endpoint->queue_tail->next=req;
     else endpoint->queue_head=req;
     endpoint->queue_tail=req;
     req->prev=NULL;
+    req->endpoint=endpoint;
   }
 
   /* TODO: return response immediately on fail */
@@ -79,6 +82,7 @@ prepared_http_request *prepare_http_request(http_request *req){
   p->z_address=dup_simple_buffer(req->z_address);
   p->handle=req->handle;
   write_http_request_to_simple_buffer(p->payload, req); 
+  print_simple_buffer(p->payload);  
   return p;
 }
 
