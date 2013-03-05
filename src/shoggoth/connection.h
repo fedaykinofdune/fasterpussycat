@@ -16,11 +16,12 @@ typedef struct connection connection;
 
 
 
-enum connection_state { NOTINIT, CONNECTING, READY, WRITING, READING }; 
+enum connection_state { IDLE, NOTINIT, CONNECTING, READY, WRITING, READING }; 
 
 struct connection {
   unsigned char use_ssl;
   enum connection_state state;
+  enum connection_state old_state;
   unsigned char done_ssl_handshake;
   unsigned char retrying;
   unsigned char reused;
@@ -45,6 +46,7 @@ connection *alloc_connection();
 void connection_init(void);
 void reset_connection(connection *conn);
 void close_connection(connection  *conn);
+void setup_connection(connection  *conn);
 int connect_to_endpoint(connection *conn);
 int read_connection_to_simple_buffer(connection *conn, simple_buffer *r_buf);
 void add_connection_to_server_endpoint(connection *conn, server_endpoint *endpoint);

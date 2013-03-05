@@ -4,6 +4,8 @@
 #include "http_response.h"
 #include "prepared_http_request.h"
 
+extern int zmq_fd;
+
 /* zeromq.c */
 int setup_zeromq(void);
 void send_zeromq_response_header(prepared_http_request *req, uint8_t status);

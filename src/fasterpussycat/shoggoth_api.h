@@ -1,9 +1,11 @@
 #ifndef FASTERPUSSYCAT_SHOGGOTH_API_H
 #define FASTERPUSSYCAT_SHOGGOTH_API_H
 #include <stdint.h>
-#include "../common/simple_buffer.h"
+#include "common/simple_buffer.h"
+#include "common/zeromq_common.h"
 
 typedef struct {
+  packed_req_info info;
   simple_buffer *headers;
   simple_buffer *path;
   simple_buffer *method;

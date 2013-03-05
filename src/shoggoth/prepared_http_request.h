@@ -13,7 +13,8 @@ typedef struct prepared_http_request prepared_http_request;
 
 struct prepared_http_request {
   simple_buffer *payload;
-  simple_buffer *z_address;
+  char z_address[8];
+  size_t z_address_size;
   int handle;
   unsigned int options;
   unsigned short port;

@@ -70,17 +70,21 @@ void reset_simple_buffer(simple_buffer *buffer){
 
 
 char *read_line_from_simple_buffer(simple_buffer *buffer, int *retsize){
-  int r=buffer->read_pos;
-  int s=buffer->read_pos;
-  char *p;
-  while(r<buffer->write_pos && buffer->ptr[r]!='\n') r++;
-  if(r>=buffer->write_pos){
+  register int r=buffer->read_pos;
+  register int w=buffer->write_pos;
+  register char *p=buffer->ptr+r;
+  register char *e=buffer->ptr+w;
+  char *test;
+  while(p<e && (*p)!='\n') p++;
+  if(p>=e){
     *retsize=0;
     return NULL;
   }
-  p=buffer->ptr+buffer->read_pos;
-  *retsize=r-s;
-  buffer->read_pos=r+1;
+  
+  *retsize=p-buffer->ptr-buffer->read_pos;
+  buffer->read_pos=p-buffer->ptr+1;
+  
+  p=buffer->ptr+r;
   return p;
 
 }
@@ -93,11 +97,13 @@ size_t concat_simple_buffer(simple_buffer *dst, simple_buffer *src){
 /* returns number of bytes actually written */
 
 size_t write_to_simple_buffer(simple_buffer *buffer, const char *ptr, size_t size){
-  if((buffer->write_pos+size-1)>=buffer->size){
-    buffer->size=(buffer->write_pos+size-1) * 2;
+  int wp=buffer->write_pos;
+  int nwp=wp+size-1;
+  if(nwp>=buffer->size){
+    buffer->size=nwp * 2;
     buffer->ptr=realloc(buffer->ptr, buffer->size);
   }
-  memcpy(buffer->ptr+buffer->write_pos, ptr, size);
+  memcpy(buffer->ptr+wp, ptr, size);
   buffer->write_pos+=size;
   return size;
 }

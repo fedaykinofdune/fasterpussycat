@@ -24,6 +24,8 @@ void destroy_prepared_http_request(prepared_http_request *p){
   }
   if(p->conn){
     p->conn->request=NULL;
+    p->conn->old_state=p->conn->state;
+    p->conn->state=IDLE;
   }
   if(p->conn && p->endpoint){
     p->conn->next_idle=p->endpoint->idle_list;
@@ -33,6 +35,5 @@ void destroy_prepared_http_request(prepared_http_request *p){
 
   p->conn=NULL;
   destroy_simple_buffer(p->payload);
-  destroy_simple_buffer(p->z_address);
   free(p);
 }

@@ -4,14 +4,13 @@
 #include <lua5.1/lua.h>
 #include <lua5.1/lauxlib.h>
 #include <lua5.1/lualib.h>
-#include "../common/simple_buffer.h"
-#include "../common/zeromq_common.h"
+#include "common/simple_buffer.h"
 #include "shoggoth_api.h"
 
 #define MAX_SOCKETS 32
 #define POLL_TIMEOUT 100000
 
-static http_request *request=NULL;
+static http_request request;
 
 static zmq_pollitem_t pollitems[MAX_SOCKETS];
 static void *sockets[MAX_SOCKETS];
@@ -31,12 +30,11 @@ static const struct luaL_reg api [] = {
 
 void register_shoggoth_api(lua_State *L){
   luaL_register(L, "shoggoth", api);
-  request=malloc(sizeof(http_request));
-  request->host=alloc_simple_buffer(32);
-  request->method=alloc_simple_buffer(8);
-  request->path=alloc_simple_buffer(128);
-  request->headers=alloc_simple_buffer(128);
-  request->body=alloc_simple_buffer(1024);
+  request.host=alloc_simple_buffer(32);
+  request.method=alloc_simple_buffer(8);
+  request.path=alloc_simple_buffer(128);
+  request.headers=alloc_simple_buffer(128);
+  request.body=alloc_simple_buffer(1024);
   context=zmq_init (1);
 }
 
@@ -89,7 +87,6 @@ void l_raw_poll(lua_State *L, void *sock){
   int result_table=lua_gettop(L);
   luaL_checktype(L, result_table, LUA_TTABLE);
   int index=lua_objlen(L, result_table);
-  static http_request *request=NULL;
   size_t zmq_events_size = sizeof (uint32_t);
   uint32_t zmq_events;
   int handle_i;
@@ -106,12 +103,6 @@ void l_raw_poll(lua_State *L, void *sock){
       return;
     }
     lua_newtable(L);
-    zmq_msg_init(&empty);
-    size=zmq_recvmsg (sock, &empty, 0);
-    if(size==-1){
-       perror("wut");
-    }
-    zmq_msg_close(&empty);
     zmq_msg_init(&handle);
     
     size=zmq_recvmsg (sock, &handle, 0);
@@ -132,14 +123,7 @@ void l_raw_poll(lua_State *L, void *sock){
     lua_setfield(L, -2, "status");
     zmq_msg_close(&status);
 
-    if(status_i==Z_STATUS_ERR){
-      zmq_msg_init(&error);
-      size=zmq_recvmsg (sock, &error, 0);
-      
-      error_i=*((uint8_t*) zmq_msg_data (&error));
-      lua_pushinteger(L, error_i);
-      lua_setfield(L, -2, "error");
-      zmq_msg_close(&error);
+    if(status_i){
       lua_rawseti(L, result_table, index);
       zmq_getsockopt (sock, ZMQ_RCVMORE, &more, &more_size);
       if(more){
@@ -185,80 +169,74 @@ void l_raw_poll(lua_State *L, void *sock){
 
 
 
-inline void raw_send_http_request(void *socket, http_request *req){
-  zmq_send(socket, 0,0 ,ZMQ_SNDMORE);
-  zmq_send(socket, &req->handle,sizeof(uint32_t),ZMQ_SNDMORE);
-  zmq_send(socket, req->host->ptr, req->host->write_pos, ZMQ_SNDMORE);
-  zmq_send(socket, &req->port, sizeof(uint16_t),ZMQ_SNDMORE);
-  zmq_send(socket, &req->options, sizeof(uint32_t),ZMQ_SNDMORE);
-  zmq_send(socket, req->method->ptr, req->method->write_pos, ZMQ_SNDMORE);
-  zmq_send(socket, req->path->ptr, req->path->write_pos, ZMQ_SNDMORE);
-  zmq_send(socket, req->headers->ptr, req->headers->write_pos, ZMQ_SNDMORE);
-  zmq_send(socket, req->body->ptr, req->body->write_pos, 0);
+inline void raw_send_http_request(void *socket){
+  zmq_send(socket, &request.info,sizeof(request.info),ZMQ_SNDMORE);
+  zmq_send(socket, request.host->ptr, request.host->write_pos, ZMQ_SNDMORE);
+  zmq_send(socket, request.method->ptr, request.method->write_pos, ZMQ_SNDMORE);
+  zmq_send(socket, request.path->ptr, request.path->write_pos, ZMQ_SNDMORE);
+  zmq_send(socket, request.headers->ptr, request.headers->write_pos, ZMQ_SNDMORE);
+  zmq_send(socket, request.body->ptr, request.body->write_pos, 0);
 }
 
 
 
 
-inline void send_http_request(lua_State *L, http_request *req){
+inline void send_http_request(lua_State *L){
   if (!n_pollitems) {
     luaL_error(L, "No endpoints available!");
   }
-  void *socket=get_zmq_socket_to_use(req);
-  raw_send_http_request(socket, req);
+  void *socket=get_zmq_socket_to_use(&request);
+  raw_send_http_request(socket);
 
 }
 
 int l_enqueue_http_request(lua_State *L){
-  http_request *req=request;
   lua_pushvalue (L, 1);
-  req->handle=luaL_ref(L, LUA_REGISTRYINDEX );
+  request.info.handle=luaL_ref(L, LUA_REGISTRYINDEX );
   
   
-  reset_simple_buffer(req->host);
+  reset_simple_buffer(request.host);
   lua_getfield (L, 1, "host");
-  write_string_to_simple_buffer(req->host, lua_tostring(L, -1));
+  write_string_to_simple_buffer(request.host, lua_tostring(L, -1));
   lua_pop(L,1);
   
-  reset_simple_buffer(req->method);
+  reset_simple_buffer(request.method);
   lua_getfield (L, 1, "method");
-  write_string_to_simple_buffer(req->method, lua_tostring(L, -1));
+  write_string_to_simple_buffer(request.method, lua_tostring(L, -1));
   lua_pop(L,1);
   
-  reset_simple_buffer(req->path);
+  reset_simple_buffer(request.path);
   lua_getfield (L, 1, "path");
-  write_string_to_simple_buffer(req->path, lua_tostring(L, -1));
+  write_string_to_simple_buffer(request.path, lua_tostring(L, -1));
   lua_pop(L,1);
   
-  reset_simple_buffer(req->body);
+  reset_simple_buffer(request.body);
   lua_getfield (L, 1, "body");
-  write_string_to_simple_buffer(req->body, lua_tostring(L, -1));
+  write_string_to_simple_buffer(request.body, lua_tostring(L, -1));
   lua_pop(L,1);
 
   lua_getfield (L, 1, "port");
-  request->port=htons(lua_tointeger (L, -1));
+  request.info.port=htons(lua_tointeger (L, -1));
   lua_pop(L,1);
 
   lua_getfield (L, 1, "options");
-  request->options=htons(lua_tointeger (L, -1));
+  request.info.options=htons(lua_tointeger (L, -1));
   lua_pop(L,1);
 
 
-  reset_simple_buffer(req->headers);
+  reset_simple_buffer(request.headers);
   lua_getfield (L, 1, "headers");
   lua_pushnil(L);
   int j;
   while (lua_next(L, -2) != 0) {
     /* uses 'key' (at index -2) and 'value' (at index -1) */
-    write_packed_string_to_simple_buffer2(request->headers, lua_tostring(L,-2));
-    write_packed_string_to_simple_buffer2(request->headers, lua_tostring(L,-1));
+    write_packed_string_to_simple_buffer2(request.headers, lua_tostring(L,-2));
+    write_packed_string_to_simple_buffer2(request.headers, lua_tostring(L,-1));
     lua_pop(L, 1);
   }
   lua_pop(L,1);
 
-  lua_pushvalue(L,1);
-  request->handle=luaL_ref(L,LUA_REGISTRYINDEX);
-  send_http_request(L, request);
+  send_http_request(L);
   return 0;
 }
 

@@ -2,7 +2,7 @@
 #define SHOGGOTH_CONNECTION_POOL_H
 #include "connection.h"
 
-extern connection **connection_pool;
+extern connection *connection_pool;
 extern struct pollfd* conn_fd;
 extern int n_hosts;
 extern int zmq_fd;

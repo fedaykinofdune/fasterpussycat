@@ -80,7 +80,8 @@ prepared_http_request *prepare_http_request(http_request *req){
   prepared_http_request *p=alloc_prepared_http_request();
   p->options=req->options;
   p->port=req->port;
-  p->z_address=dup_simple_buffer(req->z_address);
+  memcpy(p->z_address,req->z_address->ptr,req->z_address->write_pos);
+  p->z_address_size=req->z_address->write_pos;
   p->handle=req->handle;
   write_http_request_to_simple_buffer(p->payload, req); 
   return p;

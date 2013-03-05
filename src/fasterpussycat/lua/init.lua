@@ -6,12 +6,9 @@ local ret
 local count=0
 local i=0
 while i<10000 do
-  shoggoth.enqueue_http_request({port=80, path="/", host="www.morningstarsecurity.com", method="GET", headers={["Connection"]="keep-alive"}})
-  shoggoth.enqueue_http_request({port=80, path="/", host="dojo7.com", method="GET", headers={["Connection"]="keep-alive"}})
-  shoggoth.enqueue_http_request({port=80, path="/", host="whatweb.net", method="GET", headers={["Connection"]="keep-alive"}})
-  shoggoth.enqueue_http_request({port=80, path="/", host="www.morningstarsecurity.com", method="GET", headers={["Connection"]="keep-alive"}})
-  shoggoth.enqueue_http_request({port=80, path="/", host="dojo7.com", method="GET", headers={["Connection"]="keep-alive"}})
-  shoggoth.enqueue_http_request({port=80, path="/", host="whatweb.net", method="GET", headers={["Connection"]="keep-alive"}})
+  shoggoth.enqueue_http_request({port=80, path="/", host="localhost", method="GET", headers={["Connection"]="keep-alive"}})
+  
+  shoggoth.enqueue_http_request({port=80, path="/", host="localhost", method="GET", headers={["Connection"]="keep-alive"}})
   i=i+1
 end 
 
@@ -23,6 +20,9 @@ while true do
   ret=shoggoth.poll()
   count=count+#ret
   now=os.time();
+  if #ret>1 then
+    print(ret[1].status)
+  end
   if (now-last>=10) then 
     last=now
     print(count/(now-start))

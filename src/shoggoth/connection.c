@@ -7,20 +7,25 @@
 #include "server_endpoint.h"
 #include "global_options.h"
 
-connection *alloc_connection(){
-  connection *conn=malloc(sizeof(connection));
+
+void setup_connection(connection *conn){
   conn->read_buffer=alloc_simple_buffer(opt.read_buffer_size);
   conn->aux_buffer=alloc_simple_buffer(opt.aux_buffer_size);
-  conn->state=0;
   conn->fd=-1;
   conn->reused=0;
   conn->retrying=0;
-  conn->state=NOTINIT;
+  conn->state=IDLE;
   conn->done_ssl_handshake=0;
   conn->response=alloc_http_response();
   conn->request=NULL;
   conn->next_idle=NULL;
   conn->next_conn=NULL;
+}
+
+
+connection *alloc_connection(){
+  connection *conn=malloc(sizeof(connection));
+  setup_connection(conn);
   return conn;
 }
 
@@ -42,7 +47,8 @@ void close_connection(connection *conn){
     close(conn->fd);
   }
   conn->fd=-1;
-  conn->state=NOTINIT;
+  if(conn->state==IDLE) conn->old_state=NOTINIT;
+  else conn->state=NOTINIT;
   conn_fd[conn->index].fd=-1;
   conn_fd[conn->index].events=0;
 }
@@ -70,12 +76,15 @@ int connect_to_endpoint(connection *conn){
 
 int read_connection_to_simple_buffer(connection *conn, simple_buffer *r_buf){
   int r_count;
+  int wpos=r_buf->write_pos;
+  int s=r_buf->size;
   if(1){
-    if(r_buf->size-r_buf->write_pos<16) {
-      r_buf->size=r_buf->size*2;
-      r_buf->ptr=realloc(r_buf->ptr,r_buf->size);
+    if(s-wpos<16) {
+      s << 1;
+      r_buf->size=s;
+      r_buf->ptr=realloc(r_buf->ptr,s);
     }
-    r_count=read(conn->fd, r_buf->ptr+r_buf->write_pos, r_buf->size-r_buf->write_pos);
+    r_count=read(conn->fd, r_buf->ptr+wpos, s-wpos);
     if(r_count==-1){
       /* TODO handle errors */
     }
