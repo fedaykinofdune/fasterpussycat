@@ -209,6 +209,30 @@ void update_connections(){
           http_response_error(&connection_pool[i], Z_ERR_HTTP);
         }
         break;
+      case SSL_WANT_READ:
+        if(conn_fd[i].revents & (POLLHUP | POLLERR)) {
+          do_err=0;
+          http_response_error(&connection_pool[i], Z_ERR_CONNECTION);
+        }
+        else if(conn_fd[i].revents & POLLIN){
+          do_err=0;
+          connection_pool[i].state=connection_pool[i].old_state;
+          if(connection_pool[i].state==READING) conn_fd[i].events= POLLERR | POLLHUP | POLLIN;
+          else conn_fd[i].events= POLLERR | POLLHUP | POLLOUT;
+        }
+        break;
+      case SSL_WANT_WRITE:
+        if(conn_fd[i].revents & (POLLHUP | POLLERR)) {
+          do_err=0;
+          http_response_error(&connection_pool[i], Z_ERR_CONNECTION);
+        }
+        else if(conn_fd[i].revents & POLLOUT){
+          do_err=0;
+          connection_pool[i].state=connection_pool[i].old_state;
+          if(connection_pool[i].state==READING) conn_fd[i].events= POLLERR | POLLHUP | POLLIN;
+          else conn_fd[i].events= POLLERR | POLLHUP | POLLOUT;
+        }
+        break;
       case IDLE:
         do_err=0;
     }

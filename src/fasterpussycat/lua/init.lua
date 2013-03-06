@@ -25,7 +25,8 @@ while true do
     print(ret[1].status)
   end
   if (now-last>=2) then 
+    print(count/(now-last))
     last=now
-    print(count/(now-start))
+    count=0
   end
 end

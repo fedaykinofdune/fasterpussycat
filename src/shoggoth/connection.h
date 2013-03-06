@@ -16,7 +16,7 @@ typedef struct connection connection;
 
 
 
-enum connection_state { IDLE, NOTINIT, CONNECTING, READY, WRITING, READING }; 
+enum connection_state { IDLE, NOTINIT, CONNECTING, READY, WRITING, READING, SSL_WANT_READ, SSL_WANT_WRITE }; 
 
 struct connection {
   unsigned char use_ssl;
@@ -33,8 +33,8 @@ struct connection {
   unsigned int index;
   time_t last_rw;
   struct sockaddr *addr;
-  SSL *sslHandle;
-  SSL_CTX *sslContext;
+  SSL *srv_ssl;
+  SSL_CTX *srv_ctx;
   connection *next_conn;
   connection *next_idle;
   connection *next_active;

@@ -92,6 +92,7 @@ static void enqueue_request_step2(enum resolved_address_state state, unsigned in
     unsigned char *c=(unsigned char *) &addr_in.sin_addr.s_addr;
     memcpy(&addr_in.sin_addr.s_addr, &addr, 4);
     endpoint=find_or_create_server_endpoint(&addr_in);
+    endpoint->use_ssl=req->options & OPT_USE_SSL;
     if(endpoint->queue_tail){
       endpoint->queue_tail->next=req;
       req->prev=endpoint->queue_tail;
