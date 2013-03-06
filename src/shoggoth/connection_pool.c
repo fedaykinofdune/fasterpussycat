@@ -16,6 +16,7 @@ unsigned int max_total_connections;
 struct pollfd* conn_fd;
 connection *non_assoc_connections=NULL;
 connection *connection_pool;
+connection *active_connections=NULL;
 int n_hosts=0;
 int zmq_fd;
 int zmq_index;
@@ -86,6 +87,11 @@ inline void associate_idle_connection_with_next_endpoint_request(connection *idl
   req->conn=idle_conn;
   idle_conn->state=idle_conn->old_state;
   idle_conn->request=req;
+  if(active_connections){
+    active_connections->prev_active=idle_conn;
+  }
+  idle_conn->next_active=active_connections;
+  active_connections=idle_conn;
   reset_connection(idle_conn); 
 }
 
@@ -135,8 +141,12 @@ void associate_connection_to_endpoint(connection *conn, server_endpoint *endpoin
 void update_connections(){
   int rc,i,do_err;
   time_t current_time=time(NULL);
-  for(i=max_total_http_connections;i--;){
+  connection *conn, *next_conn;
+  conn=active_connections;
+  while(conn) {
+    next_conn=conn->next_active;
     do_err=1;
+    i=conn->index;
     switch(connection_pool[i].state){
       case NOTINIT:
         do_err=0;
@@ -203,6 +213,7 @@ void update_connections(){
         do_err=0;
     }
     if(do_err && (current_time - connection_pool[i].last_rw > opt.rw_timeout)) http_response_error(&connection_pool[i], Z_ERR_TIMEOUT);
+    conn=next_conn;
   }
 }
 

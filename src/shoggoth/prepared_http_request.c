@@ -1,6 +1,7 @@
 #include "global_options.h"
 #include "server_endpoint.h"
 #include "prepared_http_request.h"
+#include "connection_pool.h"
 
 prepared_http_request *alloc_prepared_http_request(){
   prepared_http_request *p=malloc(sizeof(prepared_http_request));
@@ -23,9 +24,15 @@ void destroy_prepared_http_request(prepared_http_request *p){
     if(p->next) p->next->prev=p->prev;
   }
   if(p->conn){
-    p->conn->request=NULL;
-    p->conn->old_state=p->conn->state;
-    p->conn->state=IDLE;
+    connection *conn=p->conn;
+    conn->request=NULL;
+    conn->old_state=p->conn->state;
+    conn->state=IDLE;
+    if(conn==active_connections) {active_connections=conn->next_active;}
+    if(conn->next_active) conn->next_active->prev_active=conn->prev_active;
+    if(conn->prev_active) conn->prev_active->next_active=conn->next_active;
+    conn->next_active=NULL;
+    conn->prev_active=NULL;
   }
   if(p->conn && p->endpoint){
     p->conn->next_idle=p->endpoint->idle_list;

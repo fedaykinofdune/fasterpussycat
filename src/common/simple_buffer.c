@@ -33,7 +33,7 @@ void print_simple_buffer(simple_buffer *buf){
   
 }
 
-void write_packed_string_to_simple_buffer(simple_buffer *buffer, const char *str, const size_t size){
+inline void write_packed_string_to_simple_buffer(simple_buffer *buffer, const char *str, const size_t size){
   register unsigned int wp=buffer->write_pos;
   register unsigned int nwp=wp+size+1;
   if(nwp>=buffer->size){
@@ -79,11 +79,9 @@ void reset_simple_buffer(simple_buffer *buffer){
 
 char *read_line_from_simple_buffer(simple_buffer *buffer, int *retsize){
   register int r=buffer->read_pos;
-  register int w=buffer->write_pos;
   register char *p=buffer->ptr+r;
   register char *s=p;
-  register char *e=buffer->ptr+w;
-  char *test;
+  register char *e=buffer->ptr+buffer->write_pos;
   // while(p<e && (*p)!='\n') p++;
  
 
@@ -92,12 +90,8 @@ char *read_line_from_simple_buffer(simple_buffer *buffer, int *retsize){
       *retsize=0;
       return NULL;
     }
-  //  if(p>=e){
-  //    *retsize=0;
-  //    return NULL;
-  //  }
   
-  *retsize=p-buffer->ptr-buffer->read_pos;
+  *retsize=p-buffer->ptr-r;
   buffer->read_pos=p-buffer->ptr+1;
   return s;
 
@@ -111,8 +105,8 @@ size_t concat_simple_buffer(simple_buffer *dst, simple_buffer *src){
 /* returns number of bytes actually written */
 
 size_t write_to_simple_buffer(simple_buffer *buffer, const char *ptr, size_t size){
-  int wp=buffer->write_pos;
-  int nwp=wp+size-1;
+  register unsigned int wp=buffer->write_pos;
+  register unsigned int nwp=wp+size-1;
   if(nwp>=buffer->size){
     buffer->size=nwp * 2;
     buffer->ptr=realloc(buffer->ptr, buffer->size);
@@ -131,7 +125,7 @@ size_t write_int_to_simple_buffer(simple_buffer *buffer, int i){
 
 /* returns number of bytes actually written */
 
-size_t write_string_to_simple_buffer(simple_buffer *buffer, const char *string){
+inline size_t write_string_to_simple_buffer(simple_buffer *buffer, const char *string){
   if(string==NULL) return 0;
   return write_to_simple_buffer(buffer, string, strlen(string));
 }

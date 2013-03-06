@@ -37,6 +37,8 @@ struct connection {
   SSL_CTX *sslContext;
   connection *next_conn;
   connection *next_idle;
+  connection *next_active;
+  connection *prev_active;
   server_endpoint *endpoint;
 
 };

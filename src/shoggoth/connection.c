@@ -19,6 +19,8 @@ void setup_connection(connection *conn){
   conn->response=alloc_http_response();
   conn->request=NULL;
   conn->next_idle=NULL;
+  conn->next_active=NULL;
+  conn->prev_active=NULL;
   conn->next_conn=NULL;
 }
 
