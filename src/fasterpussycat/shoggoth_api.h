@@ -5,15 +5,14 @@
 #include "common/zeromq_common.h"
 
 typedef struct {
-  packed_req_info info;
   simple_buffer *headers;
   simple_buffer *path;
-  simple_buffer *method;
   simple_buffer *body;
   simple_buffer *host;
   uint16_t port;
   uint32_t options;
   uint32_t handle;
+  uint8_t method;
 } http_request;
 
 /* shoggoth_api.c */

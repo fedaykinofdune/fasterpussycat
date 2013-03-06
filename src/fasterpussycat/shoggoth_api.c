@@ -31,7 +31,6 @@ static const struct luaL_reg api [] = {
 void register_shoggoth_api(lua_State *L){
   luaL_register(L, "shoggoth", api);
   request.host=alloc_simple_buffer(32);
-  request.method=alloc_simple_buffer(8);
   request.path=alloc_simple_buffer(128);
   request.headers=alloc_simple_buffer(128);
   request.body=alloc_simple_buffer(1024);
@@ -74,13 +73,8 @@ inline void *get_zmq_socket_to_use(http_request *req){
 
 void l_raw_poll(lua_State *L, void *sock){
 
-  zmq_msg_t status;
-  zmq_msg_t handle;
-  zmq_msg_t code;
-  zmq_msg_t headers;
-  zmq_msg_t empty;
-  zmq_msg_t body;
-  zmq_msg_t error;
+  zmq_msg_t msg;
+  packed_res_info *res;
   int64_t more;
   size_t more_size=sizeof(more);
   int size;
@@ -103,46 +97,34 @@ void l_raw_poll(lua_State *L, void *sock){
       return;
     }
     lua_newtable(L);
-    zmq_msg_init(&handle);
-    
-    size=zmq_recvmsg (sock, &handle, 0);
+    zmq_msg_init(&msg);
+    size=zmq_msg_recv(&msg,sock,0);
+    res=(packed_res_info *) zmq_msg_data(&msg);
     if(size==-1){
        perror("wut");
     }
-    handle_i=*((int32_t* ) zmq_msg_data (&handle)); /* handle remains in host byte order */
+    handle_i=res->handle; /* handle remains in host byte order */
     lua_rawgeti( L, LUA_REGISTRYINDEX, handle_i );
     lua_setfield(L, -2, "request");
     luaL_unref(L, LUA_REGISTRYINDEX, handle_i );
-    zmq_msg_close(&handle);
     
-    zmq_msg_init(&status);
-    size=zmq_recvmsg (sock, &status, 0);
     
-    status_i=*((uint8_t*) zmq_msg_data (&status));
+    status_i=res->status;
     lua_pushinteger(L,status_i);
     lua_setfield(L, -2, "status");
-    zmq_msg_close(&status);
 
     if(status_i){
       lua_rawseti(L, result_table, index);
-      zmq_getsockopt (sock, ZMQ_RCVMORE, &more, &more_size);
-      if(more){
-        abort();
-      }
       continue;
     }
-
-    zmq_msg_init(&code);
-    size=zmq_recvmsg (sock, &code, 0);
-    code_i=*((uint16_t*) zmq_msg_data (&code));
-    lua_pushinteger(L, ntohs(code_i));
+    code_i=ntohl(res->code);
+    lua_pushinteger(L, code_i);
     lua_setfield(L, -2, "code");
-    zmq_msg_close(&code);
-
-    zmq_msg_init(&headers);
-    size=zmq_recvmsg (sock, &headers, 0);
-    char *ptr=zmq_msg_data(&headers);
-    char *end=ptr+size;
+    uint32_t offset=ntohl(res->body_offset);
+    uint32_t len=ntohl(res->data_len);
+    
+    char *ptr=res->data;
+    char *end=ptr+offset;
     char *key;
     char *value;
     lua_newtable(L);
@@ -155,27 +137,48 @@ void l_raw_poll(lua_State *L, void *sock){
       lua_setfield(L, -2, key);
     }
     lua_setfield(L, -2, "headers");
-    zmq_msg_close(&headers);
 
-    zmq_msg_init(&body);
-    size=zmq_recvmsg (sock, &body, 0);
-    lua_pushlstring(L, zmq_msg_data(&body),size);
+    lua_pushlstring(L, res->data+offset,len-offset);
     lua_setfield(L, -2, "body");
-    zmq_msg_close(&body);
+    zmq_msg_close(&msg);
 
     lua_rawseti(L, result_table, index);
   }
 }
 
 
+void myfree(void *data, void *hint){
+
+  free(data);
+}
 
 inline void raw_send_http_request(void *socket){
-  zmq_send(socket, &request.info,sizeof(request.info),ZMQ_SNDMORE);
-  zmq_send(socket, request.host->ptr, request.host->write_pos, ZMQ_SNDMORE);
-  zmq_send(socket, request.method->ptr, request.method->write_pos, ZMQ_SNDMORE);
-  zmq_send(socket, request.path->ptr, request.path->write_pos, ZMQ_SNDMORE);
-  zmq_send(socket, request.headers->ptr, request.headers->write_pos, ZMQ_SNDMORE);
-  zmq_send(socket, request.body->ptr, request.body->write_pos, 0);
+  uint32_t data_len=request.host->write_pos + request.path->write_pos + request.headers->write_pos + request.body->write_pos;
+  uint32_t size=sizeof(packed_req_info)+data_len;
+  zmq_msg_t msg;
+  packed_req_info *req=malloc(size);
+  req->data_len=htonl(data_len);
+  req->method=request.method;
+  req->port=request.port;
+  req->handle=request.handle;
+  req->options=request.options;
+  char *p=req->data;
+  uint32_t offset=0;
+  memcpy(p, request.host->ptr, request.host->write_pos); offset+=request.host->write_pos;
+
+  req->path_offset=htonl(offset);
+  memcpy(p+offset, request.path->ptr, request.path->write_pos); offset+=request.path->write_pos;
+  
+
+  req->headers_offset=htonl(offset);
+  memcpy(p+offset, request.headers->ptr, request.headers->write_pos); offset+=request.headers->write_pos;
+
+  req->body_offset=htonl(offset);
+  memcpy(p+offset, request.body->ptr, request.body->write_pos); offset+=request.headers->write_pos;
+
+  zmq_msg_init_data(&msg,req,size,myfree,NULL);
+  zmq_msg_send(&msg, socket, 0);
+  
 }
 
 
@@ -192,7 +195,7 @@ inline void send_http_request(lua_State *L){
 
 int l_enqueue_http_request(lua_State *L){
   lua_pushvalue (L, 1);
-  request.info.handle=luaL_ref(L, LUA_REGISTRYINDEX );
+  request.handle=luaL_ref(L, LUA_REGISTRYINDEX );
   
   
   reset_simple_buffer(request.host);
@@ -200,9 +203,8 @@ int l_enqueue_http_request(lua_State *L){
   write_string_to_simple_buffer(request.host, lua_tostring(L, -1));
   lua_pop(L,1);
   
-  reset_simple_buffer(request.method);
   lua_getfield (L, 1, "method");
-  write_string_to_simple_buffer(request.method, lua_tostring(L, -1));
+  request.method=htons(lua_tointeger (L, -1));
   lua_pop(L,1);
   
   reset_simple_buffer(request.path);
@@ -216,11 +218,11 @@ int l_enqueue_http_request(lua_State *L){
   lua_pop(L,1);
 
   lua_getfield (L, 1, "port");
-  request.info.port=htons(lua_tointeger (L, -1));
+  request.port=htons(lua_tointeger (L, -1));
   lua_pop(L,1);
 
   lua_getfield (L, 1, "options");
-  request.info.options=htons(lua_tointeger (L, -1));
+  request.options=htons(lua_tointeger (L, -1));
   lua_pop(L,1);
 
 

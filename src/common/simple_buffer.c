@@ -33,14 +33,22 @@ void print_simple_buffer(simple_buffer *buf){
   
 }
 
-void write_packed_string_to_simple_buffer(simple_buffer *buf, const char *str, size_t size){
-  char z='\0';
-  write_to_simple_buffer(buf,str,size);
-  write_to_simple_buffer(buf,&z,1);
+void write_packed_string_to_simple_buffer(simple_buffer *buffer, const char *str, const size_t size){
+  register unsigned int wp=buffer->write_pos;
+  register unsigned int nwp=wp+size+1;
+  if(nwp>=buffer->size){
+    buffer->size=nwp * 2;
+    buffer->ptr=realloc(buffer->ptr, buffer->size);
+  }
+  memcpy(buffer->ptr+wp, str, size);
+  buffer->ptr[nwp-1]='\0';
+  buffer->write_pos=nwp;
 }
 
 
 void write_packed_string_to_simple_buffer2(simple_buffer *buf, const char *str){
+  
+  
   char z='\0';
   write_to_simple_buffer(buf,str,strlen(str));
   write_to_simple_buffer(buf,&z,1);
@@ -73,19 +81,25 @@ char *read_line_from_simple_buffer(simple_buffer *buffer, int *retsize){
   register int r=buffer->read_pos;
   register int w=buffer->write_pos;
   register char *p=buffer->ptr+r;
+  register char *s=p;
   register char *e=buffer->ptr+w;
   char *test;
-  while(p<e && (*p)!='\n') p++;
-  if(p>=e){
-    *retsize=0;
-    return NULL;
-  }
+  // while(p<e && (*p)!='\n') p++;
+ 
+
+    p=memchr(p,'\n',e-p);
+    if(!p){
+      *retsize=0;
+      return NULL;
+    }
+  //  if(p>=e){
+  //    *retsize=0;
+  //    return NULL;
+  //  }
   
   *retsize=p-buffer->ptr-buffer->read_pos;
   buffer->read_pos=p-buffer->ptr+1;
-  
-  p=buffer->ptr+r;
-  return p;
+  return s;
 
 }
 

@@ -5,13 +5,14 @@ print("3")
 local ret
 local count=0
 local i=0
-while i<10000 do
-  shoggoth.enqueue_http_request({port=80, path="/", host="localhost", method="GET", headers={["Connection"]="keep-alive"}})
+print("enquing");
+while i<30000 do
+  shoggoth.enqueue_http_request({port=80, path="/", host="localhost", method=0, headers={["Connection"]="keep-alive"}})
   
-  shoggoth.enqueue_http_request({port=80, path="/", host="localhost", method="GET", headers={["Connection"]="keep-alive"}})
+  shoggoth.enqueue_http_request({port=80, path="/", host="localhost", method=0, headers={["Connection"]="keep-alive"}})
   i=i+1
 end 
-
+print("waiting...")
 local start=os.time()
 local now
 local last=start
@@ -23,7 +24,7 @@ while true do
   if #ret>1 then
     print(ret[1].status)
   end
-  if (now-last>=10) then 
+  if (now-last>=2) then 
     last=now
     print(count/(now-start))
   end

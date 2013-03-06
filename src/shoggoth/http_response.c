@@ -82,20 +82,21 @@ inline enum parse_response_code parse_chunked(connection *conn){
 inline enum parse_response_code parse_result_code(connection *conn){
   int more=(conn->state==READING);
   char *line;
+  char *p2;
   int line_size;
   unsigned int http_ver;
   http_response *response=conn->response;
   simple_buffer *buf=conn->read_buffer;
   
-  if(buf->write_pos<7 || prefix(buf->ptr, "HTTP/1.")) return more ? NEED_MORE : INVALID;
+  if(buf->write_pos<13) return more ? NEED_MORE : INVALID;
   line=read_line_from_simple_buffer(buf, &line_size);
   if(!line) return more ? NEED_MORE : INVALID;
     
   *(line+line_size)=0;
-  if(line_size < 13 || sscanf((char*) line, "HTTP/1.%u %hu ", &http_ver, &response->code) != 2 || response->code < 100 || response->code > 999) {
-      return INVALID;
-  }
-
+  if(line_size < 13) return INVALID;
+  response->code=atoi(line+9);
+  
+  if(response->code < 100 || response->code > 999) return INVALID;
   *(line+line_size)='\n';
   if(response->code == 206) response->code=200;
   return CONTINUE;
@@ -103,8 +104,10 @@ inline enum parse_response_code parse_result_code(connection *conn){
 
 
 inline enum parse_response_code parse_headers(connection *conn){
+  char t[20];
+  char l;
   int more=(conn->state==READING);
-  char *line;
+  char *line,*p;
   int line_size;
   char *h_key, *h_value;
   http_response *response=conn->response;
@@ -138,12 +141,17 @@ inline enum parse_response_code parse_headers(connection *conn){
     h_value=response->headers->ptr+value_wpos;
 
     /* deal with particular headers */
-
-    if (!case_prefix(h_key, "Content-Length") && sscanf(h_value, "%d", &response->expected_body_len) == 1 && response->expected_body_len < 0) return INVALID;
-    else if (!case_prefix(h_key, "Transfer-Encoding") && strcasestr(h_value,"chunked")) response->chunked =1; 
-    else if (!case_prefix(h_key, "Content-Encoding") && (strcasestr(h_value, "deflate") || strcasestr(h_value, "gzip"))) response->compressed=1;
-    else if (!case_prefix(h_key, "Connection" ) && strcasestr(h_value,"close")) response->must_close=1;
-  }
+    l=tolower(h_key[0]);
+    if(l=='c' || l=='t'){
+      memcpy(t, h_key, 20);
+      h_key[19]=0;
+      for (p=t; *p; ++p) *p = tolower(*p);
+      if (!prefix(t, "content-length") && (response->expected_body_len=atoi(h_value))<0) return INVALID;
+      else if (!prefix(t, "transfer-encoding") && strcasestr(h_value,"chunked")) response->chunked =1; 
+      else if (!prefix(t, "content-encoding") && (strcasestr(h_value, "deflate") || strcasestr(h_value, "gzip"))) response->compressed=1;
+      else if (!prefix(t, "connection" ) && strcasestr(h_value,"close")) response->must_close=1;
+      }
+    }
 
   return CONTINUE;
 }

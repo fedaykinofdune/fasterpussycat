@@ -14,7 +14,6 @@ static packed_req_info *info_ptr;
 int setup_zeromq(){
   int rc;
   request.z_address=alloc_simple_buffer(0);
-  request.method=alloc_simple_buffer(0);
   request.path=alloc_simple_buffer(0);
   request.body=alloc_simple_buffer(0);
   request.host=alloc_simple_buffer(0);
@@ -31,128 +30,101 @@ int setup_zeromq(){
 }
 
 
-void send_zeromq_response_header(prepared_http_request *req, uint8_t stat){
+void send_zeromq_response(prepared_http_request *req, packed_res_info *res){
   
-  zmq_msg_t empty;
-  zmq_msg_t z_address;
-  zmq_msg_t handle;
-  zmq_msg_t status;
 
-  /* zmq address */
-  
-  zmq_msg_init_size(&z_address,req->z_address_size);
-  memcpy(zmq_msg_data(&z_address),req->z_address, req->z_address_size);
-  zmq_sendmsg(sock, &z_address, ZMQ_SNDMORE);  
-  zmq_msg_close(&z_address);
+  /* zmq address */ 
+  zmq_send(sock, req->z_address,req->z_address_size, ZMQ_SNDMORE);
 
-  /* handle */
 
-  zmq_msg_init_size(&handle,sizeof(int32_t));
-  *((int32_t *) zmq_msg_data(&handle))=req->handle;
-  zmq_sendmsg(sock, &handle, ZMQ_SNDMORE);  
-  zmq_msg_close(&handle);
+  /* res */
 
-  /* status */
+  zmq_send(sock, res, sizeof(res)+res->data_len, 0);  
 
-  zmq_msg_init_size(&status,sizeof(uint8_t));
-  *((uint8_t *) zmq_msg_data(&status))=stat;
-  zmq_sendmsg(sock, &status, (stat ? 0 : ZMQ_SNDMORE));  
-  zmq_msg_close(&status);
 }
 
 
 void send_zeromq_response_error(prepared_http_request *req, uint8_t error_code){
-  send_zeromq_response_header(req, error_code);
+  packed_res_info res;
+  res.status=error_code;
+  res.handle=req->handle;
+  res.data_len=0;
+  send_zeromq_response(req, &res);
 }
 
 
+void my_free (void *data, void *hint)
+{
+      //  We've allocated the buffer using malloc and
+      //  at this point we deallocate it using free.
+      free (data);
+}
 
 void send_zeromq_response_ok(prepared_http_request *req, http_response *res){
-  
-  zmq_msg_t code;
-  zmq_msg_t headers;
-  zmq_msg_t body;
-  send_zeromq_response_header(req, Z_STATUS_OK); 
+  simple_buffer *head=res->headers;
+  uint32_t data_len=head->write_pos+res->body_len;
+  uint32_t size=sizeof(packed_res_info)+data_len;
+  packed_res_info *packed=malloc(size);
+  packed->status=0;
+  packed->code=res->code;
+  packed->data_len=htonl(data_len);
+  packed->body_offset=htonl(head->write_pos);
+  memcpy(packed->data,head->ptr, head->write_pos);
+  memcpy(packed->data+head->write_pos, res->body_ptr, res->body_len);
+  zmq_send(sock, req->z_address,req->z_address_size, ZMQ_SNDMORE);
+  zmq_msg_t msg;
+  int rc;
+  rc=zmq_msg_init_data (&msg, packed, size, my_free, NULL);
+  rc=zmq_msg_send(&msg, sock, 0);
+  if(rc==-1){
+    perror("wut2");
+  }
+  zmq_msg_close(&msg);
 
-  zmq_msg_init_size(&code,sizeof(uint16_t));
-  *((uint16_t *) zmq_msg_data(&code))=htons(res->code);
-  zmq_sendmsg(sock, &code, ZMQ_SNDMORE);  
-  zmq_msg_close(&code);
-
-  zmq_msg_init_size(&headers,res->headers->write_pos);
-  memcpy(zmq_msg_data(&headers),res->headers->ptr, res->headers->write_pos);
-  zmq_sendmsg(sock, &headers, ZMQ_SNDMORE);  
-  zmq_msg_close(&headers);
-
-  zmq_msg_init_size(&body,res->body_len);
-  memcpy(zmq_msg_data(&body),res->body_ptr, res->body_len);
-  zmq_sendmsg(sock, &body, 0);  
-  zmq_msg_close(&body);
 }
 
 
 void update_zeromq(){
 
   zmq_msg_t z_address;
-  zmq_msg_t empty;
-  zmq_msg_t info;
-  zmq_msg_t host;
-  zmq_msg_t method;
-  zmq_msg_t path;
-  zmq_msg_t headers;
-  zmq_msg_t body;
+  zmq_msg_t msg;
   int size;
   size_t zmq_events_size = sizeof (uint32_t);
   uint32_t zmq_events;
   while(1){
-    if (zmq_getsockopt (sock, ZMQ_EVENTS, &zmq_events, &zmq_events_size) == -1) {
-      perror("something is fucked ;_;");
-      abort();
-    }
-    if(!(zmq_events & ZMQ_POLLIN)){
-      return;
-    }
 
     zmq_msg_init (&z_address);
-    zmq_msg_init (&empty);
-    zmq_msg_init (&info);
-    zmq_msg_init (&host);
-    zmq_msg_init (&method);
-    zmq_msg_init (&path);
-    zmq_msg_init (&headers);
-    zmq_msg_init (&body);
      
-    size = zmq_recvmsg (sock, &z_address, 0);
-    
+    size = zmq_msg_recv (&z_address, sock, ZMQ_DONTWAIT);
+    if(size==-1){
+      zmq_msg_close(&z_address);
+      if(errno!=EAGAIN) {
+        perror("wut! ");
+        abort();
+      }
+      break;
+    }
     set_simple_buffer_from_ptr(request.z_address, zmq_msg_data (&z_address), size);
     
-    size = zmq_recvmsg (sock, &info, 0);
-    info_ptr=(packed_req_info *) zmq_msg_data(&info);
+    zmq_msg_init (&msg);
+    size = zmq_msg_recv (&msg, sock, 0);
+    info_ptr=(packed_req_info *) zmq_msg_data(&msg);
     request.handle=info_ptr->handle; /* handle remains in host byte order */
     request.port=info_ptr->port;
     request.options=ntohl(info_ptr->options);
-      
-    size = zmq_recvmsg (sock, &host, 0);
-    set_simple_buffer_from_ptr(request.host, zmq_msg_data (&host), size);
-   
-    size = zmq_recvmsg (sock, &method, 0);
-    set_simple_buffer_from_ptr(request.method, zmq_msg_data (&method), size);
-    size = zmq_recvmsg (sock, &path, 0);
-    set_simple_buffer_from_ptr(request.path, zmq_msg_data (&path), size);
-    size = zmq_recvmsg (sock, &headers, 0);
-    set_simple_buffer_from_ptr(request.headers, zmq_msg_data (&headers), size);
-    size = zmq_recvmsg (sock, &body, 0);
-    set_simple_buffer_from_ptr(request.body, zmq_msg_data (&body), size);
+    request.method=info_ptr->method;
+    uint32_t data_len=ntohl(info_ptr->data_len);
+    uint32_t path_offset=ntohl(info_ptr->path_offset);
+    uint32_t headers_offset=ntohl(info_ptr->headers_offset);
+    uint32_t body_offset=ntohl(info_ptr->body_offset);
+    set_simple_buffer_from_ptr(request.host, info_ptr->data, path_offset);
+    set_simple_buffer_from_ptr(request.path, info_ptr->data+path_offset, headers_offset-path_offset);
+    set_simple_buffer_from_ptr(request.headers, info_ptr->data+headers_offset, body_offset-headers_offset);
+    set_simple_buffer_from_ptr(request.body, info_ptr->data+body_offset, data_len-body_offset);
     enqueue_request(&request);
 
     zmq_msg_close (&z_address);
-    zmq_msg_close (&empty);
-    zmq_msg_close (&info);
-    zmq_msg_close (&host);
-    zmq_msg_close (&method);
-    zmq_msg_close (&path);
-    zmq_msg_close (&headers);
-    zmq_msg_close (&body);
+    zmq_msg_close (&msg);
   }
 }
 

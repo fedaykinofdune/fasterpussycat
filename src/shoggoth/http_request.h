@@ -8,13 +8,13 @@ typedef struct {
 
   simple_buffer *headers;
   simple_buffer *path;
-  simple_buffer *method;
   simple_buffer *body;
   simple_buffer *host;
   simple_buffer *z_address;
-  unsigned short port;
-  unsigned int options;
-  int handle;
+  uint16_t port;
+  uint32_t options;
+  int32_t handle;
+  uint8_t method;
 } http_request;
 
 /* http_request.c */

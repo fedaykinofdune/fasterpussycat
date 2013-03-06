@@ -1,5 +1,6 @@
 #include <string.h>
 #include <strings.h>
+#include "common/zeromq_common.h"
 #include "address_map.h"
 #include "http_request.h"
 #include "prepared_http_request.h"
@@ -12,43 +13,71 @@ void write_http_request_headers_to_simple_buffer(simple_buffer *buf, const http_
   simple_buffer *headers=req->headers;
   char *p=headers->ptr;
   char *key;
+  int kl, vl;
   char *value;
   char *end=headers->ptr+headers->write_pos;
   while(p<end){
     key=p;
-    p=p+strlen(key)+1;
+    kl=strlen(key);
+    p=p+kl+1;
     value=p;
-    p=p+strlen(value)+1;
+    vl=strlen(value);
+    p=p+vl+1;
 
-    write_string_to_simple_buffer(buf,key);
-    write_string_to_simple_buffer(buf,": ");
-    write_string_to_simple_buffer(buf,value);
-    write_string_to_simple_buffer(buf,"\r\n");
+    write_to_simple_buffer(buf,key, kl);
+    write_to_simple_buffer(buf,": ", 2);
+    write_to_simple_buffer(buf,value, vl);
+    write_to_simple_buffer(buf,"\r\n", 2);
     if(!seen_host && !strcasecmp(key,"Host")) seen_host=1;
     if(!seen_cl && !strcasecmp(key,"Content-Length")) seen_cl=1;
   }
   if(!seen_host){
-    write_string_to_simple_buffer(buf,"Host: ");
+    write_to_simple_buffer(buf,"Host: ", 6);
     concat_simple_buffer(buf,req->host);
-    write_string_to_simple_buffer(buf,"\r\n");
+    write_to_simple_buffer(buf,"\r\n", 2);
   }
 
   if(!seen_cl){
-    write_string_to_simple_buffer(buf,"Content-Length: ");
+    write_to_simple_buffer(buf,"Content-Length: ", 16);
     write_int_to_simple_buffer(buf,req->body->write_pos);
-    write_string_to_simple_buffer(buf,"\r\n");
+    write_to_simple_buffer(buf,"\r\n", 2);
   }
 }
 
 
 void write_http_request_to_simple_buffer(simple_buffer *buf, const http_request *req){
-  concat_simple_buffer(buf, req->method);
-  write_string_to_simple_buffer(buf, " ");
+  switch(req->method){
+    case GET:
+      write_to_simple_buffer(buf, "GET", 3);
+      break;
+    case POST:
+      write_to_simple_buffer(buf, "POST", 4);
+      break;
+    case PUT:
+      write_to_simple_buffer(buf, "PUT", 3);
+      break;
+    case DELETE:
+      write_to_simple_buffer(buf, "DELETE", 6);
+      break;
+    case CONNECT:
+      write_to_simple_buffer(buf, "CONNECT", 7);
+      break;
+    case TRACE:
+      write_to_simple_buffer(buf, "TRACE", 5);
+      break;
+    case HEAD:
+      write_to_simple_buffer(buf, "HEAD", 4);
+      break;
+    case OPTIONS:
+      write_to_simple_buffer(buf, "OPTIONS", 7);
+      break;
+  }
+  write_to_simple_buffer(buf, " ", 1);
   concat_simple_buffer(buf, req->path);
-  write_string_to_simple_buffer(buf, " HTTP/1.1");
-  write_string_to_simple_buffer(buf, "\r\n");
+  write_to_simple_buffer(buf, " HTTP/1.1", 9);
+  write_to_simple_buffer(buf, "\r\n",  2);
   write_http_request_headers_to_simple_buffer(buf,req);
-  write_string_to_simple_buffer(buf,"\r\n");
+  write_to_simple_buffer(buf,"\r\n", 2); 
   if(req->body->size>0) concat_simple_buffer(buf,req->body);
 }
 
