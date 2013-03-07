@@ -1,4 +1,4 @@
-iinclude <errno.h>
+#include <errno.h>
 #include <zmq.h>
 #include <string.h>
 #include <lua5.1/lua.h>

@@ -49,6 +49,17 @@ int uncompress_to_aux_buffer(connection *conn, char *ptr, size_t size){
   conn->z_stream.next_in=ptr;
   conn->z_stream.next_out=aux->ptr;
   int ret = inflate(&conn->z_stream, Z_NO_FLUSH);
+  switch (ret) {
+    case Z_NEED_DICT:
+      printf("need dict\n");
+      break;
+    case Z_DATA_ERROR:
+      printf("data error\n");
+      break;
+    case Z_MEM_ERROR:
+      printf("mem error\n");;
+      break;
+  }
   int have = ao - conn->z_stream.avail_out;
   aux->write_pos+=have;
   return ret;

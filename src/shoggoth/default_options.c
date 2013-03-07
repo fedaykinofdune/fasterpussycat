@@ -7,7 +7,7 @@ struct global_options opt={
   .header_buffer_size=1024,
   .max_endpoints=4,
   .max_conn_per_endpoint=4,
-  .poll_timeout=200,
+  .poll_timeout=100,
   .connection_timeout=10,
   .rw_timeout=10
 };

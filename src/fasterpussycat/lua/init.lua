@@ -10,7 +10,7 @@ function pt(table, indent)
         pt(v,indent+4)
     else
         io.write(i:rep(indent))
-        print(k.." "..v)
+        print(k.." = '"..v.."'")
       end
     end
 end
@@ -25,9 +25,13 @@ local count=0
 local i=0
 print("enquing");
 while i<30000 do
-  shoggoth.enqueue_http_request({port=80, path="/", host="localhost", method=0, headers={["Connection"]="keep-alive"}})
+
+--  shoggoth.enqueue_http_request({port=80, path="/", host="localhost", method=0, headers={["Connection"]="keep-alive"}})
+--  shoggoth.enqueue_http_request({port=80, path="/", host="localhost", method=0, headers={["Connection"]="keep-alive"}})
+
+   shoggoth.enqueue_http_request({port=80, path="/", host="localhost", method=0, headers={["Connection"]="keep-alive", ["Accept-Encoding"]="gzip"}})
   
-  shoggoth.enqueue_http_request({port=80, path="/", host="localhost", method=0, headers={["Connection"]="keep-alive"}})
+   shoggoth.enqueue_http_request({port=80, path="/", host="localhost", method=0, headers={["Connection"]="keep-alive", ["Accept-Encoding"]="gzip"}})
   i=i+1
 end 
 print("waiting...")

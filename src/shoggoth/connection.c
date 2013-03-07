@@ -54,7 +54,7 @@ void ready_connection_zstream(connection *conn){
    conn->z_stream.opaque = Z_NULL;
    conn->z_stream.avail_in = 0;
    conn->z_stream.next_in = Z_NULL;
-   inflateInit(&conn->z_stream);
+   inflateInit2(&conn->z_stream, 32+15);
    conn->z_stream_initialized=1;
 }
 
