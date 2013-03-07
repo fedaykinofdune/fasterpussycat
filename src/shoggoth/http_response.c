@@ -172,7 +172,7 @@ inline enum parse_response_code parse_headers(connection *conn){
     l=tolower(h_key[0]);
     if(l=='c' || l=='t'){
       memcpy(t, h_key, 20);
-      h_key[19]=0;
+      t[19]=0;
       for (p=t; *p; ++p) *p = tolower(*p);
       if (!prefix(t, "content-length") && (response->expected_body_len=atoi(h_value))<0) return INVALID;
       else if (!prefix(t, "transfer-encoding") && strcasestr(h_value,"chunked")) response->chunked =1; 

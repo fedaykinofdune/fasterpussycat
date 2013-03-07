@@ -29,7 +29,7 @@ typedef struct {
   int32_t handle;
   uint8_t status;
   uint16_t code;
-  uint16_t body_offset;
+  uint32_t body_offset;
   uint32_t data_len;
   char data[1];
 } packed_res_info;

@@ -1,4 +1,4 @@
-#include <errno.h>
+iinclude <errno.h>
 #include <zmq.h>
 #include <string.h>
 #include <lua5.1/lua.h>
@@ -117,7 +117,7 @@ void l_raw_poll(lua_State *L, void *sock){
       lua_rawseti(L, result_table, index);
       continue;
     }
-    code_i=ntohl(res->code);
+    code_i=ntohs(res->code);
     lua_pushinteger(L, code_i);
     lua_setfield(L, -2, "code");
     uint32_t offset=ntohl(res->body_offset);
