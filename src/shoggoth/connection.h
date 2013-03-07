@@ -4,7 +4,7 @@
 #include <openssl/rand.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
-
+#include <zlib.h>
 
 typedef struct connection connection;
 
@@ -40,7 +40,9 @@ struct connection {
   connection *next_active;
   connection *prev_active;
   server_endpoint *endpoint;
-
+  z_stream z_stream;
+  
+  unsigned int z_stream_initialized;
 };
 
 /* connection.c */
@@ -53,5 +55,6 @@ int connect_to_endpoint(connection *conn);
 int read_connection_to_simple_buffer(connection *conn, simple_buffer *r_buf);
 void add_connection_to_server_endpoint(connection *conn, server_endpoint *endpoint);
 int write_connection_from_simple_buffer(connection *conn, simple_buffer *w_buf);
-
+void ready_connection_zstream(connection *conn);
+void destroy_connection_zstream(connection *conn);
 #endif

@@ -22,6 +22,7 @@ struct http_response {
   int expected_body_len;
   char *body_ptr;
   size_t body_offset;
+  size_t last_z_offset;
   size_t body_len;
   simple_buffer *headers;
   uint32_t chunk_length;

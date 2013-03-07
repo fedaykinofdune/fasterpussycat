@@ -46,13 +46,11 @@ inline void write_packed_string_to_simple_buffer(simple_buffer *buffer, const ch
 }
 
 
-void write_packed_string_to_simple_buffer2(simple_buffer *buf, const char *str){
-  
-  
-  char z='\0';
-  write_to_simple_buffer(buf,str,strlen(str));
-  write_to_simple_buffer(buf,&z,1);
+
+inline void write_packed_string_to_simple_buffer2(simple_buffer *buffer, const char *str){
+  write_packed_string_to_simple_buffer(buffer,str,strlen(str));
 }
+
 
 simple_buffer *dup_simple_buffer(simple_buffer *src){
   simple_buffer *d=malloc(sizeof(simple_buffer));

@@ -1,3 +1,21 @@
+function pt(table, indent)
+    i=" "
+    if(indent==nil) then
+      indent=0
+    end
+    for k,v in pairs(table) do
+      if(type(v)=="table") then
+        io.write(i:rep(indent))
+        print(k.." ==>")
+        pt(v,indent+4)
+    else
+        io.write(i:rep(indent))
+        print(k.." "..v)
+      end
+    end
+end
+
+
 print("1")
 shoggoth.connect_endpoint("tcp://127.0.0.1:9999")
 print("2")
@@ -22,7 +40,8 @@ while true do
   count=count+#ret
   now=os.time();
   if #ret>1 then
-    print(ret[1].status)
+    pt(ret[1])
+    print()
   end
   if (now-last>=2) then 
     print(count/(now-last))

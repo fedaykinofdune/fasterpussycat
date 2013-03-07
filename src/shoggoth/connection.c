@@ -1,6 +1,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <unistd.h>
+#include <zlib.h>
 #include "connection.h"
 #include "connection_pool.h"
 #include "common/simple_buffer.h"
@@ -23,6 +24,7 @@ void setup_connection(connection *conn){
   conn->next_active=NULL;
   conn->prev_active=NULL;
   conn->next_conn=NULL;
+  conn->z_stream_initialized=0;
 }
 
 
@@ -42,8 +44,25 @@ void reset_connection(connection *conn){
   reset_http_response(conn->response);
   reset_simple_buffer(conn->read_buffer);
   reset_simple_buffer(conn->aux_buffer);
+  destroy_connection_zstream(conn);
 }
 
+
+void ready_connection_zstream(connection *conn){
+   conn->z_stream.zalloc = Z_NULL;
+   conn->z_stream.zfree = Z_NULL;
+   conn->z_stream.opaque = Z_NULL;
+   conn->z_stream.avail_in = 0;
+   conn->z_stream.next_in = Z_NULL;
+   inflateInit(&conn->z_stream);
+   conn->z_stream_initialized=1;
+}
+
+
+void destroy_connection_zstream(connection *conn){
+   if(conn->z_stream_initialized) inflateEnd(&conn->z_stream);
+   conn->z_stream_initialized=0;
+}
 
 void close_connection(connection *conn){
   if(conn->fd!=-1){
@@ -94,12 +113,14 @@ int connect_to_endpoint(connection *conn){
 
 int handle_ssl_error(connection *conn, int err){
   if (err == SSL_ERROR_WANT_WRITE){
+    if (conn->state==WRITING) return 0;
     conn_fd[conn->index].events=POLLOUT|POLLERR|POLLHUP;
     conn->old_state=conn->state;
     conn->state=SSL_WANT_WRITE;
     return 0;
   }
   else if (err == SSL_ERROR_WANT_READ){
+    if (conn->state==READING) return 0;
     conn_fd[conn->index].events=POLLIN|POLLERR|POLLHUP;
     conn->old_state=conn->state;
     conn->state=SSL_WANT_READ;
