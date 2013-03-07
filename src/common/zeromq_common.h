@@ -9,6 +9,11 @@
 
 #define Z_STATUS_OK 0
 
+
+#define OPT_USE_SSL                 (1 << 0)
+#define OPT_EXPECT_NO_BODY          (1 << 1)
+
+
 enum http_method { GET, POST, PUT, DELETE, OPTIONS, HEAD, TRACE, CONNECT };
 
 typedef struct {

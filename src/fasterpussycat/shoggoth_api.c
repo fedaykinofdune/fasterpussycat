@@ -222,7 +222,7 @@ int l_enqueue_http_request(lua_State *L){
   lua_pop(L,1);
 
   lua_getfield (L, 1, "options");
-  request.options=htons(lua_tointeger (L, -1));
+  request.options=htonl(lua_tointeger (L, -1));
   lua_pop(L,1);
 
 

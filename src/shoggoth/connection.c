@@ -99,7 +99,10 @@ int connect_to_endpoint(connection *conn){
   if(connect(conn->fd, ( struct sockaddr *) conn->endpoint->addr, sizeof(struct sockaddr_in)) && errno!=EINPROGRESS ) return 1;    
   if(conn->endpoint->use_ssl){
     conn->srv_ctx = SSL_CTX_new(SSLv23_client_method());
-    if(conn->srv_ctx) return 1;
+    if(!conn->srv_ctx){
+      perror("wut");
+      abort();
+    }
     SSL_CTX_set_mode(conn->srv_ctx, SSL_MODE_ENABLE_PARTIAL_WRITE | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
     conn->srv_ssl = SSL_new(conn->srv_ctx);
     if (!conn->srv_ssl) {

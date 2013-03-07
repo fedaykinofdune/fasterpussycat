@@ -3,6 +3,7 @@
 #include "http_response.h"
 #include "connection.h"
 #include "global_options.h"
+#include "common/zeromq_common.h"
 
 #define prefix(_long, _short) \
     strncmp((char*)(_long), (char*)(_short), strlen((char *)(_short)))

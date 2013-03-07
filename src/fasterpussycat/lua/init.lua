@@ -29,9 +29,9 @@ while i<30000 do
 --  shoggoth.enqueue_http_request({port=80, path="/", host="localhost", method=0, headers={["Connection"]="keep-alive"}})
 --  shoggoth.enqueue_http_request({port=80, path="/", host="localhost", method=0, headers={["Connection"]="keep-alive"}})
 
-   shoggoth.enqueue_http_request({port=80, path="/", host="localhost", method=0, headers={["Connection"]="keep-alive", ["Accept-Encoding"]="gzip"}})
+   shoggoth.enqueue_http_request({port=443, path="/", host="localhost", method=0, options=1, headers={["Connection"]="keep-alive", ["Accept-Encoding"]="gzip"}})
   
-   shoggoth.enqueue_http_request({port=80, path="/", host="localhost", method=0, headers={["Connection"]="keep-alive", ["Accept-Encoding"]="gzip"}})
+   shoggoth.enqueue_http_request({port=443, path="/", host="localhost", method=0, options=1, headers={["Connection"]="keep-alive", ["Accept-Encoding"]="gzip"}})
   i=i+1
 end 
 print("waiting...")

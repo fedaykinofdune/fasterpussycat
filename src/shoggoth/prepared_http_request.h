@@ -7,10 +7,6 @@ typedef struct prepared_http_request prepared_http_request;
 #include "connection.h"
 #include "server_endpoint.h"
 
-#define OPT_USE_SSL                 (1 >> 1)
-#define OPT_EXPECT_NO_BODY          (1 >> 2)
-
-
 struct prepared_http_request {
   simple_buffer *payload;
   char z_address[8];
