@@ -2,6 +2,7 @@
 #include <poll.h>
 #include <unistd.h>
 #include <zlib.h>
+#include <netinet/tcp.h>
 #include "connection.h"
 #include "connection_pool.h"
 #include "common/simple_buffer.h"
@@ -91,6 +92,14 @@ int connect_to_endpoint(connection *conn){
     perror("Could not create socket!");
   }
   fcntl(conn->fd, F_SETFL, fcntl(conn->fd, F_GETFL) | O_NONBLOCK);
+  
+  /* socket options */
+
+  if(opt.tcp_nodelay) setsockopt(conn->fd,IPPROTO_TCP, TCP_NODELAY,(char *) &opt.tcp_nodelay, sizeof(int)); 
+  if(opt.tcp_send_buffer) setsockopt(conn->fd, SOL_SOCKET, SO_SNDBUF, (char *) &opt.tcp_send_buffer, (int)sizeof(opt.tcp_send_buffer));
+  if(opt.tcp_recv_buffer) setsockopt(conn->fd, SOL_SOCKET, SO_RCVBUF, (char *) &opt.tcp_recv_buffer, (int)sizeof(opt.tcp_recv_buffer));
+
+
   conn_fd[conn->index].fd=conn->fd; /* update the connection pool list of fds */
   conn_fd[conn->index].events=POLLOUT | POLLERR | POLLHUP;
   conn_fd[conn->index].revents=0;

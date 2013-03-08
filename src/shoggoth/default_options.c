@@ -9,5 +9,8 @@ struct global_options opt={
   .max_conn_per_endpoint=4,
   .poll_timeout=100,
   .connection_timeout=10,
-  .rw_timeout=10
+  .rw_timeout=10,
+  .tcp_nodelay=1,
+  .tcp_recv_buffer = 0, //16384
+  .tcp_send_buffer = 0 //16384
 };

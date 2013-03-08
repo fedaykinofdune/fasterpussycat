@@ -24,14 +24,14 @@ local ret
 local count=0
 local i=0
 print("enquing");
-while i<30000 do
+while i<60000 do
 
---  shoggoth.enqueue_http_request({port=80, path="/", host="localhost", method=0, headers={["Connection"]="keep-alive"}})
---  shoggoth.enqueue_http_request({port=80, path="/", host="localhost", method=0, headers={["Connection"]="keep-alive"}})
+shoggoth.enqueue_http_request({port=80, path="/", host="localhost", method=0, headers={["Connection"]="keep-alive"}})
+shoggoth.enqueue_http_request({port=80, path="/", host="localhost", method=0, headers={["Connection"]="keep-alive"}})
 
-   shoggoth.enqueue_http_request({port=443, path="/", host="localhost", method=0, options=1, headers={["Connection"]="keep-alive", ["Accept-Encoding"]="gzip"}})
+--   shoggoth.enqueue_http_request({port=443, path="/", host="localhost", method=0, options=1, headers={["Connection"]="keep-alive", ["Accept-Encoding"]="gzip"}})
   
-   shoggoth.enqueue_http_request({port=443, path="/", host="localhost", method=0, options=1, headers={["Connection"]="keep-alive", ["Accept-Encoding"]="gzip"}})
+--   shoggoth.enqueue_http_request({port=443, path="/", host="localhost", method=0, options=1, headers={["Connection"]="keep-alive", ["Accept-Encoding"]="gzip"}})
   i=i+1
 end 
 print("waiting...")
@@ -43,10 +43,10 @@ while true do
   ret=shoggoth.poll()
   count=count+#ret
   now=os.time();
-  if #ret>1 then
-    pt(ret[1])
-    print()
-  end
+--  if #ret>1 then
+--    pt(ret[1])
+--    print()
+--  end
   if (now-last>=2) then 
     print(count/(now-last))
     last=now
