@@ -42,11 +42,8 @@ local last=start
 while true do 
   ret=shoggoth.poll()
   count=count+#ret
+  
   now=os.time();
---  if #ret>1 then
---    pt(ret[1])
---    print()
---  end
   if (now-last>=2) then 
     print(count/(now-last))
     last=now

@@ -11,7 +11,7 @@ struct prepared_http_request {
   simple_buffer *payload;
   char z_address[8];
   size_t z_address_size;
-  int handle;
+  int32_t handle;
   unsigned int options;
   unsigned short port;
   prepared_http_request *next;

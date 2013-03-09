@@ -104,12 +104,14 @@ void l_raw_poll(lua_State *L, void *sock){
        perror("wut");
     }
     handle_i=res->handle; /* handle remains in host byte order */
+    
     lua_rawgeti( L, LUA_REGISTRYINDEX, handle_i );
     lua_setfield(L, -2, "request");
     luaL_unref(L, LUA_REGISTRYINDEX, handle_i );
     
     
     status_i=res->status;
+    
     lua_pushinteger(L,status_i);
     lua_setfield(L, -2, "status");
 
@@ -196,7 +198,6 @@ inline void send_http_request(lua_State *L){
 int l_enqueue_http_request(lua_State *L){
   lua_pushvalue (L, 1);
   request.handle=luaL_ref(L, LUA_REGISTRYINDEX );
-  
   
   reset_simple_buffer(request.host);
   lua_getfield (L, 1, "host");

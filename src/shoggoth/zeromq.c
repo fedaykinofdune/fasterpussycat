@@ -66,6 +66,7 @@ void send_zeromq_response_ok(prepared_http_request *req, http_response *res){
   uint32_t size=sizeof(packed_res_info)+data_len;
   packed_res_info *packed=malloc(size);
   packed->status=0;
+  packed->handle=req->handle;
   packed->code=htons(res->code);
   packed->data_len=htonl(data_len);
   packed->body_offset=htonl(head->write_pos);
