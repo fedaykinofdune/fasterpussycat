@@ -4,6 +4,9 @@
 #include <lua5.1/lauxlib.h>
 #include <lua5.1/lualib.h>
 extern lua_State *l_state;
-
 void lua_initialize();
+
+
+#define FP_LUA_PATH "/home/caleb/src/fasterpussycat/src/fasterpussycat/lua/"
+
 #endif

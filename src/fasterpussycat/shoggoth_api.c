@@ -1,11 +1,13 @@
 #include <errno.h>
 #include <zmq.h>
 #include <string.h>
+#include <libgen.h>
 #include <lua5.1/lua.h>
 #include <lua5.1/lauxlib.h>
 #include <lua5.1/lualib.h>
 #include "common/simple_buffer.h"
 #include "shoggoth_api.h"
+#include "lua_helpers.h"
 
 #define MAX_SOCKETS 32
 #define POLL_TIMEOUT 100000
@@ -21,11 +23,38 @@ static const struct luaL_reg api [] = {
         {"enqueue_http_request", l_enqueue_http_request},
         {"poll", l_poll},
         {"connect_endpoint", l_connect_endpoint},
+        {"basename", l_basename},
+        {"dirname", l_dirname},
+        {"url_encode", l_url_encode},
+        {"base64_encode", l_base64_encode},
+        {"base64_decode", l_base64_decode},
         {NULL, NULL}  /* sentinel */
 
 };
 
+/* Converts an integer value to its hex character*/
+char to_hex(char code) {
+  static char hex[] = "0123456789abcdef";
+  return hex[code & 15];
+}
 
+/* Returns a url-encoded version of str */
+/* IMPORTANT: be sure to free() the returned string after use */
+char *url_encode(const char *str) {
+  const char *pstr = str;
+  char *buf = malloc(strlen(str) * 3 + 1), *pbuf = buf;
+  while (*pstr) {
+    if (isalnum(*pstr) || *pstr == '-' || *pstr == '_' || *pstr == '.' || *pstr == '~') 
+      *pbuf++ = *pstr;
+    else if (*pstr == ' ') 
+      *pbuf++ = '+';
+    else 
+      *pbuf++ = '%', *pbuf++ = to_hex(*pstr >> 4), *pbuf++ = to_hex(*pstr & 15);
+    pstr++;
+  }
+  *pbuf = '\0';
+  return buf;
+}
 
 
 void register_shoggoth_api(lua_State *L){
@@ -34,7 +63,63 @@ void register_shoggoth_api(lua_State *L){
   request.path=alloc_simple_buffer(128);
   request.headers=alloc_simple_buffer(128);
   request.body=alloc_simple_buffer(1024);
+  char *path=calloc(1,512);
+  strcat(path,LUA_PATH);
+  strcat(path,"shoggoth/shoggoth.lua");
+  luaL_dofile(L,path);
+  free(path);
   context=zmq_init (1);
+}
+
+
+
+int l_url_encode(lua_State *L){
+  const char *src=lua_tostring(L,1);
+  char *dest=url_encode(src);
+  lua_pushstring(L,dest);
+  free(dest);
+  return 1;
+}
+
+int l_basename(lua_State *L){
+  char *name=strdup(lua_tostring(L,1));
+  lua_pushstring(L,basename(name));
+  free(name);
+  return 1;
+}
+
+
+int l_base64_encode(lua_State *L){
+  int i;
+  const char *from=lua_tostring(L,1);
+  i=strlen(from);
+  char *to=malloc(i*4);
+  base64_encode(to,from,i);
+  lua_pushstring(L,to);
+  free(to);
+  return 1;
+}
+
+
+
+int l_base64_decode(lua_State *L){
+  int i;
+  const char *from=lua_tostring(L,1);
+  i=strlen(from);
+  char *to=malloc(i);
+  base64_decode(to,from,i);
+  lua_pushstring(L,to);
+  free(to);
+  return 1;
+}
+
+
+
+int l_dirname(lua_State *L){
+  char *name=strdup(lua_tostring(L,1));
+  lua_pushstring(L,dirname(name));
+  free(name);
+  return 1;
 }
 
 int l_connect_endpoint(lua_State *L){
@@ -130,12 +215,15 @@ void l_raw_poll(lua_State *L, void *sock){
     char *key;
     char *value;
     lua_newtable(L);
+    char *p;
     while(ptr<end){
       key=ptr;
       ptr=ptr+strlen(key)+1;
       value=ptr;
       ptr=ptr+strlen(value)+1;
+      
       lua_pushstring(L,value);
+      for(p=key;p;p++) *p=tolower(*p);
       lua_setfield(L, -2, key);
     }
     lua_setfield(L, -2, "headers");

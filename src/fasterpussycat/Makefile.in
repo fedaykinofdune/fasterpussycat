@@ -47,8 +47,8 @@ am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
 am__dirstamp = $(am__leading_dot)dirstamp
 am_fasterpussycat_OBJECTS = shoggoth_api.$(OBJEXT) \
-	common/simple_buffer.$(OBJEXT) lua_helpers.$(OBJEXT) \
-	fasterpussycat.$(OBJEXT)
+	common/simple_buffer.$(OBJEXT) base64.$(OBJEXT) \
+	lua_helpers.$(OBJEXT) fasterpussycat.$(OBJEXT)
 fasterpussycat_OBJECTS = $(am_fasterpussycat_OBJECTS)
 am__DEPENDENCIES_1 =
 fasterpussycat_DEPENDENCIES = $(am__DEPENDENCIES_1) \
@@ -164,7 +164,7 @@ top_srcdir = @top_srcdir@
 AUTOMAKE_OPTIONS = subdir-objects
 # what flags you want to pass to the C compiler & linker
 AM_CFLAGS = -Werror -O3 -g 
-fasterpussycat_SOURCES = common/zeromq_common.h shoggoth_api.c shoggoth_api.h common/simple_buffer.c  common/simple_buffer.h lua_helpers.c lua_helpers.h fasterpussycat.c 
+fasterpussycat_SOURCES = common/zeromq_common.h shoggoth_api.c shoggoth_api.h common/simple_buffer.c base64.c base64.h common/simple_buffer.h lua_helpers.c lua_helpers.h fasterpussycat.c 
 fasterpussycat_LDADD = $(ZMQ_LIBS) $(LUA_LIBS)
 all: all-am
 
@@ -256,6 +256,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/base64.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fasterpussycat.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/lua_helpers.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/shoggoth_api.Po@am__quote@

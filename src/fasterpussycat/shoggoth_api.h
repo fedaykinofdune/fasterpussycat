@@ -4,6 +4,7 @@
 #include "common/simple_buffer.h"
 #include "common/zeromq_common.h"
 
+
 typedef struct {
   simple_buffer *headers;
   simple_buffer *path;
@@ -21,5 +22,10 @@ int l_connect_endpoint(lua_State *L);
 int l_poll(lua_State *L);
 void l_raw_poll(lua_State *L, void *sock);
 int l_enqueue_http_request(lua_State *L);
+int l_basename(lua_State *L);
+int l_base64_encode(lua_State *L);
+int l_base64_decode(lua_State *L);
+int l_dirname(lua_State *L);
+int l_url_encode(lua_State *L);
 #endif
 
