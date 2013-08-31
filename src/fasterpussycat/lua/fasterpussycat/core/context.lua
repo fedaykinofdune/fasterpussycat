@@ -3,9 +3,11 @@ local context={}
 context.__index=context
 
 function context.new(opts)
-  c=table.dup(c.opts)
+  local c
+  c=table.dup(opts)
   
   c.request_factory={}
+  c.request_factory.__index=c.request_factory
   setmetatable(c.request_factory, c.target.request_factory)
   if(c.page) then
     c.page=observable_table.make_observable(c.page)
@@ -34,9 +36,9 @@ end
 
 function context:set_table_listener(func)
   self.table_listener=func
-  self.target:set_table_listener(func)
+  self.target:set_listener(func)
   if self.page then
-    self.page:set_table_listener(func)
+    self.page:set_listener(func)
   end
 end
 
@@ -121,4 +123,4 @@ function context:head(...)
   shoggoth.enqueue_request(req)
 end
 
-
+return context

@@ -11,8 +11,8 @@ end
 
 
 function observable_table:__index(k)
-  if observable_table[k] then
-    return observable_table[k]
+  if rawget(observable_table,k) then
+    return rawget(observable_table,k)
   end
   return self._realtable[k]
 end
@@ -42,6 +42,7 @@ function observable_table.make_observable(rt)
   ot._listeners={}
   ot._ignore_keys={}
   ot._real_table=rt
+  rt.__index=ot
   setmetatable(rt,observable_table)
   return rt
 end

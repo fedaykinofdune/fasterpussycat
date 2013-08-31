@@ -3,8 +3,10 @@
 #include <string.h>
 #include "simple_buffer.h"
 
-simple_buffer *alloc_simple_buffer(size_t size){
-  simple_buffer *buffer=malloc(sizeof(simple_buffer));
+simple_buffer_t *simple_buffer_alloc(size_t size){
+  simple_buffer_t *buffer=malloc(sizeof(simple_buffer_t));
+  buffer->free=NULL;
+  buffer->free_hint=NULL;
   if(size>0){
     buffer->ptr=malloc(size);
   }
@@ -18,13 +20,17 @@ simple_buffer *alloc_simple_buffer(size_t size){
   return buffer;
 }
 
+void simple_buffer_destroy_contents(simple_buffer_t *buffer){
+  if(buffer->free) buffer->free(buffer->ptr, buffer->free_hint);
+  else{free(buffer->ptr)};
+}
 
-void destroy_simple_buffer(simple_buffer *buffer){
-  free(buffer->ptr);
+void simple_buffer_destroy(simple_buffer_t *buffer){
+  simple_buffer_destroy_contents(buffer);
   free(buffer);;
 }
 
-void print_simple_buffer(simple_buffer *buf){
+void simple_buffer_print(simple_buffer_t *buf){
   int i;
   for(i=0;i<buf->write_pos;i++){
     putc(buf->ptr[i],stdout);
@@ -33,7 +39,7 @@ void print_simple_buffer(simple_buffer *buf){
   
 }
 
-inline void write_packed_string_to_simple_buffer(simple_buffer *buffer, const char *str, const size_t size){
+void simple_buffer_write_packed_string(simple_buffer_t *buffer, const char *str, const size_t size){
   register unsigned int wp=buffer->write_pos;
   register unsigned int nwp=wp+size+1;
   if(nwp>=buffer->size){
@@ -47,13 +53,13 @@ inline void write_packed_string_to_simple_buffer(simple_buffer *buffer, const ch
 
 
 
-inline void write_packed_string_to_simple_buffer2(simple_buffer *buffer, const char *str){
-  write_packed_string_to_simple_buffer(buffer,str,strlen(str));
+inline void simple_buffer_write_packed_string2(simple_buffer_t *buffer, const char *str){
+  simple_buffer_write_packed_string(buffer,str,strlen(str));
 }
 
 
-simple_buffer *dup_simple_buffer(simple_buffer *src){
-  simple_buffer *d=malloc(sizeof(simple_buffer));
+simple_buffer_t *simple_buffer_t(simple_buffer_t *src){
+  simple_buffer_t *d=malloc(sizeof(simple_buffer));
   d->read_pos=src->read_pos;
   d->write_pos=src->write_pos;
   d->size=src->size;
@@ -62,20 +68,32 @@ simple_buffer *dup_simple_buffer(simple_buffer *src){
   return d;
 }
 
-void set_simple_buffer_from_ptr(simple_buffer *buf, char *ptr, size_t size){
+simple_buffer_t *simple_buffer_dup_from_ptr(char *ptr, size_t size){
+  if(!size){
+    return simple_buffer_alloc(64);
+  }
+  simple_buffer_t *buf=simple_buffer_alloc(size+1);
+  memcpy(buf->ptr,ptr, size);
+  buf->size=size;
+  buf->write_pos=size;
+  buf->read_pos=0;
+  return buf;
+}
+
+void simple_buffer_set_from_ptr(simple_buffer_t *buf, char *ptr, size_t size){
   buf->read_pos=0;
   buf->write_pos=size;
   buf->size=size;
   buf->ptr=ptr;
 }
 
-void reset_simple_buffer(simple_buffer *buffer){
+void simple_buffer_reset(simple_buffer_t *buffer){
   buffer->read_pos=0;
   buffer->write_pos=0;
 }
 
 
-char *read_line_from_simple_buffer(simple_buffer *buffer, int *retsize){
+char *simple_buffer_read_line(simple_buffer_t *buffer, int *retsize){
   register int r=buffer->read_pos;
   register char *p=buffer->ptr+r;
   register char *s=p;
@@ -96,13 +114,13 @@ char *read_line_from_simple_buffer(simple_buffer *buffer, int *retsize){
 }
 
 
-size_t concat_simple_buffer(simple_buffer *dst, simple_buffer *src){
-  return write_to_simple_buffer(dst, src->ptr, src->write_pos);
+size_t simple_buffer_concat(simple_buffer_t *dst, simple_buffer_t *src){
+  return simple_buffer_write(dst, src->ptr, src->write_pos);
 }
 
 /* returns number of bytes actually written */
 
-size_t write_to_simple_buffer(simple_buffer *buffer, const char *ptr, size_t size){
+size_t simple_buffer_write(simple_buffer_t *buffer, const char *ptr, size_t size){
   register unsigned int wp=buffer->write_pos;
   register unsigned int nwp=wp+size-1;
   if(nwp>=buffer->size){
@@ -114,23 +132,65 @@ size_t write_to_simple_buffer(simple_buffer *buffer, const char *ptr, size_t siz
   return size;
 }
 
-size_t write_int_to_simple_buffer(simple_buffer *buffer, int i){
+char *simple_buffer_get_string(simple_buffer_t *buffer){
+  simple_buffer_write_char(buffer, 0);
+  buffer->write_pos--;
+  return buffer->data;
+
+}
+
+void simple_buffer_write_char(simple_buffer_t *buffer, unsigned char c){
+  simple_buffer_write(buffer, &c, 1);
+}
+
+
+
+void simple_buffer_write_short(simple_buffer_t *buffer, uint16_t s){
+  simple_buffer_write(buffer, &s, 2);
+}
+
+size_t simple_buffer_write_int_as_string(simple_buffer_t *buffer, int i){
   static char *s_buf=NULL;
   if(s_buf==NULL) s_buf=malloc(64);
   snprintf(s_buf,63,"%d",i);
-  return write_string_to_simple_buffer(buffer, s_buf);
+  return simple_buffer_write_string(buffer, s_buf);
 }
 
 /* returns number of bytes actually written */
 
-inline size_t write_string_to_simple_buffer(simple_buffer *buffer, const char *string){
+size_t simple_buffer_write_string(simple_buffer_t *buffer, const char *string){
   if(string==NULL) return 0;
-  return write_to_simple_buffer(buffer, string, strlen(string));
+  return simple_buffer_write(buffer, string, strlen(string));
 }
 
 
 
-char *read_from_simple_buffer(simple_buffer *buffer, size_t size, int *retread){
+int simple_buffer_write_to_fd(simple_buffer_t *buffer, int fd){
+  int ret;
+  char *readptr=buffer->ptr+buffer->read_pos;
+  char left=buffer->write_pos-buffer->read_pos;
+  ret=write(fd, readptr, left);
+  if(ret>0){
+    buffer->read_pos+=ret;
+    left-=ret;
+  }
+  return left;
+}
+
+
+
+int simple_buffer_read_from_fd(simple_buffer_t *buffer, int fd, unsigned int size){
+  char *buf=malloc(size);
+  int ret=read(fd, buf, size);
+  if(ret>0){
+    simple_buffer_write(buffer, buf, ret);
+  }
+  free(buf);
+  return ret;
+}
+
+
+char *simple_buffer_read(simple_buffer_t *buffer, size_t size, int *retread){
   char *readptr=buffer->ptr+buffer->read_pos;
   char left=buffer->write_pos-buffer->read_pos;
   size_t r=left < size ? left : size;

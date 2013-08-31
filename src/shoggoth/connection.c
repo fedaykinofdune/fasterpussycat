@@ -10,62 +10,40 @@
 #include "global_options.h"
 
 
-void setup_connection(connection *conn){
-  conn->read_buffer=alloc_simple_buffer(opt.read_buffer_size);
-  conn->aux_buffer=alloc_simple_buffer(opt.aux_buffer_size);
+void connection_initialize(connection_t *conn){
   conn->fd=-1;
   conn->reused=0;
   conn->retrying=0;
   conn->state=IDLE;
   conn->srv_ctx=NULL;
   conn->srv_ssl=NULL;
-  conn->response=alloc_http_response();
+  conn->parser=http_response_parser_alloc();
   conn->request=NULL;
   conn->next_idle=NULL;
   conn->next_active=NULL;
   conn->prev_active=NULL;
   conn->next_conn=NULL;
-  conn->z_stream_initialized=0;
 }
 
 
-connection *alloc_connection(){
-  connection *conn=malloc(sizeof(connection));
-  setup_connection(conn);
+connection_t *connection_alloc(){
+  connection_t *conn=malloc(sizeof(connection_t));
+  connection_initialize(conn);
   return conn;
 }
 
-void connection_init(){
+void connection_global_init(){
   SSL_load_error_strings ();
   SSL_library_init ();
 
 }
 
-void reset_connection(connection *conn){
-  reset_http_response(conn->response);
-  reset_simple_buffer(conn->read_buffer);
-  reset_simple_buffer(conn->aux_buffer);
-  destroy_connection_zstream(conn);
+void connection_reset(connection *conn){
+  http_response_parser_reset(conn->parser);
 }
 
 
-void ready_connection_zstream(connection *conn){
-   conn->z_stream.zalloc = Z_NULL;
-   conn->z_stream.zfree = Z_NULL;
-   conn->z_stream.opaque = Z_NULL;
-   conn->z_stream.avail_in = 0;
-   conn->z_stream.next_in = Z_NULL;
-   inflateInit2(&conn->z_stream, 32+15);
-   conn->z_stream_initialized=1;
-}
-
-
-void destroy_connection_zstream(connection *conn){
-   if(conn->z_stream_initialized) inflateEnd(&conn->z_stream);
-   conn->z_stream_initialized=0;
-}
-
-void close_connection(connection *conn){
+void connection_close(connection *conn){
   if(conn->fd!=-1){
     close(conn->fd);
   }
@@ -82,9 +60,10 @@ void close_connection(connection *conn){
 
 
 
-int connect_to_endpoint(connection *conn){
+int connection_connect(connection *conn){
   close_connection(conn);
-  conn->fd=socket(PF_INET, SOCK_STREAM, 0);
+  int family=conn->endpoint.addr.ss_family;
+  conn->fd=socket(family, SOCK_STREAM, 0);
   conn->reused=0;
   conn->read_buffer->write_pos=0;
   conn->read_buffer->read_pos=0;
@@ -105,7 +84,18 @@ int connect_to_endpoint(connection *conn){
   conn_fd[conn->index].revents=0;
   conn->last_rw=time(NULL);
   conn->state=CONNECTING;
-  if(connect(conn->fd, ( struct sockaddr *) conn->endpoint->addr, sizeof(struct sockaddr_in)) && errno!=EINPROGRESS ) return 1;    
+  
+  switch(family){
+    case AF_INET:
+      if(connect(conn->fd, ( struct sockaddr *) &(conn->endpoint.addr), sizeof(struct sockaddr_in)) && errno!=EINPROGRESS ) return 1;  
+      break;
+    case AF_INET6:
+      if(connect(conn->fd, ( struct sockaddr *) &(conn->endpoint.addr), sizeof(struct sockaddr_in6)) && errno!=EINPROGRESS ) return 1;  
+      break;
+    default:
+      errx(1, "Family unsupported!");
+  }
+
   if(conn->endpoint->use_ssl){
     conn->srv_ctx = SSL_CTX_new(SSLv23_client_method());
     if(!conn->srv_ctx){
@@ -123,7 +113,12 @@ int connect_to_endpoint(connection *conn){
   return 0;
 }
 
-int handle_ssl_error(connection *conn, int err){
+enum http_parse_state connection_parse(connection_t *conn){
+  return http_parser_parse(conn->parser, conn);
+
+}
+
+int connection_handle_ssl_error(connection *conn, int err){
   if (err == SSL_ERROR_WANT_WRITE){
     if (conn->state==WRITING) return 0;
     conn_fd[conn->index].events=POLLOUT|POLLERR|POLLHUP;
@@ -141,7 +136,7 @@ int handle_ssl_error(connection *conn, int err){
   return -1;
 }
 
-int read_connection_to_simple_buffer(connection *conn, simple_buffer *r_buf){
+int connection_read_to_simple_buffer(connection *conn, simple_buffer *r_buf){
   int r_count;
   int wpos=r_buf->write_pos;
   int s=r_buf->size;
@@ -168,15 +163,15 @@ int read_connection_to_simple_buffer(connection *conn, simple_buffer *r_buf){
 
 
 
-void add_connection_to_server_endpoint(connection *conn, server_endpoint *endpoint){
+void connection_add_to_request_queue(connection_t *conn, request_queue_t *queue){
   shutdown(conn->fd, SHUT_RDWR);
-  conn->next_conn=endpoint->conn_list;
-  endpoint->conn_list=conn;
-  conn->next_idle=endpoint->idle_list;
-  endpoint->idle_list=conn;
+  conn->next_conn=queue->conn_list;
+  queue->conn_list=conn;
+  conn->next_idle=queue->idle_list;
+  queue->idle_list=conn;
 }
 
-int write_connection_from_simple_buffer(connection *conn, simple_buffer *w_buf){
+int connection_write_from_simple_buffer(connection_t *conn, simple_buffer_t *w_buf){
   int w_count;
   if(conn->endpoint->use_ssl) w_count = SSL_write(conn->srv_ssl, w_buf->ptr+w_buf->read_pos , w_buf->write_pos-w_buf->read_pos);
   else w_count=write(conn->fd, w_buf->ptr+w_buf->read_pos, w_buf->write_pos - w_buf->read_pos);

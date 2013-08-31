@@ -5,22 +5,27 @@
 #include "prepared_http_request.h"
 
 typedef struct {
-
-  simple_buffer *headers;
-  simple_buffer *path;
-  simple_buffer *body;
-  simple_buffer *host;
-  simple_buffer *z_address;
+  http_header_t *headers;
+  simple_buffer_t *path;
+  simple_buffer_t *body;
+  
   uint16_t port;
   uint32_t options;
-  int32_t handle;
+  uint32_t handle;
   uint8_t method;
-} http_request;
+
+  /* internal use */
+  
+  uint8_t host_set;
+  uint8_t content_length_set;
+} http_request_t;
+
+
 
 /* http_request.c */
-void write_http_request_headers_to_simple_buffer(simple_buffer *buf, const http_request *req);
-void write_http_request_to_simple_buffer(simple_buffer *buf, const http_request *req);
-void enqueue_request(http_request *req);
-prepared_http_request *prepare_http_request(http_request *req);
+void http_request_write_headers_to_simple_buffer(simple_buffer *buf, const http_request_t *req);
+void http_request_write_to_simple_buffer(simple_buffer *buf, const http_request_t *req);
+void enqueue_request(http_request_t *req);
+prepared_http_request *prepare_http_request(http_request_t *req);
 
 #endif

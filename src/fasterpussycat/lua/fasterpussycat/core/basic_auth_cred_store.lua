@@ -9,7 +9,7 @@ function basic_auth_cred_store.new()
 end
 
 function basic_auth_cred_store:add_credentials(creds)
-  local c={path=shoggoth.dirname(creds.path),username=creds.username,password=creds.password,creds.realm=realm}
+  local c={path=shoggoth.dirname(creds.path),username=creds.username,password=creds.password,realm=creds.realm}
   table.insert(self.credentials,c)
   t.by_realm[realm]=c
 end

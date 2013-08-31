@@ -1,4 +1,4 @@
-local p=Plugin.new
+local p=Plugin.new()
 p.aggressiveness=p.HUNTER
 p.depends_on={"analysis/detect_apache"}
 

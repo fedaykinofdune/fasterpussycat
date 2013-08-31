@@ -6,7 +6,7 @@
 #include <openssl/err.h>
 #include <zlib.h>
 
-typedef struct connection connection;
+typedef struct connection connection_t;
 
 #include "common/simple_buffer.h"
 #include "prepared_http_request.h"
@@ -25,24 +25,22 @@ struct connection {
   unsigned char done_ssl_handshake;
   unsigned char retrying;
   unsigned char reused;
-  http_response *response;
+  http_response_parser_t *parser;
+  http_response_t response;
   simple_buffer *read_buffer;
   simple_buffer *aux_buffer;
-  prepared_http_request *request;
+  prepared_http_request_t *request;
   unsigned int fd;
   unsigned int index;
   time_t last_rw;
   struct sockaddr *addr;
   SSL *srv_ssl;
   SSL_CTX *srv_ctx;
-  connection *next_conn;
-  connection *next_idle;
-  connection *next_active;
-  connection *prev_active;
-  server_endpoint *endpoint;
-  z_stream z_stream;
-  
-  unsigned int z_stream_initialized;
+  connection_t *next_conn;
+  connection_t *next_idle;
+  connection_t *next_active;
+  connection_t *prev_active;
+  tcp_endpoint_t *endpoint;
 };
 
 /* connection.c */

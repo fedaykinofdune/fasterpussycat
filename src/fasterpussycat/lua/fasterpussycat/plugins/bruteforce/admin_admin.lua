@@ -1,4 +1,4 @@
-local p=plugin.new
+local p=Plugin.new()
 p.aggressiveness=p.EXPLOIT
 p.speed=p.QUICK
 

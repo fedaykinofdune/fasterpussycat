@@ -14,14 +14,14 @@
 unsigned int max_total_http_connections;
 unsigned int max_total_connections;
 struct pollfd* conn_fd;
-connection *non_assoc_connections=NULL;
-connection *connection_pool;
-connection *active_connections=NULL;
+connection_t *non_assoc_connections=NULL;
+connection_t *connection_pool;
+connection_t *active_connections=NULL;
 int n_hosts=0;
 int zmq_fd;
 int zmq_index;
 
-void initialize_connection_pool(){
+void connection_pool_initialize(){
   int i;
   max_total_http_connections=opt.max_endpoints * opt.max_conn_per_endpoint;
   max_total_connections=max_total_http_connections+1;
@@ -29,45 +29,46 @@ void initialize_connection_pool(){
   conn_fd=calloc(sizeof(struct pollfd),max_total_connections);
   connection_pool=malloc(sizeof(connection) * max_total_http_connections);
   for(i=0; i<max_total_http_connections; i++){
-    setup_connection(&connection_pool[i]);
+    connection_initialize(&connection_pool[i]);
     connection_pool[i].index=i;
     conn_fd[i].events=POLLIN | POLLERR | POLLHUP;
     conn_fd[i].fd=-1;
-    disassociate_connection_from_endpoints(&connection_pool[i]);
+    connection_disassociate(&connection_pool[i]);
   }
   conn_fd[zmq_index].fd=zmq_fd;
   conn_fd[zmq_index].events=POLLIN;
 }
 
-void disassociate_connection_from_endpoints(connection *conn){
+void connection_pool_disassocate(connection *conn_t){
   conn->next_idle=non_assoc_connections;
-  conn->endpoint=NULL;
+  conn->queue=NULL;
   conn->request=NULL;
   non_assoc_connections=conn;
-  close_connection(conn);
+  connection_close(conn);
 }
 
-void associate_endpoints(){
-  server_endpoint *endpoint;
+void connection_pool_check_queues(){
+  request_queue_t *queue;
   connection *conn;
   int i;
-  while(n_hosts<opt.max_endpoints && endpoint_queue_head){
-    endpoint=endpoint_queue_head;
-    endpoint_queue_head=endpoint->next;
-    endpoint->next=NULL;
-    endpoint->prev=NULL;
-    if(endpoint==endpoint_queue_tail) endpoint_queue_tail=NULL;
-    endpoint->next_working=endpoint_working_head;
-    if(endpoint_working_head) endpoint_working_head->prev_working=endpoint;
-    endpoint_working_head=endpoint;
+  while(n_hosts<opt.max_queues && request_queue_queue_head){
+    queue=request_queue_queue_head;
+    request_queue_queue_head=queue->next_queue;
+    queue->next_queue=NULL;
+    queue->prev_queue=NULL;
+    if(queue==request_queue_queue_tail) request_queue_queue_tail=NULL;
+    queue->next_working=request_queue_working_head;
+    if(request_queue_working_head) request_queue_working_head->prev_working=queue;
+    request_queue_working_head=queue;
     n_hosts++;
-    for(i=0; i<opt.max_conn_per_endpoint; i++){
+    queue->working=1;
+    for(i=0; i<opt.max_conn_per_queue; i++){
        conn=non_assoc_connections;
        if(!conn){
         error(1,1,"There should be a connection left here!");
        }
        non_assoc_connections=conn->next_idle;
-       associate_connection_to_endpoint(conn, endpoint);
+       connection_associate(conn, queue);
     }
 
   }
@@ -76,10 +77,10 @@ void associate_endpoints(){
 
 
 
-inline void associate_idle_connection_with_next_endpoint_request(connection *idle_conn, server_endpoint *endpoint){
-  prepared_http_request *req=endpoint->queue_head;
-  endpoint->queue_head=req->next;
-  if(req==endpoint->queue_tail) endpoint->queue_tail=NULL;
+inline void connection_pool_assign_request(connection_t *idle_conn, request_queue_t *queue){
+  prepared_http_request *req=queue->queue_head;
+  queue->queue_head=req->next;
+  if(req==queue->queue_tail) endpoint->queue_tail=NULL;
   if(req->prev) req->prev->next=req->next;
   if(req->next) req->next->prev=req->prev;
   req->next=NULL;
@@ -92,15 +93,15 @@ inline void associate_idle_connection_with_next_endpoint_request(connection *idl
   }
   idle_conn->next_active=active_connections;
   active_connections=idle_conn;
-  reset_connection(idle_conn); 
+  connection_reset(idle_conn); 
 }
 
 
-void associate_idle_connections(){
-  server_endpoint *next;
-  server_endpoint *working=endpoint_working_head;
-  connection *idle_conn;
-  connection *next_idle_conn;
+void connection_pool_give_work(){
+  request_queue *next;
+  request_queue *working=request_queue_working_head;
+  connection_t *idle_conn;
+  connection_t *next_idle_conn;
   prepared_http_request *req;
   int idle;
   while(working){
@@ -117,11 +118,11 @@ void associate_idle_connections(){
       }
       working->idle_list=next_idle_conn;
       idle_conn->next_idle=NULL;
-      associate_idle_connection_with_next_endpoint_request(idle_conn, working);
+      connection_pool_assign_request(idle_conn, working);
       idle_conn=next_idle_conn;
     }
     if(idle==opt.max_conn_per_endpoint){
-      destroy_server_endpoint(working);
+      request_queue_destroy(working);
     }
     working=next;
   }
@@ -129,19 +130,19 @@ void associate_idle_connections(){
 
      
 
-void associate_connection_to_endpoint(connection *conn, server_endpoint *endpoint){
-  close_connection(conn);
-  conn->next_idle=endpoint->idle_list;
-  endpoint->idle_list=conn;
-  conn->next_conn=endpoint->conn_list;
-  endpoint->conn_list=conn;
-  conn->endpoint=endpoint;
+void connection_pool_associate(connection_t *conn, request_queue_t *queue){
+  connection_close(conn);
+  conn->next_idle=queue->idle_list;
+  queue->idle_list=conn;
+  conn->next_conn=queue->conn_list;
+  queue->conn_list=conn;
+  conn->queue=queue;
 }
 
-void update_connections(){
+void connection_pool_update(){
   int rc,i,do_err;
   time_t current_time=time(NULL);
-  connection *conn, *next_conn;
+  connection_t *conn, *next_conn;
   conn=active_connections;
   while(conn) {
     next_conn=conn->next_active;
@@ -150,12 +151,12 @@ void update_connections(){
     switch(connection_pool[i].state){
       case NOTINIT:
         do_err=0;
-        connect_to_endpoint(&connection_pool[i]);
+        connection_connect(&connection_pool[i]);
         break;
       case READY:
         do_err=0;
         if(conn_fd[i].revents & (POLLERR | POLLHUP)){
-          connect_to_endpoint(&connection_pool[i]);
+          connection_connect(&connection_pool[i]);
           break;
         }
         conn_fd[i].events= POLLERR | POLLHUP | POLLOUT;
@@ -177,12 +178,12 @@ void update_connections(){
             connect_to_endpoint(&connection_pool[i]);
           }
           else{
-            http_response_error(&connection_pool[i], Z_ERR_CONNECTION);
+            connection_pool_response_err(&connection_pool[i], SHOG_ERR_CONN);
           }
         }
         else if(conn_fd[i].revents & POLLOUT){
           do_err=0;
-          simple_buffer *payload=connection_pool[i].request->payload;
+          simple_buffer *payload=&(connection_pool[i].request.payload);
           write_connection_from_simple_buffer(&connection_pool[i],payload);
           connection_pool[i].last_rw=current_time;
           if(payload->read_pos>=payload->write_pos){
@@ -196,23 +197,23 @@ void update_connections(){
         if(conn_fd[i].revents & (POLLHUP | POLLERR)) {
           do_err=0;
           close_connection(&connection_pool[i]);
-          rc=parse_connection_response(&connection_pool[i]);
+          rc=connection_parse(&connection_pool[i]);
         }
         else if(conn_fd[i].revents & POLLIN){
           do_err=0;
           read_connection_to_simple_buffer(&connection_pool[i],connection_pool[i].read_buffer);
-          rc=parse_connection_response(&connection_pool[i]);
+          rc=connection_parse(&connection_pool[i]);
           connection_pool[i].last_rw=current_time;
         }
-        if(rc==FINISHED) http_response_finished(&connection_pool[i]);
+        if(rc==FINISHED) connection_pool_response_ok(&connection_pool[i]);
         else if(rc==INVALID) { 
-          http_response_error(&connection_pool[i], Z_ERR_HTTP);
+          connection_pool_response_err(&connection_pool[i], SHOG_ERR_HTTP);
         }
         break;
       case SSL_WANT_READ:
         if(conn_fd[i].revents & (POLLHUP | POLLERR)) {
           do_err=0;
-          http_response_error(&connection_pool[i], Z_ERR_CONNECTION);
+          connection_pool_response_err(&connection_pool[i], SHOG_ERR_CONN);
         }
         else if(conn_fd[i].revents & POLLIN){
           do_err=0;
@@ -224,7 +225,7 @@ void update_connections(){
       case SSL_WANT_WRITE:
         if(conn_fd[i].revents & (POLLHUP | POLLERR)) {
           do_err=0;
-          http_response_error(&connection_pool[i], Z_ERR_CONNECTION);
+          connection_pool_response_err(&connection_pool[i], SHOG_ERR_CONN);
         }
         else if(conn_fd[i].revents & POLLOUT){
           do_err=0;
@@ -236,41 +237,46 @@ void update_connections(){
       case IDLE:
         do_err=0;
     }
-    if(do_err && (current_time - connection_pool[i].last_rw > opt.rw_timeout)) http_response_error(&connection_pool[i], Z_ERR_TIMEOUT);
+    if(do_err && (current_time - connection_pool[i].last_rw > opt.rw_timeout)) connection_pool_response_err(&connection_pool[i], SHOG_ERR_TIMEOUT);
     conn=next_conn;
   }
 }
 
 
 
-void http_response_finished(connection *conn){
-  send_zeromq_response_ok(conn->request,conn->response);
-  if(conn->response->must_close) close_connection(conn);
+void connection_pool_response_ok(connection *conn){
+  http_parser_fill_response(conn->parser, conn->response);
+  conn->response->status=SHOG_OK;
+  conn->retrying=0;
+  messaging_send_response(conn->request, conn->response);
+  if(conn->parser->must_close) connection_close(conn);
   if(conn->state==READING) conn->state=READY;
   else conn->state=NOTINIT;
-  destroy_prepared_http_request(conn->request);
-  reset_connection(conn);
+  prepared_http_request_destroy(conn->request);
+  connection_reset(conn);
 }
 
-void http_response_error(connection *conn, uint8_t err){
-  send_zeromq_response_error(conn->request, err);
+void connection_pool_response_err(connection *conn, uint8_t err){
+  conn->response->status=err;
+  conn->response->body=NULL;
+  conn->response->body_len=NULL;
+  conn->response->packed_headers=NULL;
+  messaging_send_response(conn->request, conn->response);
   conn->endpoint->errors++;
   conn->state=NOTINIT;
+  prepared_http_request(destroy(conn->request);
   close_connection(conn);
-  destroy_prepared_http_request(conn->request);
   reset_connection(conn);
 }
 
-void main_connection_loop(){
+void connection_pool_loop(){
   while(1) {  
-  // printf("loop %lld\n", (long long) time(NULL));
   poll(conn_fd,max_total_connections,opt.poll_timeout);
  
-  update_connections();
-  // if(conn_fd[zmq_index].revents | POLLIN) update_zeromq();
-  update_zeromq();
-  associate_idle_connections();
-  associate_endpoints();
+  connection_pool_update();
+  if(conn_fd[zmq_index].revents | POLLIN) messaging_poll_requests();
+  connection_pool_check_queues();
+  connection_pool_give_work();
   }
 }
 

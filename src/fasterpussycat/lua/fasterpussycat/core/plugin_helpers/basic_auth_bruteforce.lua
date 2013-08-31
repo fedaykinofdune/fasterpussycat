@@ -1,7 +1,7 @@
 
 function basic_auth_bruteforce(self, passwords, conditions)
   self:on_new_page(function(ctx)
-    if ctx.page.needs_basic_auth() and (!conditions or conditions(ctx)) then
+    if ctx.page.needs_basic_auth() and (not conditions or conditions(ctx)) then
       local r=ctx.page.basic_auth_realm()
       local u
       local p

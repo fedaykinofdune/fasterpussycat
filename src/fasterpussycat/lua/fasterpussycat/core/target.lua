@@ -1,5 +1,4 @@
 local target={}
-local target.__index=target
 local request_factory=require('shoggoth.http_request_factory')
 local observable_table=require('fasterpussycat.core.observable_table')
 local basic_auth_cred_store=require('fasterpussycat.core.basic_auth_cred_store')
@@ -13,11 +12,11 @@ end
 
 
 function target:__newindex(k, v)
-  target.whiteboard[k]=v
+  self.whiteboard[k]=v
 end
 
 function target:set_listener(func)
-  target.whiteboard:set_listener(func)
+  self.whiteboard:set_listener(func)
 end
 
 function target:enqueue_request(req)
@@ -32,7 +31,7 @@ function target.new(t)
   end
   nt.outstanding_requests=0
   nt.request_factory=request_factory:new(t)
-  nt.request_factory:inject_request_option_function(function(t,method,path,opts)
+  nt.request_factory:inject_request_options_function(function(t,method,path,opts)
     local r=nt.basic_auth_credentials:find_by_path(path)
     if r then
       opts["basic_auth"]=r.username..":"..r.password
@@ -43,6 +42,9 @@ function target.new(t)
   nt.path=nt.request_factory.prototype_request.path
   nt.basic_auth_credentials=basic_auth_cred_store.new()
   setmetatable(nt, target)
+  nt.__index=nt
+  return nt
 end
 
+target.__index=target
 return target

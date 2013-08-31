@@ -5,33 +5,32 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-typedef struct server_endpoint server_endpoint;
+typedef struct request_queue request_queue_t;
 
 #include "common/uthash.h"
 #include "connection.h"
 #include "prepared_http_request.h"
 
-extern server_endpoint *server_endpoint_map;
-extern server_endpoint *endpoint_queue_head;
-extern server_endpoint *endpoint_queue_tail;
-extern server_endpoint *endpoint_working_head;
+extern request_queue_t *request_queue_map;
+extern request_queue_t *request_queue_queue_head;
+extern request_queue_t *request_queue_queue_tail;
+extern request_queue_t *request_queue_working;
 
-struct server_endpoint {
-  struct sockaddr_in *addr;
+struct request_queue_t {
+  tcp_endpoint_t tcp_endpoint;
   prepared_http_request *queue_head;
   prepared_http_request *queue_tail;
-  unsigned char use_ssl;
   connection *conn_list;
   connection *idle_list;
 
   /* doublely linked list */
 
-  server_endpoint *next;
-  server_endpoint *prev;
+  request_queue_t *next_queue;
+  request_queue_t *prev_queue;
   unsigned int errors;
-
-  server_endpoint *next_working;
-  server_endpoint *prev_working;
+  
+  request_queue_t *next_working;
+  request_queue_t *prev_working;
   UT_hash_handle hh;
 };
 

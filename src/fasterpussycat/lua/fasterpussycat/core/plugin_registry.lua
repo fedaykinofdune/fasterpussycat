@@ -1,4 +1,5 @@
 local plugin_constants=require('fasterpussycat.core.plugin')
+Plugin=plugin_constants
 local plugin_registry={}
 plugin_registry.ACTIVE=1
 plugin_registry.PASSIVE=0
@@ -10,7 +11,7 @@ plugin_registry.plugins.enabled={}
 plugin_registry.triggers={}
 
 function plugin_registry:load_plugins(path)
-  local handle=os.popen('find '..path..' -name "*.lua"') -- cheap and cheerful
+  local handle=io.popen('find '..path..' -name "*.lua"') -- cheap and cheerful
   local name
   local plugin
   for line in handle:lines() do
@@ -29,9 +30,9 @@ function plugin_registry:load_plugins(path)
 end
 
 function plugin_registry:find_runnable_plugins(event, cat)
-  local t=triggers[event.name]
+  local t=self.triggers[event.name]
   if type(t)=="table" then
-    if event.key and type(t[event.key)=="table" then
+    if event.key and type(t[event.key])=="table" then
       t=t[event.key]
     end
     if t[cat] then
@@ -45,17 +46,19 @@ function plugin_registry:can_enable_plugin(plugin)
   if type(plugin)=="string" then
     plugin=self.plugins.all[plugin]
   end
-  if !plugin then
+  if not plugin then
     return false
   end
   if plugin.force_disabled then
     return false
-  else 
-    for _,v in pairs(plugin.depends_on) do
-      if !self:can_enable_plugin(v) then
+  end
+  if not plugin.dependencies then
+    return true
+  end
+  for _,v in pairs(plugin.dependencies) do
+      if not self:can_enable_plugin(v) then
         return false
       end
-    end
   end
   return true
 end
@@ -63,7 +66,7 @@ end
 function plugin_registry:sort_plugins(table)
   if table[1] then
     table.sort(table, function(a,b)
-      if !a.plugin or !b.plugin then
+      if not (a.plugin and b.plugin) then
         return false
       end
       if a.plugin:is_passive()==b.plugin:is_passive() then
@@ -94,14 +97,14 @@ function plugin_registry:harvest_triggers(plugin)
     cat="active"
   end
   for k,v in pairs(plugin.triggers) do
-    if !self.triggers[k][cat] then
+    if not self.triggers[k][cat] then
       self.triggers[k][cat]={}
     end
     if type(plugin.triggers[k])=="function" then
       table.insert(self.triggers[k][cat], {plugin=plugin, func=plugin.triggers[k]})
     else
       for k1,v1 in pairs(plugin.triggers[k]) do
-        if !self.triggers[k][k1][cat] then
+        if not self.triggers[k][k1][cat] then
           self.triggers[k][k1][cat]={}
         end
         table.insert(self.triggers[k][k1][cat], {plugin=plugin, func=v1})
@@ -115,16 +118,19 @@ function plugin_registry:enable_plugin(plugin)
   if type(plugin)=="string" then
     plugin=self.plugins.all[plugin]
   end
-  if !plugin then
+  if  not plugin then
     return false
   end
 
 
-  if !self:can_enable_plugins(plugin) then
+  if not self:can_enable_plugin(plugin) then
     return false
+  end
+  if not plugin.dependencies then
+    return true
   end
   for _,v in pairs(plugin.dependencies) do
-    if !self:enable_plugin(v) then
+    if not self:enable_plugin(v) then
       return false
     end
   end
@@ -150,7 +156,7 @@ function plugin_registry:load_plugin(path)
   local status
   local ret
   status, ret=pcall(dofile, path)
-  if !status then
+  if not status then
     print(ret)
     return nil
   end

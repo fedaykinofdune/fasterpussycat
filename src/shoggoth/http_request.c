@@ -5,125 +5,88 @@
 #include "http_request.h"
 #include "prepared_http_request.h"
 #include "common/simple_buffer.h"
+#include "common/memory_pool_fixed.h"
 #include "server_endpoint.h"
 
-void write_http_request_headers_to_simple_buffer(simple_buffer *buf, const http_request *req){
-  int seen_host=0;
-  int seen_cl=!req->body->write_pos;
-  simple_buffer *headers=req->headers;
-  char *p=headers->ptr;
-  char *key;
-  int kl, vl;
-  char *value;
-  char *end=headers->ptr+headers->write_pos;
-  while(p<end){
-    key=p;
-    kl=strlen(key);
-    p=p+kl+1;
-    value=p;
-    vl=strlen(value);
-    p=p+vl+1;
+int last_handle_id=0;
 
-    write_to_simple_buffer(buf,key, kl);
-    write_to_simple_buffer(buf,": ", 2);
-    write_to_simple_buffer(buf,value, vl);
-    write_to_simple_buffer(buf,"\r\n", 2);
-    if(!seen_host && !strcasecmp(key,"Host")) seen_host=1;
-    if(!seen_cl && !strcasecmp(key,"Content-Length")) seen_cl=1;
-  }
-  if(!seen_host){
-    write_to_simple_buffer(buf,"Host: ", 6);
-    concat_simple_buffer(buf,req->host);
-    write_to_simple_buffer(buf,"\r\n", 2);
-  }
+static memory_pool_fixed_t *pool=NULL;
 
-  if(!seen_cl){
-    write_to_simple_buffer(buf,"Content-Length: ", 16);
-    write_int_to_simple_buffer(buf,req->body->write_pos);
-    write_to_simple_buffer(buf,"\r\n", 2);
-  }
+http_request_t *http_request_alloc(http_endpoint_t *endpoint){
+  if(!pool) pool=memory_pool_fixed_t(sizeof(http_request_t,64), 
+  http_request_t *req=memory_pool_fixed_alloc(pool);
+  req->handle=last_handle_id++;
+  req->path=NULL;
+  req->headers=NULL;
+  req->body=simple_buffer_alloc(64);
+  req->path=simple_buffer_alloc(64);
+  req->host_set=0;
+  req->content_length_set=0;
+  return req;
+}
+
+void *http_request_destroy(http_request_t *req){
+  simple_buffer_destroy(req->path);
+  simple_buffer_destroy(req->body);
+  http_header_destroy_list(req->headers);
+  free(req);
+
 }
 
 
-void write_http_request_to_simple_buffer(simple_buffer *buf, const http_request *req){
-  switch(req->method){
-    case GET:
-      write_to_simple_buffer(buf, "GET", 3);
-      break;
-    case POST:
-      write_to_simple_buffer(buf, "POST", 4);
-      break;
-    case PUT:
-      write_to_simple_buffer(buf, "PUT", 3);
-      break;
-    case DELETE:
-      write_to_simple_buffer(buf, "DELETE", 6);
-      break;
-    case CONNECT:
-      write_to_simple_buffer(buf, "CONNECT", 7);
-      break;
-    case TRACE:
-      write_to_simple_buffer(buf, "TRACE", 5);
-      break;
-    case HEAD:
-      write_to_simple_buffer(buf, "HEAD", 4);
-      break;
-    case OPTIONS:
-      write_to_simple_buffer(buf, "OPTIONS", 7);
-      break;
-  }
-  write_to_simple_buffer(buf, " ", 1);
-  concat_simple_buffer(buf, req->path);
-  write_to_simple_buffer(buf, " HTTP/1.1", 9);
-  write_to_simple_buffer(buf, "\r\n",  2);
-  write_http_request_headers_to_simple_buffer(buf,req);
-  write_to_simple_buffer(buf,"\r\n", 2); 
-  if(req->body->size>0) concat_simple_buffer(buf,req->body);
+
+const char *http_request_get_header(const http_request_t *req, const char *key){
+  return http_header_get_header(&req->headers, key);
 }
 
-/* TODO: handle ipv6 */
 
-static void enqueue_request_step2(enum resolved_address_state state, unsigned int addr, prepared_http_request *req){
-  static struct sockaddr_in addr_in;
-  static server_endpoint *endpoint;
-  if(state==ADDRESS_RESOLVED){
-    addr_in.sin_family = AF_INET;
-    addr_in.sin_port = req->port;
-    unsigned char *c=(unsigned char *) &addr_in.sin_addr.s_addr;
-    memcpy(&addr_in.sin_addr.s_addr, &addr, 4);
-    endpoint=find_or_create_server_endpoint(&addr_in);
-    endpoint->use_ssl=req->options & OPT_USE_SSL;
-    if(endpoint->queue_tail){
-      endpoint->queue_tail->next=req;
-      req->prev=endpoint->queue_tail;
-    }
-    endpoint->queue_tail=req;
-    if(!endpoint->queue_head) endpoint->queue_head=req;
-    req->endpoint=endpoint;
+void http_request_set_header(http_request_t *req, const char *key, const char *value){
+  if(!strcasecmp(key,"host")){
+    if(value) req->host_set=1;
+    else req->host_set=0
   }
 
-  /* TODO: return response immediately on fail */
+  if(!strcasecmp(key,"content_length")){
+    if(value) req->content_length_set=1;
+    else req->content_length_set=0
+  }
+
+  http_header_set_header(&req->headers, key, valye)
 
 }
 
-prepared_http_request *prepare_http_request(http_request *req){
-  prepared_http_request *p=alloc_prepared_http_request();
+prepared_http_request *http_request_prepare(http_request_t *req, http_endpoint_t *endpoint, prepared_http_request_t *out){
+  prepared_http_request_t *preq;
+  http_header_t *header;
+
+  if(!out) preq=prepared_http_request_alloc();
+  else preq=out;
+ 
+  /* build the prepared request */
+
+  prepared_http_request_builder_add_method (preq, req->method); 
+  prepared_http_request_builder_add_path   (preq, req->path);
+
+  if(!req->host_set && !(req->opts & SHOG_NOHOST)){
+    prepared_http_request_builder_add_header(preq, "Host", endpoint->host);
+  }
+
+  header=req->headers;
+  while(header){
+    if(header->value) prepared_http_request_builder_add_header(preq, header->key, header->value);
+    header=header->next;
+  }
+
+  if(!req->content_length_set){
+    prepared_http_request_builder_add_header_int(preq, "Content-Length", req->body->write_pos);
+  }
+  
+  prepared_http_request_builder_add_body   (preq, req->body->ptr, req->body->write_pos);
+  
   p->options=req->options;
-  p->port=req->port;
-  memcpy(p->z_address,req->z_address->ptr,req->z_address->write_pos);
-  p->z_address_size=req->z_address->write_pos;
+  p->endpoint=req->endpoint->tcp_endpoint;
   p->handle=req->handle;
-  write_http_request_to_simple_buffer(p->payload, req); 
   return p;
 }
 
 
-
-void enqueue_request(http_request *req){
-  char host[255];
-  int s =req->host->write_pos > 254 ? 254 : req->host->write_pos;
-  prepared_http_request *p=prepare_http_request(req);
-  memcpy(host,req->host->ptr,s);
-  host[s]=0;
-  lookup_address(host,enqueue_request_step2, p); 
-}

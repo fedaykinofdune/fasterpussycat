@@ -13,7 +13,7 @@ plugin.INTENSE=4
 plugin.ALL_LEVELS=7
 
 function plugin.new()
-  p={}
+  local p={}
   p.triggers={}
   p.triggers.new_target={}
   p.triggers.new_page={}
@@ -34,10 +34,10 @@ end
 
 
 function plugin:on_target_key_change(key, func)
-  if !p.triggers.target_keys[key] then
-    p.triggers.target_keys[key]={}
+  if not self.triggers.target_keys[key] then
+    self.triggers.target_keys[key]={}
   end
-  table.insert(p.triggers.target_keys[key],func)
+  table.insert(self.triggers.target_keys[key],func)
 end
 
   
@@ -52,7 +52,7 @@ function plugin:on_target_key_equals(key, value, func)
 end
 
 function plugin:on_page_key_change(key, func)
-  if !p.triggers.page_keys[key] then
+  if not p.triggers.page_keys[key] then
     p.triggers.page_keys[key]={}
   end
   table.insert(p.triggers.page_keys[key],func)

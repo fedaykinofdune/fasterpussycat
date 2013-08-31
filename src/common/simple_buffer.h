@@ -1,15 +1,22 @@
 #ifndef SHOGGOTH_SIMPLE_BUFFER_H
 #define SHOGGOTH_SIMPLE_BUFFER_H
 #include <stdlib.h>
+
+#define simple_buffer_size(_buf) _buf->write_pos
+
 typedef struct {
   size_t size;
   unsigned int read_pos;
   unsigned int write_pos;
   char *ptr;
+  void (*free) ((void *), (void *));
+  void *free_hint;
 } simple_buffer;
 
 
 /* simple_buffer.c */
+
+
 
 simple_buffer *alloc_simple_buffer(size_t size);
 void destroy_simple_buffer(simple_buffer *buffer);

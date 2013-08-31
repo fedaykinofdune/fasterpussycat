@@ -1,7 +1,9 @@
 local queue={}
-
+queue.__index=queue
 function queue.new()
-  return {top=0, last=-1}
+  local c={top=1, last=0}
+  setmetatable(c,queue)
+  return c
 end
 
 function queue:push(element)
@@ -15,7 +17,10 @@ function queue:pop()
     return nil
   end
   local v=self[self.top]
+  print(v)
   self[self.top]=nil
   self.top=self.top+1
   return v
 end
+
+return queue
